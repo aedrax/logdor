@@ -10,6 +10,8 @@ MainWindow::MainWindow(QWidget* parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    // this allows the dock widget to use the full window
+    this->setCentralWidget(nullptr);
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::onActionOpenTriggered);
 }
 
@@ -26,11 +28,15 @@ bool MainWindow::openFile(const QString& fileName)
         return false;
     }
 
-    QTextStream in(&file);
-    QString content = in.readAll();
-    file.close();
+    // clear the list widget
+    ui->listWidget->clear();
 
-    ui->plainTextEdit->setPlainText(content);
+    QTextStream in(&file);
+    // for every line in the file, add it to the list widget
+    for (QString line = in.readLine(); !line.isNull(); line = in.readLine()) {
+        ui->listWidget->addItem(line);
+    }
+    file.close();
 
     return true;
 }
