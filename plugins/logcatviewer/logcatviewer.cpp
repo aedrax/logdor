@@ -57,9 +57,9 @@ void LogcatViewer::setupUi()
 
     // Setup table
     m_layout->addWidget(m_table);
-    m_table->setColumnCount(6);
-    m_table->setHorizontalHeaderLabels({"No.", "Time", "PID", "Level", "Tag", "Message"});
-    m_table->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Stretch); // Message column stretches
+    m_table->setColumnCount(7);
+    m_table->setHorizontalHeaderLabels({"No.", "Time", "PID", "TID", "Level", "Tag", "Message"});
+    m_table->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch); // Message column stretches
     m_table->setShowGrid(false);
     m_table->setAlternatingRowColors(true);
     m_table->verticalHeader()->setVisible(false);
@@ -89,16 +89,17 @@ bool LogcatViewer::loadContent(const QByteArray& content)
 void LogcatViewer::parseLogLine(const QString& line)
 {
     // Example logcat format: "05-09 17:49:51.123  1234  5678 D Tag    : Message here"
-    static QRegularExpression re(R"((\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+\d+\s+([VDIWEF])\s+([^:]+)\s*:\s*(.*))");
+    static QRegularExpression re(R"((\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+)\s*:\s*(.*))");
     
     auto match = re.match(line);
     if (match.hasMatch()) {
         LogEntry entry;
         entry.timestamp = match.captured(1);
         entry.pid = match.captured(2);
-        entry.level = LogEntry::parseLevel(match.captured(3)[0]);
-        entry.tag = match.captured(4).trimmed();
-        entry.message = match.captured(5);
+        entry.tid = match.captured(3);
+        entry.level = LogEntry::parseLevel(match.captured(4)[0]);
+        entry.tag = match.captured(5).trimmed();
+        entry.message = match.captured(6);
         
         m_entries.append(entry);
         m_directMatches.append(false);  // Initialize as not a direct match
@@ -125,20 +126,26 @@ void LogcatViewer::parseLogLine(const QString& line)
         pidItem->setForeground(color);
         m_table->setItem(row, 2, pidItem);
         
+        // TID
+        QTableWidgetItem* tidItem = new QTableWidgetItem();
+        tidItem->setData(Qt::DisplayRole, entry.tid.toLongLong());
+        tidItem->setForeground(color);
+        m_table->setItem(row, 3, tidItem);
+        
         // Level
         QTableWidgetItem* levelItem = new QTableWidgetItem(LogEntry::levelToString(entry.level));
         levelItem->setForeground(color);
-        m_table->setItem(row, 3, levelItem);
+        m_table->setItem(row, 4, levelItem);
         
         // Tag
         QTableWidgetItem* tagItem = new QTableWidgetItem(entry.tag);
         tagItem->setForeground(color);
-        m_table->setItem(row, 4, tagItem);
+        m_table->setItem(row, 5, tagItem);
         
         // Message
         QTableWidgetItem* msgItem = new QTableWidgetItem(entry.message);
         msgItem->setForeground(color);
-        m_table->setItem(row, 5, msgItem);
+        m_table->setItem(row, 6, msgItem);
     }
 }
 
@@ -263,7 +270,13 @@ void LogcatViewer::setSortRole(QTableWidgetItem* item, int column, int row) cons
             item->setData(Qt::UserRole, ok ? pid : 0);
         }
             break;
-        case 3: { // Level
+        case 3: { // TID
+            bool ok;
+            qlonglong tid = item->text().toLongLong(&ok);
+            item->setData(Qt::UserRole, ok ? tid : 0);
+            break;
+        }
+        case 4: { // Level
             // Sort by severity (Fatal->Error->Warning->Info->Debug->Verbose)
             static const QMap<QString, int> levelOrder = {
                 {"Fatal", 0},
@@ -276,8 +289,8 @@ void LogcatViewer::setSortRole(QTableWidgetItem* item, int column, int row) cons
             item->setData(Qt::UserRole, levelOrder.value(item->text(), 999));
             break;
         }
-        case 4: // Tag
-        case 5: // Message
+        case 5: // Tag
+        case 6: // Message
             item->setData(Qt::UserRole, item->text().toLower()); // Case-insensitive sort
             break;
     }
