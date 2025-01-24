@@ -8,11 +8,15 @@
 #include <QToolBar>
 #include <QLabel>
 #include <QLineEdit>
+#include <QSpinBox>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , m_pluginManager(new PluginManager(this))
+    , m_filterInput(new QLineEdit(this))
+    , m_beforeSpinBox(new QSpinBox(this))
+    , m_afterSpinBox(new QSpinBox(this))
 {
     ui->setupUi(this);
     // this allows the dock widget to use the full window
@@ -26,11 +30,31 @@ MainWindow::MainWindow(QWidget* parent)
     QLabel* filterLabel = new QLabel(tr("Filter:"), this);
     filterToolBar->addWidget(filterLabel);
     
-    QLineEdit* filterInput = new QLineEdit(this);
-    filterInput->setPlaceholderText(tr("Enter filter text..."));
-    filterToolBar->addWidget(filterInput);
+    m_filterInput->setPlaceholderText(tr("Enter filter text..."));
+    filterToolBar->addWidget(m_filterInput);
     
-    connect(filterInput, &QLineEdit::textChanged, this, &MainWindow::onFilterTextChanged);
+    // Add context line controls
+    filterToolBar->addSeparator();
+    
+    QLabel* beforeLabel = new QLabel(tr("Lines Before:"), this);
+    filterToolBar->addWidget(beforeLabel);
+    
+    // m_beforeSpinBox->setRange(0, 10);
+    m_beforeSpinBox->setValue(0);
+    m_beforeSpinBox->setToolTip(tr("Number of context lines to show before matches"));
+    filterToolBar->addWidget(m_beforeSpinBox);
+
+    QLabel* afterLabel = new QLabel(tr("Lines After:"), this);
+    filterToolBar->addWidget(afterLabel);
+    
+    // m_afterSpinBox->setRange(0, 10);
+    m_afterSpinBox->setValue(0);
+    m_afterSpinBox->setToolTip(tr("Number of context lines to show after matches"));
+    filterToolBar->addWidget(m_afterSpinBox);
+    
+    connect(m_filterInput, &QLineEdit::textChanged, this, &MainWindow::onFilterChanged);
+    connect(m_beforeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
+    connect(m_afterSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
 
     loadPlugins();
 }
@@ -90,10 +114,12 @@ void MainWindow::onActionOpenTriggered()
     }
 }
 
-void MainWindow::onFilterTextChanged(const QString& text)
+void MainWindow::onFilterChanged()
 {
-    // Apply filter to all active plugins
+    // Apply filter to all active plugins with context lines
     for (PluginInterface* plugin : m_activePlugins) {
-        plugin->applyFilter(text);
+        plugin->applyFilter(m_filterInput->text(), 
+                          m_beforeSpinBox->value(), 
+                          m_afterSpinBox->value());
     }
 }
