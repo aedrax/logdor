@@ -16,6 +16,9 @@ set(PROJECT_SOURCES
     src/mainwindow.cpp
     src/mainwindow.h
     src/mainwindow.ui
+    src/plugininterface.h
+    src/pluginmanager.cpp
+    src/pluginmanager.h
 )
 
 qt_add_executable(logdor
@@ -23,7 +26,9 @@ qt_add_executable(logdor
     ${PROJECT_SOURCES}
 )
 
-target_link_libraries(logdor PRIVATE Qt6::Widgets)
+target_link_libraries(logdor PRIVATE
+    Qt6::Widgets
+)
 
 set_target_properties(logdor PROPERTIES
     ${BUNDLE_ID_OPTION}

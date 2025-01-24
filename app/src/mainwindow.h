@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "pluginmanager.h"
 #include <QMainWindow>
 
 QT_BEGIN_NAMESPACE
@@ -24,5 +25,9 @@ private slots:
 
 private:
     Ui::MainWindow* ui;
+    PluginManager* m_pluginManager;
+    QMap<QString, PluginInterface*> m_activePlugins;
+
+    void loadPlugins();
 };
 #endif // MAINWINDOW_H
