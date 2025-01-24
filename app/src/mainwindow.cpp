@@ -5,6 +5,9 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QTextStream>
+#include <QToolBar>
+#include <QLabel>
+#include <QLineEdit>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -15,6 +18,19 @@ MainWindow::MainWindow(QWidget* parent)
     // this allows the dock widget to use the full window
     this->setCentralWidget(nullptr);
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::onActionOpenTriggered);
+
+    // Create filter toolbar
+    QToolBar* filterToolBar = addToolBar(tr("Filter"));
+    filterToolBar->setMovable(false);
+    
+    QLabel* filterLabel = new QLabel(tr("Filter:"), this);
+    filterToolBar->addWidget(filterLabel);
+    
+    QLineEdit* filterInput = new QLineEdit(this);
+    filterInput->setPlaceholderText(tr("Enter filter text..."));
+    filterToolBar->addWidget(filterInput);
+    
+    connect(filterInput, &QLineEdit::textChanged, this, &MainWindow::onFilterTextChanged);
 
     loadPlugins();
 }
@@ -71,5 +87,13 @@ void MainWindow::onActionOpenTriggered()
     QFileDialog fileDialog(this, tr("Open File"), QString(), tr("All Files (*)"));
     while (fileDialog.exec() == QDialog::Accepted
         && !openFile(fileDialog.selectedFiles().constFirst())) {
+    }
+}
+
+void MainWindow::onFilterTextChanged(const QString& text)
+{
+    // Apply filter to all active plugins
+    for (PluginInterface* plugin : m_activePlugins) {
+        plugin->applyFilter(text);
     }
 }

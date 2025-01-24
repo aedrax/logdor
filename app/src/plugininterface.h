@@ -17,6 +17,9 @@ public:
 
     // Load content into the plugin's widget
     virtual bool loadContent(const QByteArray& content) = 0;
+
+    // Apply a filter query to the content
+    virtual void applyFilter(const QString& query) = 0;
 };
 
 // Define the plugin interface ID
