@@ -74,6 +74,7 @@ bool LogcatViewer::loadContent(const QByteArray& content)
 {
     m_entries.clear();
     m_table->setRowCount(0);
+    m_directMatches.clear();
 
     QTextStream in(content);
     while (!in.atEnd()) {
@@ -100,6 +101,7 @@ void LogcatViewer::parseLogLine(const QString& line)
         entry.message = match.captured(5);
         
         m_entries.append(entry);
+        m_directMatches.append(false);  // Initialize as not a direct match
         
         int row = m_table->rowCount();
         m_table->insertRow(row);
@@ -164,14 +166,49 @@ bool LogcatViewer::matchesFilter(const LogEntry& entry) const
 
 void LogcatViewer::updateVisibleRows()
 {
+    if (m_entries.isEmpty()) {
+        return;
+    }
+
+    // First pass: identify direct matches
+    m_directMatches.resize(m_entries.size());
     for (int i = 0; i < m_entries.size(); ++i) {
-        m_table->setRowHidden(i, !matchesFilter(m_entries[i]));
+        m_directMatches[i] = matchesFilter(m_entries[i]);
+    }
+
+    // Second pass: show/hide rows considering context lines
+    for (int i = 0; i < m_entries.size(); ++i) {
+        bool shouldShow = m_directMatches[i];
+
+        if (!shouldShow) {
+            // Check if this line should be shown as context before a match
+            for (int j = 1; j <= m_contextLinesBefore && i + j < m_entries.size(); ++j) {
+                if (m_directMatches[i + j]) {
+                    shouldShow = true;
+                    break;
+                }
+            }
+        }
+
+        if (!shouldShow) {
+            // Check if this line should be shown as context after a match
+            for (int j = 1; j <= m_contextLinesAfter && i - j >= 0; ++j) {
+                if (m_directMatches[i - j]) {
+                    shouldShow = true;
+                    break;
+                }
+            }
+        }
+
+        m_table->setRowHidden(i, !shouldShow);
     }
 }
 
-void LogcatViewer::applyFilter(const QString& query)
+void LogcatViewer::applyFilter(const QString& query, int contextLinesBefore, int contextLinesAfter)
 {
     m_filterQuery = query;
+    m_contextLinesBefore = contextLinesBefore;
+    m_contextLinesAfter = contextLinesAfter;
     updateVisibleRows();
 }
 

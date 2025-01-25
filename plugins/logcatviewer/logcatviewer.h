@@ -9,6 +9,7 @@
 #include <QtPlugin>
 #include <QAction>
 #include <QMap>
+
 class LogEntry {
 public:
     enum class Level {
@@ -75,7 +76,7 @@ public:
     QString name() const override { return "Logcat Viewer"; }
     QWidget* widget() override { return m_container; }
     bool loadContent(const QByteArray& content) override;
-    void applyFilter(const QString& query) override;
+    void applyFilter(const QString& query, int contextLinesBefore = 0, int contextLinesAfter = 0) override;
 
 private slots:
     void toggleLevel(LogEntry::Level level, bool enabled);
@@ -96,6 +97,11 @@ private:
     QString m_filterQuery;
     QMap<LogEntry::Level, bool> m_levelFilters;
     QMap<LogEntry::Level, QAction*> m_levelActions;
+    
+    // Context lines
+    int m_contextLinesBefore{0};
+    int m_contextLinesAfter{0};
+    QVector<bool> m_directMatches;  // Tracks which lines directly match the filter
 };
 
 #endif // LOGCATVIEWER_H

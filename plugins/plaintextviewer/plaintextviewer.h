@@ -19,13 +19,14 @@ public:
     QString name() const override { return "Plain Text Viewer"; }
     QWidget* widget() override { return m_listWidget; }
     bool loadContent(const QByteArray& content) override;
-    void applyFilter(const QString& query) override;
+    void applyFilter(const QString& query, int contextLinesBefore = 0, int contextLinesAfter = 0) override;
 
 private:
     QListWidget* m_listWidget;
     QByteArray m_originalContent;  // Store original content for filtering
     QVector<QPair<int, QString>> m_lines;  // Store line numbers with content
     LineNumberDelegate* m_lineNumberDelegate;
+    QVector<bool> m_directMatches;  // Tracks which lines directly match the filter
 };
 
 #endif // PLAINTEXTVIEWER_H
