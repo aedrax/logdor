@@ -19,6 +19,7 @@ set(PROJECT_SOURCES
     src/plugininterface.h
     src/pluginmanager.cpp
     src/pluginmanager.h
+    resources/resources.qrc
 )
 
 qt_add_executable(logdor
