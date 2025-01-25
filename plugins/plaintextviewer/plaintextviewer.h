@@ -18,9 +18,11 @@ public:
     QString name() const override { return "Plain Text Viewer"; }
     QWidget* widget() override { return m_listWidget; }
     bool loadContent(const QByteArray& content) override;
+    void applyFilter(const QString& query) override;
 
 private:
     QListWidget* m_listWidget;
+    QByteArray m_originalContent;  // Store original content for filtering
 };
 
 #endif // PLAINTEXTVIEWER_H

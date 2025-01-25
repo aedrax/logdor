@@ -22,6 +22,7 @@ public slots:
 
 private slots:
     void onActionOpenTriggered();
+    void onFilterTextChanged(const QString& text);
 
 private:
     Ui::MainWindow* ui;
