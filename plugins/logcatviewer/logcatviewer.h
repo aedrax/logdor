@@ -23,6 +23,7 @@ public:
 
     QString timestamp;
     QString pid;
+    QString tid;  // Thread ID
     Level level;
     QString tag;
     QString message;
