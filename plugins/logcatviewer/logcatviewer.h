@@ -9,6 +9,29 @@
 #include <QtPlugin>
 #include <QAction>
 #include <QMap>
+#include <QComboBox>
+#include <QSet>
+#include <QLabel>
+#include <QHBoxLayout>
+#include <QPushButton>
+#include <QFrame>
+#include <QScrollArea>
+
+class TagLabel : public QFrame {
+    Q_OBJECT
+public:
+    TagLabel(const QString& tag, QWidget* parent = nullptr);
+    QString tag() const { return m_tag; }
+
+signals:
+    void removed();
+
+private:
+    QString m_tag;
+    QHBoxLayout* m_layout;
+    QLabel* m_label;
+    QPushButton* m_removeButton;
+};
 
 class LogEntry {
 public:
@@ -89,6 +112,7 @@ private:
     void parseLogLine(const QString& line);
     bool matchesFilter(const LogEntry& entry) const;
     void setSortRole(QTableWidgetItem* item, int column, int row) const;
+    void addTagLabel(const QString& tag);
 
     QWidget* m_container;
     QVBoxLayout* m_layout;
@@ -98,6 +122,12 @@ private:
     QString m_filterQuery;
     QMap<LogEntry::Level, bool> m_levelFilters;
     QMap<LogEntry::Level, QAction*> m_levelActions;
+    QComboBox* m_tagComboBox;
+    QSet<QString> m_uniqueTags;
+    QSet<QString> m_selectedTags;
+    QScrollArea* m_scrollArea;
+    QFrame* m_tagsContainer;
+    QHBoxLayout* m_tagsLayout;
     
     // Context lines
     int m_contextLinesBefore{0};
