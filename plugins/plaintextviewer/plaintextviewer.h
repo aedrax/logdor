@@ -15,7 +15,7 @@ public:
     ~PlainTextViewer();
 
     // PluginInterface implementation
-    QString name() const override { return "Plain Text Viewer"; }
+    QString name() const override { return tr("Plain Text Viewer"); }
     QWidget* widget() override { return m_tableWidget; }
     bool loadContent(const QByteArray& content) override;
     void applyFilter(const QString& query, int contextLinesBefore = 0, int contextLinesAfter = 0) override;
