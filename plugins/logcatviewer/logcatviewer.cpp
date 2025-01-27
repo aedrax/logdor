@@ -135,7 +135,7 @@ void LogcatViewer::setupUi()
     m_table->setHorizontalHeaderLabels({"No.", "Time", "PID", "TID", "Level", "Tag", "Message"});
     m_table->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch); // Message column stretches
     m_table->setShowGrid(false);
-    m_table->setAlternatingRowColors(true);
+    m_table->setAlternatingRowColors(false);
     m_table->verticalHeader()->setVisible(false);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -215,40 +215,39 @@ void LogcatViewer::parseLogLine(const QString& line)
         int row = m_table->rowCount();
         m_table->insertRow(row);
         
-        QColor color = LogEntry::levelColor(entry.level);
+        QColor bgColor = LogEntry::levelColor(entry.level);
+        
+        // Create and set items with background and text colors
+        auto createItem = [&](const QString& text = QString()) {
+            QTableWidgetItem* item = new QTableWidgetItem(text);
+            item->setBackground(bgColor);
+            item->setForeground(Qt::black);
+            return item;
+        };
         
         // Line number
-        QTableWidgetItem* numItem = new QTableWidgetItem();
+        QTableWidgetItem* numItem = createItem();
         numItem->setData(Qt::DisplayRole, row + 1);
-        numItem->setForeground(color);
         m_table->setItem(row, 0, numItem);
         
         // Timestamp
-        QTableWidgetItem* timeItem = new QTableWidgetItem(entry.timestamp);
-        timeItem->setForeground(color);
-        m_table->setItem(row, 1, timeItem);
+        m_table->setItem(row, 1, createItem(entry.timestamp));
         
         // PID
-        QTableWidgetItem* pidItem = new QTableWidgetItem();
+        QTableWidgetItem* pidItem = createItem();
         pidItem->setData(Qt::DisplayRole, entry.pid.toLongLong());
-        pidItem->setForeground(color);
         m_table->setItem(row, 2, pidItem);
         
         // TID
-        QTableWidgetItem* tidItem = new QTableWidgetItem();
+        QTableWidgetItem* tidItem = createItem();
         tidItem->setData(Qt::DisplayRole, entry.tid.toLongLong());
-        tidItem->setForeground(color);
         m_table->setItem(row, 3, tidItem);
         
         // Level
-        QTableWidgetItem* levelItem = new QTableWidgetItem(LogEntry::levelToString(entry.level));
-        levelItem->setForeground(color);
-        m_table->setItem(row, 4, levelItem);
+        m_table->setItem(row, 4, createItem(LogEntry::levelToString(entry.level)));
         
         // Tag
-        QTableWidgetItem* tagItem = new QTableWidgetItem(entry.tag);
-        tagItem->setForeground(color);
-        m_table->setItem(row, 5, tagItem);
+        m_table->setItem(row, 5, createItem(entry.tag));
 
         // Update tag collection and combobox
         if (!entry.tag.isEmpty() && !m_uniqueTags.contains(entry.tag)) {
@@ -257,9 +256,7 @@ void LogcatViewer::parseLogLine(const QString& line)
         }
         
         // Message
-        QTableWidgetItem* msgItem = new QTableWidgetItem(entry.message);
-        msgItem->setForeground(color);
-        m_table->setItem(row, 6, msgItem);
+        m_table->setItem(row, 6, createItem(entry.message));
     }
 }
 

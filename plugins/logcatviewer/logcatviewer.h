@@ -77,13 +77,13 @@ public:
 
     static QColor levelColor(Level level) {
         switch (level) {
-            case Level::Verbose: return QColor(120, 120, 120);  // Gray
-            case Level::Debug: return QColor(0, 120, 0);        // Dark Green
-            case Level::Info: return QColor(0, 0, 0);          // Black
-            case Level::Warning: return QColor(180, 130, 0);    // Orange
-            case Level::Error: return QColor(200, 0, 0);       // Red
-            case Level::Fatal: return QColor(160, 0, 160);     // Purple
-            default: return QColor(0, 0, 0);
+            case Level::Verbose: return QColor(150, 150, 150);  // Light Gray
+            case Level::Debug: return QColor(144, 238, 144);    // Light Green
+            case Level::Info: return QColor(135, 206, 250);     // Light Blue
+            case Level::Warning: return QColor(255, 165, 0);    // Orange
+            case Level::Error: return QColor(255, 99, 71);      // Tomato Red
+            case Level::Fatal: return QColor(186, 85, 211);     // Medium Purple
+            default: return QColor(255, 255, 255);              // White
         }
     }
 };
