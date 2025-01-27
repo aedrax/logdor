@@ -2,10 +2,9 @@
 #define PLAINTEXTVIEWER_H
 
 #include "../../app/src/plugininterface.h"
-#include <QListWidget>
+#include <QTableWidget>
 #include <QString>
 #include <QtPlugin>
-#include "../../plugins/shared/linenumberdelegate.h"
 
 class PlainTextViewer : public QObject, public PluginInterface {
     Q_OBJECT
@@ -17,15 +16,14 @@ public:
 
     // PluginInterface implementation
     QString name() const override { return "Plain Text Viewer"; }
-    QWidget* widget() override { return m_listWidget; }
+    QWidget* widget() override { return m_tableWidget; }
     bool loadContent(const QByteArray& content) override;
     void applyFilter(const QString& query, int contextLinesBefore = 0, int contextLinesAfter = 0) override;
 
 private:
-    QListWidget* m_listWidget;
+    QTableWidget* m_tableWidget;
     QByteArray m_originalContent;  // Store original content for filtering
     QVector<QPair<int, QString>> m_lines;  // Store line numbers with content
-    LineNumberDelegate* m_lineNumberDelegate;
     QVector<bool> m_directMatches;  // Tracks which lines directly match the filter
 };
 

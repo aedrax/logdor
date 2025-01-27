@@ -1,3 +1,2 @@
-add_subdirectory(shared)
 add_subdirectory(plaintextviewer)
 add_subdirectory(logcatviewer)
