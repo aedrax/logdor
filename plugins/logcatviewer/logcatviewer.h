@@ -97,7 +97,7 @@ public:
     ~LogcatViewer();
 
     // PluginInterface implementation
-    QString name() const override { return "Logcat Viewer"; }
+    QString name() const override { return tr("Logcat Viewer"); }
     QWidget* widget() override { return m_container; }
     bool loadContent(const QByteArray& content) override;
     void applyFilter(const QString& query, int contextLinesBefore = 0, int contextLinesAfter = 0) override;
