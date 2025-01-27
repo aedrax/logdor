@@ -1,10 +1,10 @@
 #include "logcatviewer.h"
 #include <QHeaderView>
-#include <QTextStream>
-#include <QRegularExpression>
 #include <QIcon>
-#include <QStyle>
 #include <QLineEdit>
+#include <QRegularExpression>
+#include <QStyle>
+#include <QTextStream>
 
 TagLabel::TagLabel(const QString& tag, QWidget* parent)
     : QFrame(parent)
@@ -16,19 +16,18 @@ TagLabel::TagLabel(const QString& tag, QWidget* parent)
     setFrameStyle(QFrame::StyledPanel | QFrame::Raised);
     setStyleSheet("QFrame { background: #e0e0e0; border-radius: 4px; margin: 2px; }"
                   "QLabel { color: black; }");
-    
+
     m_layout->setContentsMargins(6, 2, 2, 2);
     m_layout->setSpacing(4);
-    
+
     m_removeButton->setFixedSize(16, 16);
     m_removeButton->setStyleSheet(
         "QPushButton { border: none; color: #666; background: transparent; padding: 0; }"
-        "QPushButton:hover { color: #000; }"
-    );
-    
+        "QPushButton:hover { color: #000; }");
+
     m_layout->addWidget(m_label);
     m_layout->addWidget(m_removeButton);
-    
+
     connect(m_removeButton, &QPushButton::clicked, this, &TagLabel::removed);
 }
 
@@ -46,8 +45,8 @@ LogcatViewer::LogcatViewer()
     m_tagComboBox->setEditable(true);
     m_tagComboBox->setInsertPolicy(QComboBox::InsertAlphabetically);
     m_tagComboBox->setMinimumWidth(200);
-    m_tagComboBox->setPlaceholderText("Filter by package/tag...");
-    
+    m_tagComboBox->setPlaceholderText(tr("Filter by package/tag..."));
+
     // Setup scroll area for tags
     m_scrollArea->setWidget(m_tagsContainer);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -55,13 +54,13 @@ LogcatViewer::LogcatViewer()
     m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setFixedHeight(36); // Enough height for one row of tags
     m_scrollArea->setFrameStyle(QFrame::NoFrame);
-    
+
     // Setup tags container
     m_tagsContainer->setStyleSheet("QFrame { background: transparent; }");
     m_tagsLayout->setContentsMargins(0, 0, 0, 0);
     m_tagsLayout->setSpacing(2);
     m_tagsLayout->addStretch();
-    
+
     // Handle Enter key press in the combobox
     connect(m_tagComboBox->lineEdit(), &QLineEdit::returnPressed, this, [this]() {
         QString tag = m_tagComboBox->currentText().trimmed();
@@ -70,7 +69,7 @@ LogcatViewer::LogcatViewer()
             m_tagComboBox->setCurrentText("");
         }
     });
-    
+
     // Handle item activation from dropdown
     connect(m_tagComboBox, QOverload<int>::of(&QComboBox::activated), this, [this](int index) {
         QString tag = m_tagComboBox->itemText(index).trimmed();
@@ -79,9 +78,9 @@ LogcatViewer::LogcatViewer()
             m_tagComboBox->setCurrentText("");
         }
     });
-    
+
     setupUi();
-    
+
     // Initialize level filters (all enabled by default)
     m_levelFilters[LogEntry::Level::Verbose] = true;
     m_levelFilters[LogEntry::Level::Debug] = true;
@@ -101,7 +100,7 @@ void LogcatViewer::setupUi()
     // Setup toolbar with level filter buttons
     m_layout->setContentsMargins(0, 0, 0, 0);
     m_layout->addWidget(m_toolbar);
-    
+
     auto addLevelAction = [this](LogEntry::Level level) {
         QAction* action = new QAction(LogEntry::levelToString(level), this);
         action->setCheckable(true);
@@ -132,7 +131,7 @@ void LogcatViewer::setupUi()
     // Setup table
     m_layout->addWidget(m_table);
     m_table->setColumnCount(7);
-    m_table->setHorizontalHeaderLabels({"No.", "Time", "PID", "TID", "Level", "Tag", "Message"});
+    m_table->setHorizontalHeaderLabels({ "No.", "Time", "PID", "TID", "Level", "Tag", "Message" });
     m_table->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch); // Message column stretches
     m_table->setShowGrid(false);
     m_table->setAlternatingRowColors(false);
@@ -141,7 +140,7 @@ void LogcatViewer::setupUi()
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->setSortingEnabled(true);
     connect(m_table->horizontalHeader(), &QHeaderView::sortIndicatorChanged,
-            this, &LogcatViewer::handleSort);
+        this, &LogcatViewer::handleSort);
 }
 
 void LogcatViewer::addTagLabel(const QString& tag)
@@ -149,20 +148,20 @@ void LogcatViewer::addTagLabel(const QString& tag)
     if (m_selectedTags.contains(tag)) {
         return;
     }
-    
+
     m_selectedTags.insert(tag);
     TagLabel* label = new TagLabel(tag, m_tagsContainer);
-    
+
     // Insert before the stretch
     m_tagsLayout->insertWidget(m_tagsLayout->count() - 1, label);
-    
+
     connect(label, &TagLabel::removed, this, [this, label, tag]() {
         m_selectedTags.remove(tag);
         m_tagsLayout->removeWidget(label);
         label->deleteLater();
         updateVisibleRows();
     });
-    
+
     updateVisibleRows();
 }
 
@@ -173,7 +172,7 @@ bool LogcatViewer::loadContent(const QByteArray& content)
     m_directMatches.clear();
     m_uniqueTags.clear();
     m_tagComboBox->clear();
-    
+
     // Clear selected tags
     while (m_tagsLayout->count() > 1) { // Keep the stretch
         QLayoutItem* item = m_tagsLayout->takeAt(0);
@@ -198,7 +197,7 @@ void LogcatViewer::parseLogLine(const QString& line)
 {
     // Example logcat format: "05-09 17:49:51.123  1234  5678 D Tag    : Message here"
     static QRegularExpression re(R"((\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+)\s*:\s*(.*))");
-    
+
     auto match = re.match(line);
     if (match.hasMatch()) {
         LogEntry entry;
@@ -208,15 +207,15 @@ void LogcatViewer::parseLogLine(const QString& line)
         entry.level = LogEntry::parseLevel(match.captured(4)[0]);
         entry.tag = match.captured(5).trimmed();
         entry.message = match.captured(6);
-        
+
         m_entries.append(entry);
-        m_directMatches.append(false);  // Initialize as not a direct match
-        
+        m_directMatches.append(false); // Initialize as not a direct match
+
         int row = m_table->rowCount();
         m_table->insertRow(row);
-        
+
         QColor bgColor = LogEntry::levelColor(entry.level);
-        
+
         // Create and set items with background and text colors
         auto createItem = [&](const QString& text = QString()) {
             QTableWidgetItem* item = new QTableWidgetItem(text);
@@ -224,28 +223,28 @@ void LogcatViewer::parseLogLine(const QString& line)
             item->setForeground(Qt::black);
             return item;
         };
-        
+
         // Line number
         QTableWidgetItem* numItem = createItem();
         numItem->setData(Qt::DisplayRole, row + 1);
         m_table->setItem(row, 0, numItem);
-        
+
         // Timestamp
         m_table->setItem(row, 1, createItem(entry.timestamp));
-        
+
         // PID
         QTableWidgetItem* pidItem = createItem();
         pidItem->setData(Qt::DisplayRole, entry.pid.toLongLong());
         m_table->setItem(row, 2, pidItem);
-        
+
         // TID
         QTableWidgetItem* tidItem = createItem();
         tidItem->setData(Qt::DisplayRole, entry.tid.toLongLong());
         m_table->setItem(row, 3, tidItem);
-        
+
         // Level
         m_table->setItem(row, 4, createItem(LogEntry::levelToString(entry.level)));
-        
+
         // Tag
         m_table->setItem(row, 5, createItem(entry.tag));
 
@@ -254,7 +253,7 @@ void LogcatViewer::parseLogLine(const QString& line)
             m_uniqueTags.insert(entry.tag);
             m_tagComboBox->addItem(entry.tag);
         }
-        
+
         // Message
         m_table->setItem(row, 6, createItem(entry.message));
     }
@@ -272,7 +271,7 @@ bool LogcatViewer::matchesFilter(const LogEntry& entry) const
     if (!m_levelFilters[entry.level]) {
         return false;
     }
-    
+
     // Check tag filters
     if (!m_selectedTags.isEmpty()) {
         bool matchesAnyTag = false;
@@ -286,12 +285,12 @@ bool LogcatViewer::matchesFilter(const LogEntry& entry) const
             return false;
         }
     }
-    
+
     // Check text filter
     if (m_filterQuery.isEmpty()) {
         return true;
     }
-    
+
     return entry.message.contains(m_filterQuery, Qt::CaseInsensitive);
 }
 
@@ -351,71 +350,70 @@ void LogcatViewer::handleSort(int column, Qt::SortOrder order)
 void LogcatViewer::setSortRole(QTableWidgetItem* item, int column, int row) const
 {
     switch (column) {
-        case 0: // No.
-            item->setData(Qt::UserRole, static_cast<qlonglong>(row + 1));
-            break;
-        case 1: { // Time
-            // Convert MM-DD HH:MM:SS.mmm to QDateTime
-            QString timestamp = item->text();
-            QStringList parts = timestamp.split(' ');
-            if (parts.size() == 2) {
-                QString dateStr = parts[0]; // MM-DD
-                QString timeStr = parts[1]; // HH:MM:SS.mmm
-                
-                // Parse date parts
-                QStringList dateParts = dateStr.split('-');
-                if (dateParts.size() == 2) {
-                    int month = dateParts[0].toInt();
-                    int day = dateParts[1].toInt();
-                    
-                    // Parse time parts
-                    QStringList timeParts = timeStr.split(':');
-                    if (timeParts.size() == 3) {
-                        int hour = timeParts[0].toInt();
-                        int minute = timeParts[1].toInt();
-                        
-                        // Handle seconds and milliseconds
-                        QStringList secondParts = timeParts[2].split('.');
-                        int second = secondParts[0].toInt();
-                        int msec = secondParts.size() > 1 ? secondParts[1].toInt() : 0;
-                        
-                        // Create QDateTime (use current year since logcat doesn't include it)
-                        QDateTime dt(QDate(QDate::currentDate().year(), month, day),
-                                  QTime(hour, minute, second, msec));
-                        item->setData(Qt::UserRole, dt);
-                    }
+    case 0: // No.
+        item->setData(Qt::UserRole, static_cast<qlonglong>(row + 1));
+        break;
+    case 1: { // Time
+        // Convert MM-DD HH:MM:SS.mmm to QDateTime
+        QString timestamp = item->text();
+        QStringList parts = timestamp.split(' ');
+        if (parts.size() == 2) {
+            QString dateStr = parts[0]; // MM-DD
+            QString timeStr = parts[1]; // HH:MM:SS.mmm
+
+            // Parse date parts
+            QStringList dateParts = dateStr.split('-');
+            if (dateParts.size() == 2) {
+                int month = dateParts[0].toInt();
+                int day = dateParts[1].toInt();
+
+                // Parse time parts
+                QStringList timeParts = timeStr.split(':');
+                if (timeParts.size() == 3) {
+                    int hour = timeParts[0].toInt();
+                    int minute = timeParts[1].toInt();
+
+                    // Handle seconds and milliseconds
+                    QStringList secondParts = timeParts[2].split('.');
+                    int second = secondParts[0].toInt();
+                    int msec = secondParts.size() > 1 ? secondParts[1].toInt() : 0;
+
+                    // Create QDateTime (use current year since logcat doesn't include it)
+                    QDateTime dt(QDate(QDate::currentDate().year(), month, day),
+                        QTime(hour, minute, second, msec));
+                    item->setData(Qt::UserRole, dt);
                 }
             }
-            break;
         }
-        case 2: { // PID
-            bool ok;
-            qlonglong pid = item->text().toLongLong(&ok);
-            item->setData(Qt::UserRole, ok ? pid : 0);
-        }
-            break;
-        case 3: { // TID
-            bool ok;
-            qlonglong tid = item->text().toLongLong(&ok);
-            item->setData(Qt::UserRole, ok ? tid : 0);
-            break;
-        }
-        case 4: { // Level
-            // Sort by severity (Fatal->Error->Warning->Info->Debug->Verbose)
-            static const QMap<QString, int> levelOrder = {
-                {"Fatal", 0},
-                {"Error", 1},
-                {"Warning", 2},
-                {"Info", 3},
-                {"Debug", 4},
-                {"Verbose", 5}
-            };
-            item->setData(Qt::UserRole, levelOrder.value(item->text(), 999));
-            break;
-        }
-        case 5: // Tag
-        case 6: // Message
-            item->setData(Qt::UserRole, item->text().toLower()); // Case-insensitive sort
-            break;
+        break;
+    }
+    case 2: { // PID
+        bool ok;
+        qlonglong pid = item->text().toLongLong(&ok);
+        item->setData(Qt::UserRole, ok ? pid : 0);
+    } break;
+    case 3: { // TID
+        bool ok;
+        qlonglong tid = item->text().toLongLong(&ok);
+        item->setData(Qt::UserRole, ok ? tid : 0);
+        break;
+    }
+    case 4: { // Level
+        // Sort by severity (Fatal->Error->Warning->Info->Debug->Verbose)
+        static const QMap<QString, int> levelOrder = {
+            { "Fatal", 0 },
+            { "Error", 1 },
+            { "Warning", 2 },
+            { "Info", 3 },
+            { "Debug", 4 },
+            { "Verbose", 5 }
+        };
+        item->setData(Qt::UserRole, levelOrder.value(item->text(), 999));
+        break;
+    }
+    case 5: // Tag
+    case 6: // Message
+        item->setData(Qt::UserRole, item->text().toLower()); // Case-insensitive sort
+        break;
     }
 }
