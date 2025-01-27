@@ -3,6 +3,34 @@
 #include <QTextStream>
 #include <QRegularExpression>
 #include <QIcon>
+#include <QStyle>
+#include <QLineEdit>
+
+TagLabel::TagLabel(const QString& tag, QWidget* parent)
+    : QFrame(parent)
+    , m_tag(tag)
+    , m_layout(new QHBoxLayout(this))
+    , m_label(new QLabel(tag))
+    , m_removeButton(new QPushButton("✕"))
+{
+    setFrameStyle(QFrame::StyledPanel | QFrame::Raised);
+    setStyleSheet("QFrame { background: #e0e0e0; border-radius: 4px; margin: 2px; }"
+                  "QLabel { color: black; }");
+    
+    m_layout->setContentsMargins(6, 2, 2, 2);
+    m_layout->setSpacing(4);
+    
+    m_removeButton->setFixedSize(16, 16);
+    m_removeButton->setStyleSheet(
+        "QPushButton { border: none; color: #666; background: transparent; padding: 0; }"
+        "QPushButton:hover { color: #000; }"
+    );
+    
+    m_layout->addWidget(m_label);
+    m_layout->addWidget(m_removeButton);
+    
+    connect(m_removeButton, &QPushButton::clicked, this, &TagLabel::removed);
+}
 
 LogcatViewer::LogcatViewer()
     : QObject()
@@ -10,7 +38,48 @@ LogcatViewer::LogcatViewer()
     , m_layout(new QVBoxLayout(m_container))
     , m_toolbar(new QToolBar())
     , m_table(new QTableWidget())
+    , m_tagComboBox(new QComboBox())
+    , m_scrollArea(new QScrollArea())
+    , m_tagsContainer(new QFrame())
+    , m_tagsLayout(new QHBoxLayout(m_tagsContainer))
 {
+    m_tagComboBox->setEditable(true);
+    m_tagComboBox->setInsertPolicy(QComboBox::InsertAlphabetically);
+    m_tagComboBox->setMinimumWidth(200);
+    m_tagComboBox->setPlaceholderText("Filter by package/tag...");
+    
+    // Setup scroll area for tags
+    m_scrollArea->setWidget(m_tagsContainer);
+    m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_scrollArea->setWidgetResizable(true);
+    m_scrollArea->setFixedHeight(36); // Enough height for one row of tags
+    m_scrollArea->setFrameStyle(QFrame::NoFrame);
+    
+    // Setup tags container
+    m_tagsContainer->setStyleSheet("QFrame { background: transparent; }");
+    m_tagsLayout->setContentsMargins(0, 0, 0, 0);
+    m_tagsLayout->setSpacing(2);
+    m_tagsLayout->addStretch();
+    
+    // Handle Enter key press in the combobox
+    connect(m_tagComboBox->lineEdit(), &QLineEdit::returnPressed, this, [this]() {
+        QString tag = m_tagComboBox->currentText().trimmed();
+        if (!tag.isEmpty() && !m_selectedTags.contains(tag)) {
+            addTagLabel(tag);
+            m_tagComboBox->setCurrentText("");
+        }
+    });
+    
+    // Handle item activation from dropdown
+    connect(m_tagComboBox, QOverload<int>::of(&QComboBox::activated), this, [this](int index) {
+        QString tag = m_tagComboBox->itemText(index).trimmed();
+        if (!tag.isEmpty() && !m_selectedTags.contains(tag)) {
+            addTagLabel(tag);
+            m_tagComboBox->setCurrentText("");
+        }
+    });
+    
     setupUi();
     
     // Initialize level filters (all enabled by default)
@@ -55,6 +124,11 @@ void LogcatViewer::setupUi()
     addLevelAction(LogEntry::Level::Error);
     addLevelAction(LogEntry::Level::Fatal);
 
+    // Add tag combobox and container to toolbar
+    m_toolbar->addSeparator();
+    m_toolbar->addWidget(m_tagComboBox);
+    m_toolbar->addWidget(m_scrollArea);
+
     // Setup table
     m_layout->addWidget(m_table);
     m_table->setColumnCount(7);
@@ -70,11 +144,45 @@ void LogcatViewer::setupUi()
             this, &LogcatViewer::handleSort);
 }
 
+void LogcatViewer::addTagLabel(const QString& tag)
+{
+    if (m_selectedTags.contains(tag)) {
+        return;
+    }
+    
+    m_selectedTags.insert(tag);
+    TagLabel* label = new TagLabel(tag, m_tagsContainer);
+    
+    // Insert before the stretch
+    m_tagsLayout->insertWidget(m_tagsLayout->count() - 1, label);
+    
+    connect(label, &TagLabel::removed, this, [this, label, tag]() {
+        m_selectedTags.remove(tag);
+        m_tagsLayout->removeWidget(label);
+        label->deleteLater();
+        updateVisibleRows();
+    });
+    
+    updateVisibleRows();
+}
+
 bool LogcatViewer::loadContent(const QByteArray& content)
 {
     m_entries.clear();
     m_table->setRowCount(0);
     m_directMatches.clear();
+    m_uniqueTags.clear();
+    m_tagComboBox->clear();
+    
+    // Clear selected tags
+    while (m_tagsLayout->count() > 1) { // Keep the stretch
+        QLayoutItem* item = m_tagsLayout->takeAt(0);
+        if (QWidget* widget = item->widget()) {
+            widget->deleteLater();
+        }
+        delete item;
+    }
+    m_selectedTags.clear();
 
     QTextStream in(content);
     while (!in.atEnd()) {
@@ -141,6 +249,12 @@ void LogcatViewer::parseLogLine(const QString& line)
         QTableWidgetItem* tagItem = new QTableWidgetItem(entry.tag);
         tagItem->setForeground(color);
         m_table->setItem(row, 5, tagItem);
+
+        // Update tag collection and combobox
+        if (!entry.tag.isEmpty() && !m_uniqueTags.contains(entry.tag)) {
+            m_uniqueTags.insert(entry.tag);
+            m_tagComboBox->addItem(entry.tag);
+        }
         
         // Message
         QTableWidgetItem* msgItem = new QTableWidgetItem(entry.message);
@@ -162,13 +276,26 @@ bool LogcatViewer::matchesFilter(const LogEntry& entry) const
         return false;
     }
     
+    // Check tag filters
+    if (!m_selectedTags.isEmpty()) {
+        bool matchesAnyTag = false;
+        for (const QString& tag : m_selectedTags) {
+            if (entry.tag.compare(tag, Qt::CaseInsensitive) == 0) {
+                matchesAnyTag = true;
+                break;
+            }
+        }
+        if (!matchesAnyTag) {
+            return false;
+        }
+    }
+    
     // Check text filter
     if (m_filterQuery.isEmpty()) {
         return true;
     }
     
-    return entry.tag.contains(m_filterQuery, Qt::CaseInsensitive) ||
-           entry.message.contains(m_filterQuery, Qt::CaseInsensitive);
+    return entry.message.contains(m_filterQuery, Qt::CaseInsensitive);
 }
 
 void LogcatViewer::updateVisibleRows()
