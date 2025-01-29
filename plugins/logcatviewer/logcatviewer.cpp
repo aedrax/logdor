@@ -334,11 +334,11 @@ void LogcatViewer::updateVisibleRows()
     }
 }
 
-void LogcatViewer::applyFilter(const QString& query, int contextLinesBefore, int contextLinesAfter)
+void LogcatViewer::applyFilter(const FilterOptions& options)
 {
-    m_filterQuery = query;
-    m_contextLinesBefore = contextLinesBefore;
-    m_contextLinesAfter = contextLinesAfter;
+    m_filterQuery = options.query;
+    m_contextLinesBefore = options.contextLinesBefore;
+    m_contextLinesAfter = options.contextLinesAfter;
     updateVisibleRows();
 }
 

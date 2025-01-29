@@ -100,7 +100,7 @@ public:
     QString name() const override { return tr("Logcat Viewer"); }
     QWidget* widget() override { return m_container; }
     bool loadContent(const QByteArray& content) override;
-    void applyFilter(const QString& query, int contextLinesBefore = 0, int contextLinesAfter = 0) override;
+    void applyFilter(const FilterOptions& options) override;
 
 private slots:
     void toggleLevel(LogEntry::Level level, bool enabled);

@@ -116,10 +116,12 @@ void MainWindow::onActionOpenTriggered()
 
 void MainWindow::onFilterChanged()
 {
+    FilterOptions options(m_filterInput->text(),
+                         m_beforeSpinBox->value(),
+                         m_afterSpinBox->value());
+
     // Apply filter to all active plugins with context lines
     for (PluginInterface* plugin : m_activePlugins) {
-        plugin->applyFilter(m_filterInput->text(), 
-                          m_beforeSpinBox->value(), 
-                          m_afterSpinBox->value());
+        plugin->applyFilter(options);
     }
 }
