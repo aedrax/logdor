@@ -5,6 +5,19 @@
 #include <QWidget>
 #include <QtPlugin>
 
+struct FilterOptions {
+    QString query;
+    int contextLinesBefore = 0;
+    int contextLinesAfter = 0;
+
+    FilterOptions(const QString& q = QString(), int before = 0, int after = 0)
+        : query(q)
+        , contextLinesBefore(before)
+        , contextLinesAfter(after)
+    {
+    }
+};
+
 class PluginInterface {
 public:
     virtual ~PluginInterface() = default;
@@ -18,8 +31,8 @@ public:
     // Load content into the plugin's widget
     virtual bool loadContent(const QByteArray& content) = 0;
 
-    // Apply a filter query to the content with optional context lines
-    virtual void applyFilter(const QString& query, int contextLinesBefore = 0, int contextLinesAfter = 0) = 0;
+    // Apply filter options to the content
+    virtual void applyFilter(const FilterOptions& options) = 0;
 };
 
 // Define the plugin interface ID

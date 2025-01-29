@@ -6,6 +6,19 @@
 #include <QString>
 #include <QtPlugin>
 
+struct LineInfo {
+    int number;
+    QString content;
+    bool isDirectMatch;
+
+    LineInfo(int num, const QString& cont)
+        : number(num)
+        , content(cont)
+        , isDirectMatch(false)
+    {
+    }
+};
+
 class PlainTextViewer : public QObject, public PluginInterface {
     Q_OBJECT
     Q_INTERFACES(PluginInterface)
@@ -18,13 +31,12 @@ public:
     QString name() const override { return tr("Plain Text Viewer"); }
     QWidget* widget() override { return m_tableWidget; }
     bool loadContent(const QByteArray& content) override;
-    void applyFilter(const QString& query, int contextLinesBefore = 0, int contextLinesAfter = 0) override;
+    void applyFilter(const FilterOptions& options) override;
 
 private:
     QTableWidget* m_tableWidget;
-    QByteArray m_originalContent;  // Store original content for filtering
-    QVector<QPair<int, QString>> m_lines;  // Store line numbers with content
-    QVector<bool> m_directMatches;  // Tracks which lines directly match the filter
+    QByteArray m_originalContent; // Store original content for filtering
+    QVector<LineInfo> m_lines; // Store all line information
 };
 
 #endif // PLAINTEXTVIEWER_H
