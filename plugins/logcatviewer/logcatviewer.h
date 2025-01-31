@@ -101,6 +101,7 @@ public:
     QWidget* widget() override { return m_container; }
     bool loadContent(const QByteArray& content) override;
     void applyFilter(const FilterOptions& options) override;
+    void copySelectedText() override;
 
 private slots:
     void toggleLevel(LogEntry::Level level, bool enabled);

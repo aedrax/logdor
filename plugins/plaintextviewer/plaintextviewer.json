@@ -1,0 +1,6 @@
+{
+    "Keys": [ "PlainTextViewer" ],
+    "Version": "1.0.0",
+    "Name": "Plain Text Viewer",
+    "Description": "A plugin for displaying file contents in a plain text widget"
+}

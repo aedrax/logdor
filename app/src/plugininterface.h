@@ -33,6 +33,9 @@ public:
 
     // Apply filter options to the content
     virtual void applyFilter(const FilterOptions& options) = 0;
+
+    // Copy selected text to clipboard
+    virtual void copySelectedText() = 0;
 };
 
 // Define the plugin interface ID

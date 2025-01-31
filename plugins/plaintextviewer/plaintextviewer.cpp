@@ -2,6 +2,8 @@
 #include <QFile>
 #include <QHeaderView>
 #include <QTextStream>
+#include <QClipboard>
+#include <QApplication>
 
 PlainTextViewer::PlainTextViewer()
     : QObject()
@@ -13,6 +15,51 @@ PlainTextViewer::PlainTextViewer()
     m_tableWidget->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     m_tableWidget->setFont(QFont("Monospace"));
     m_tableWidget->verticalHeader()->hide();
+    m_tableWidget->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_tableWidget->setSelectionBehavior(QAbstractItemView::SelectRows);
+}
+
+void PlainTextViewer::copySelectedText()
+{
+    QModelIndexList selection = m_tableWidget->selectionModel()->selectedIndexes();
+    if (selection.isEmpty()) {
+        return;
+    }
+
+    // Sort selections by row and column to maintain order
+    std::sort(selection.begin(), selection.end(), 
+              [](const QModelIndex& a, const QModelIndex& b) {
+                  if (a.row() != b.row())
+                      return a.row() < b.row();
+                  return a.column() < b.column();
+              });
+
+    QString text;
+    QMap<int, QString> rowData; // Store data for each row
+
+    // Collect data for each selected cell
+    for (const QModelIndex& index : selection) {
+        int row = index.row();
+        // debug the row number
+        qDebug() << "row number: " << row;
+        // Only collect the log content column (column 1)
+        if (index.column() == 1) {
+            rowData[row] = index.data().toString();
+        }
+    }
+
+    // Build the text with proper line breaks
+    for (auto it = rowData.begin(); it != rowData.end(); ++it) {
+        if (!text.isEmpty()) {
+            text += "\n";
+        }
+        text += it.value();
+    }
+
+    if (!text.isEmpty()) {
+        QClipboard* clipboard = QApplication::clipboard();
+        clipboard->setText(text);
+    }
 }
 
 PlainTextViewer::~PlainTextViewer()

@@ -32,6 +32,7 @@ public:
     QWidget* widget() override { return m_tableWidget; }
     bool loadContent(const QByteArray& content) override;
     void applyFilter(const FilterOptions& options) override;
+    void copySelectedText() override;
 
 private:
     QTableWidget* m_tableWidget;

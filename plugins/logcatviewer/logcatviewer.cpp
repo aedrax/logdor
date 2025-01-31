@@ -5,6 +5,8 @@
 #include <QRegularExpression>
 #include <QStyle>
 #include <QTextStream>
+#include <QApplication>
+#include <QClipboard>
 
 TagLabel::TagLabel(const QString& tag, QWidget* parent)
     : QFrame(parent)
@@ -137,6 +139,7 @@ void LogcatViewer::setupUi()
     m_table->setAlternatingRowColors(false);
     m_table->verticalHeader()->setVisible(false);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->setSortingEnabled(true);
     connect(m_table->horizontalHeader(), &QHeaderView::sortIndicatorChanged,
@@ -345,6 +348,60 @@ void LogcatViewer::applyFilter(const FilterOptions& options)
 void LogcatViewer::handleSort(int column, Qt::SortOrder order)
 {
     m_table->sortItems(column, order);
+}
+
+void LogcatViewer::copySelectedText()
+{
+    QModelIndexList selection = m_table->selectionModel()->selectedIndexes();
+    if (selection.isEmpty()) {
+        return;
+    }
+
+    // Sort selections by row and column to maintain order
+    std::sort(selection.begin(), selection.end(), 
+              [](const QModelIndex& a, const QModelIndex& b) {
+                  if (a.row() != b.row())
+                      return a.row() < b.row();
+                  return a.column() < b.column();
+              });
+
+    QString text;
+    int currentRow = -1;
+    QMap<int, QStringList> rowData; // Store data for each row
+
+    // Collect data for each selected cell
+    for (const QModelIndex& index : selection) {
+        int row = index.row();
+        if (!rowData.contains(row)) {
+            rowData[row] = QStringList();
+            rowData[row].resize(7); // Pre-allocate for all columns
+        }
+        rowData[row][index.column()] = index.data().toString();
+    }
+
+    // Build the text with proper logcat format
+    for (auto it = rowData.begin(); it != rowData.end(); ++it) {
+        if (!text.isEmpty()) {
+            text += "\n";
+        }
+        
+        const QStringList& data = it.value();
+        // Format: Time PID TID Level Tag : Message
+        QString line;
+        if (!data[1].isEmpty()) { line.append(data[1]).append(" "); } // Time
+        if (!data[2].isEmpty()) { line.append(data[2]).append(" "); } // PID
+        if (!data[3].isEmpty()) { line.append(data[3]).append(" "); } // TID
+        if (!data[4].isEmpty()) { line.append(data[4][0]).append(" "); } // Level (first letter)
+        if (!data[5].isEmpty()) { line.append(data[5]).append(" : "); } // Tag
+        if (!data[6].isEmpty()) { line.append(data[6]); } // Message
+        
+        text += line.trimmed();
+    }
+
+    if (!text.isEmpty()) {
+        QClipboard* clipboard = QApplication::clipboard();
+        clipboard->setText(text);
+    }
 }
 
 void LogcatViewer::setSortRole(QTableWidgetItem* item, int column, int row) const
