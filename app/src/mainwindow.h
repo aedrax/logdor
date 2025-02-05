@@ -29,6 +29,7 @@ private:
     Ui::MainWindow* ui;
     PluginManager* m_pluginManager;
     QMap<QString, PluginInterface*> m_activePlugins;
+    QVector<LogEntry> m_logEntries;
     
     // Filter controls
     QLineEdit* m_filterInput;
