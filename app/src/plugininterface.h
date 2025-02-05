@@ -1,9 +1,21 @@
 #ifndef PLUGININTERFACE_H
 #define PLUGININTERFACE_H
 
+#include <QDateTime>
 #include <QString>
 #include <QWidget>
 #include <QtPlugin>
+
+struct LogEntry {
+    QDateTime timestamp;
+    QString message;
+
+    LogEntry(const QDateTime& ts = QDateTime(), const QString& msg = QString())
+        : timestamp(ts)
+        , message(msg)
+    {
+    }
+};
 
 struct FilterOptions {
     QString query;
