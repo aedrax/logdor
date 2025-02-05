@@ -82,12 +82,12 @@ LogcatViewer::LogcatViewer()
     setupUi();
 
     // Initialize level filters (all enabled by default)
-    m_levelFilters[LogEntry::Level::Verbose] = true;
-    m_levelFilters[LogEntry::Level::Debug] = true;
-    m_levelFilters[LogEntry::Level::Info] = true;
-    m_levelFilters[LogEntry::Level::Warning] = true;
-    m_levelFilters[LogEntry::Level::Error] = true;
-    m_levelFilters[LogEntry::Level::Fatal] = true;
+    m_levelFilters[LogcatEntry::Level::Verbose] = true;
+    m_levelFilters[LogcatEntry::Level::Debug] = true;
+    m_levelFilters[LogcatEntry::Level::Info] = true;
+    m_levelFilters[LogcatEntry::Level::Warning] = true;
+    m_levelFilters[LogcatEntry::Level::Error] = true;
+    m_levelFilters[LogcatEntry::Level::Fatal] = true;
 }
 
 LogcatViewer::~LogcatViewer()
@@ -101,11 +101,11 @@ void LogcatViewer::setupUi()
     m_layout->setContentsMargins(0, 0, 0, 0);
     m_layout->addWidget(m_toolbar);
 
-    auto addLevelAction = [this](LogEntry::Level level) {
-        QAction* action = new QAction(LogEntry::levelToString(level), this);
+    auto addLevelAction = [this](LogcatEntry::Level level) {
+        QAction* action = new QAction(LogcatEntry::levelToString(level), this);
         action->setCheckable(true);
         action->setChecked(true);
-        QColor color = LogEntry::levelColor(level);
+        QColor color = LogcatEntry::levelColor(level);
         QPixmap pixmap(16, 16);
         pixmap.fill(color);
         action->setIcon(QIcon(pixmap));
@@ -116,12 +116,12 @@ void LogcatViewer::setupUi()
         m_levelActions[level] = action;
     };
 
-    addLevelAction(LogEntry::Level::Verbose);
-    addLevelAction(LogEntry::Level::Debug);
-    addLevelAction(LogEntry::Level::Info);
-    addLevelAction(LogEntry::Level::Warning);
-    addLevelAction(LogEntry::Level::Error);
-    addLevelAction(LogEntry::Level::Fatal);
+    addLevelAction(LogcatEntry::Level::Verbose);
+    addLevelAction(LogcatEntry::Level::Debug);
+    addLevelAction(LogcatEntry::Level::Info);
+    addLevelAction(LogcatEntry::Level::Warning);
+    addLevelAction(LogcatEntry::Level::Error);
+    addLevelAction(LogcatEntry::Level::Fatal);
 
     // Add tag combobox and container to toolbar
     m_toolbar->addSeparator();
@@ -200,11 +200,11 @@ void LogcatViewer::parseLogLine(const QString& line)
 
     auto match = re.match(line);
     if (match.hasMatch()) {
-        LogEntry entry;
+        LogcatEntry entry;
         entry.timestamp = match.captured(1);
         entry.pid = match.captured(2);
         entry.tid = match.captured(3);
-        entry.level = LogEntry::parseLevel(match.captured(4)[0]);
+        entry.level = LogcatEntry::parseLevel(match.captured(4)[0]);
         entry.tag = match.captured(5).trimmed();
         entry.message = match.captured(6);
 
@@ -214,7 +214,7 @@ void LogcatViewer::parseLogLine(const QString& line)
         int row = m_table->rowCount();
         m_table->insertRow(row);
 
-        QColor bgColor = LogEntry::levelColor(entry.level);
+        QColor bgColor = LogcatEntry::levelColor(entry.level);
 
         // Create and set items with background and text colors
         auto createItem = [&](const QString& text = QString()) {
@@ -243,7 +243,7 @@ void LogcatViewer::parseLogLine(const QString& line)
         m_table->setItem(row, 3, tidItem);
 
         // Level
-        m_table->setItem(row, 4, createItem(LogEntry::levelToString(entry.level)));
+        m_table->setItem(row, 4, createItem(LogcatEntry::levelToString(entry.level)));
 
         // Tag
         m_table->setItem(row, 5, createItem(entry.tag));
@@ -259,13 +259,13 @@ void LogcatViewer::parseLogLine(const QString& line)
     }
 }
 
-void LogcatViewer::toggleLevel(LogEntry::Level level, bool enabled)
+void LogcatViewer::toggleLevel(LogcatEntry::Level level, bool enabled)
 {
     m_levelFilters[level] = enabled;
     updateVisibleRows();
 }
 
-bool LogcatViewer::matchesFilter(const LogEntry& entry) const
+bool LogcatViewer::matchesFilter(const LogcatEntry& entry) const
 {
     // Check level filter
     if (!m_levelFilters[entry.level]) {
