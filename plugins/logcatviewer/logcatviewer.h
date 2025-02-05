@@ -99,7 +99,7 @@ public:
     // PluginInterface implementation
     QString name() const override { return tr("Logcat Viewer"); }
     QWidget* widget() override { return m_container; }
-    bool loadContent(const QByteArray& content) override;
+    bool loadContent(const QVector<LogEntry>& content) override;
     void applyFilter(const FilterOptions& options) override;
 
 private slots:

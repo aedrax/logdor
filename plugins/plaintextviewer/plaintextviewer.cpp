@@ -20,22 +20,19 @@ PlainTextViewer::~PlainTextViewer()
     delete m_tableWidget;
 }
 
-bool PlainTextViewer::loadContent(const QByteArray& content)
+bool PlainTextViewer::loadContent(const QVector<LogEntry>& content)
 {
-    m_originalContent = content;
     m_tableWidget->clearContents();
     m_tableWidget->setRowCount(0);
     m_lines.clear();
 
-    QTextStream in(content);
     int lineNumber = 1;
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        m_lines.append(LineInfo(lineNumber, line));
+    for (const LogEntry& entry : content) {
+        m_lines.append(LineInfo(lineNumber, entry.message));
 
         m_tableWidget->insertRow(lineNumber - 1);
         m_tableWidget->setItem(lineNumber - 1, 0, new QTableWidgetItem(QString::number(lineNumber)));
-        m_tableWidget->setItem(lineNumber - 1, 1, new QTableWidgetItem(line));
+        m_tableWidget->setItem(lineNumber - 1, 1, new QTableWidgetItem(entry.message));
         lineNumber++;
     }
 

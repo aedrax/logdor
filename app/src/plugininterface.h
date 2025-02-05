@@ -41,7 +41,7 @@ public:
     virtual QWidget* widget() = 0;
 
     // Load content into the plugin's widget
-    virtual bool loadContent(const QByteArray& content) = 0;
+    virtual bool loadContent(const QVector<LogEntry>& content) = 0;
 
     // Apply filter options to the content
     virtual void applyFilter(const FilterOptions& options) = 0;

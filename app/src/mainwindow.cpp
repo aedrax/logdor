@@ -86,14 +86,21 @@ bool MainWindow::openFile(const QString& fileName)
         return false;
     }
 
-    QByteArray content = file.readAll();
+    // Read file content into log entries
+    m_logEntries.clear();
+    QTextStream in(&file);
+    while (!in.atEnd()) {
+        QString line = in.readLine();
+        // TODO: Parse log line into timestamp and message
+        m_logEntries.append(LogEntry(QDateTime::currentDateTime(), line));
+    }
     file.close();
 
     bool success = false;
 
     // Try to load the content with each plugin
     for (PluginInterface* plugin : m_activePlugins) {
-        if (plugin->loadContent(content)) {
+        if (plugin->loadContent(m_logEntries)) {
             success = true;
         }
     }

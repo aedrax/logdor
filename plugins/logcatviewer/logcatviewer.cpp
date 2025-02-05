@@ -165,7 +165,7 @@ void LogcatViewer::addTagLabel(const QString& tag)
     updateVisibleRows();
 }
 
-bool LogcatViewer::loadContent(const QByteArray& content)
+bool LogcatViewer::loadContent(const QVector<LogEntry>& content)
 {
     m_entries.clear();
     m_table->setRowCount(0);
@@ -183,10 +183,8 @@ bool LogcatViewer::loadContent(const QByteArray& content)
     }
     m_selectedTags.clear();
 
-    QTextStream in(content);
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        parseLogLine(line);
+    for (const LogEntry& line : content) {
+        parseLogLine(line.message);
     }
 
     updateVisibleRows();
