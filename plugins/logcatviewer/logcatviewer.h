@@ -33,7 +33,7 @@ private:
     QPushButton* m_removeButton;
 };
 
-class LogEntry {
+class LogcatEntry {
 public:
     enum class Level {
         Verbose,
@@ -103,14 +103,14 @@ public:
     void applyFilter(const FilterOptions& options) override;
 
 private slots:
-    void toggleLevel(LogEntry::Level level, bool enabled);
+    void toggleLevel(LogcatEntry::Level level, bool enabled);
     void updateVisibleRows();
     void handleSort(int column, Qt::SortOrder order);
 
 private:
     void setupUi();
     void parseLogLine(const QString& line);
-    bool matchesFilter(const LogEntry& entry) const;
+    bool matchesFilter(const LogcatEntry& entry) const;
     void setSortRole(QTableWidgetItem* item, int column, int row) const;
     void addTagLabel(const QString& tag);
 
@@ -118,10 +118,10 @@ private:
     QVBoxLayout* m_layout;
     QToolBar* m_toolbar;
     QTableWidget* m_table;
-    QVector<LogEntry> m_entries;
+    QVector<LogcatEntry> m_entries;
     QString m_filterQuery;
-    QMap<LogEntry::Level, bool> m_levelFilters;
-    QMap<LogEntry::Level, QAction*> m_levelActions;
+    QMap<LogcatEntry::Level, bool> m_levelFilters;
+    QMap<LogcatEntry::Level, QAction*> m_levelActions;
     QComboBox* m_tagComboBox;
     QSet<QString> m_uniqueTags;
     QSet<QString> m_selectedTags;
