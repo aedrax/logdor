@@ -8,12 +8,18 @@
 
 struct LogEntry {
     QDateTime timestamp;
-    QString message;
+    const char* message;
+    size_t length;
 
-    LogEntry(const QDateTime& ts = QDateTime(), const QString& msg = QString())
+    LogEntry(const QDateTime& ts = QDateTime(), const char* msg = nullptr, size_t len = 0)
         : timestamp(ts)
         , message(msg)
+        , length(len)
     {
+    }
+
+    QString getMessage() const {
+        return QString::fromUtf8(message, static_cast<int>(length));
     }
 };
 
@@ -21,11 +27,13 @@ struct FilterOptions {
     QString query;
     int contextLinesBefore = 0;
     int contextLinesAfter = 0;
+    Qt::CaseSensitivity caseSensitivity = Qt::CaseInsensitive;
 
-    FilterOptions(const QString& q = QString(), int before = 0, int after = 0)
+    FilterOptions(const QString& q = QString(), int before = 0, int after = 0, Qt::CaseSensitivity cs = Qt::CaseInsensitive)
         : query(q)
         , contextLinesBefore(before)
         , contextLinesAfter(after)
+        , caseSensitivity(cs)
     {
     }
 };

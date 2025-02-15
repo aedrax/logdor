@@ -79,22 +79,35 @@ void MainWindow::loadPlugins()
 
 bool MainWindow::openFile(const QString& fileName)
 {
-    QFile file(fileName);
-    if (!file.open(QIODevice::ReadOnly)) {
+    m_currentFile.setFileName(fileName);
+    
+    if (!m_currentFile.open(QIODevice::ReadOnly)) {
         QMessageBox::warning(this, tr("Error"),
             tr("Could not open file: %1").arg(fileName));
         return false;
     }
 
-    // Read file content into log entries
-    m_logEntries.clear();
-    QTextStream in(&file);
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        // TODO: Parse log line into timestamp and message
-        m_logEntries.append(LogEntry(QDateTime::currentDateTime(), line));
+    // Map the entire file into memory
+    auto *data = reinterpret_cast<const char*>(m_currentFile.map(0, m_currentFile.size()));
+    if (!data) {
+        qWarning() << tr("Failed to map file:") << m_currentFile.errorString();
+        return false;
     }
-    file.close();
+
+    // Parse the log file into m_logEntries
+    // For simplicity, let's assume each line is a log entry
+    // we'll use the memory mapped data to avoid copying
+    const char* current = data;
+    const char* end = data + m_currentFile.size();
+    m_logEntries.clear();
+    while (current < end) {
+        auto next = reinterpret_cast<const char*>(memchr(current, '\n', end - current));
+        if (!next) {
+            next = end;
+        }
+        m_logEntries.append(LogEntry(QDateTime::currentDateTime(), current, next - current));
+        current = next + 1;
+    }
 
     bool success = false;
 

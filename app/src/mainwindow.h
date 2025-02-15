@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <QFile>
 #include <QMainWindow>
 #include "pluginmanager.h"
 
@@ -29,6 +30,7 @@ private:
     Ui::MainWindow* ui;
     PluginManager* m_pluginManager;
     QMap<QString, PluginInterface*> m_activePlugins;
+    QFile m_currentFile;
     QVector<LogEntry> m_logEntries;
     
     // Filter controls

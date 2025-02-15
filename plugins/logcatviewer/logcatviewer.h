@@ -2,7 +2,8 @@
 #define LOGCATVIEWER_H
 
 #include "../../app/src/plugininterface.h"
-#include <QTableWidget>
+#include <QTableView>
+#include <QAbstractTableModel>
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -88,6 +89,34 @@ public:
     }
 };
 
+class LogcatTableModel : public QAbstractTableModel {
+    Q_OBJECT
+public:
+    explicit LogcatTableModel(QObject* parent = nullptr);
+    
+    int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+    int columnCount(const QModelIndex& parent = QModelIndex()) const override;
+    QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
+    QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
+    void sort(int column, Qt::SortOrder order = Qt::AscendingOrder) override;
+    
+    void setLogEntries(const QVector<LogcatEntry>& entries);
+    void applyFilter(const QString& query, const QSet<QString>& tags, 
+                    const QMap<LogcatEntry::Level, bool>& levelFilters,
+                    int contextBefore, int contextAfter);
+    QSet<QString> getUniqueTags() const;
+
+private:
+    bool matchesFilter(const LogcatEntry& entry, const QString& query, 
+                      const QSet<QString>& tags,
+                      const QMap<LogcatEntry::Level, bool>& levelFilters) const;
+
+    QVector<LogcatEntry> m_entries;
+    QVector<int> m_visibleRows;  // Indices into m_entries for filtered view
+    int m_sortColumn{0};
+    Qt::SortOrder m_sortOrder{Qt::AscendingOrder};
+};
+
 class LogcatViewer : public QObject, public PluginInterface {
     Q_OBJECT
     Q_INTERFACES(PluginInterface)
@@ -111,28 +140,23 @@ private:
     void setupUi();
     void parseLogLine(const QString& line);
     bool matchesFilter(const LogcatEntry& entry) const;
-    void setSortRole(QTableWidgetItem* item, int column, int row) const;
     void addTagLabel(const QString& tag);
 
     QWidget* m_container;
     QVBoxLayout* m_layout;
     QToolBar* m_toolbar;
-    QTableWidget* m_table;
-    QVector<LogcatEntry> m_entries;
-    QString m_filterQuery;
-    QMap<LogcatEntry::Level, bool> m_levelFilters;
+    QTableView* m_tableView;
+    LogcatTableModel* m_model;
     QMap<LogcatEntry::Level, QAction*> m_levelActions;
     QComboBox* m_tagComboBox;
-    QSet<QString> m_uniqueTags;
     QSet<QString> m_selectedTags;
     QScrollArea* m_scrollArea;
     QFrame* m_tagsContainer;
     QHBoxLayout* m_tagsLayout;
-    
-    // Context lines
+    QString m_filterQuery;
+    QMap<LogcatEntry::Level, bool> m_levelFilters;
     int m_contextLinesBefore{0};
     int m_contextLinesAfter{0};
-    QVector<bool> m_directMatches;  // Tracks which lines directly match the filter
 };
 
 #endif // LOGCATVIEWER_H
