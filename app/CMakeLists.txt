@@ -9,7 +9,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent)
 
 set(PROJECT_SOURCES
     src/main.cpp
@@ -29,6 +29,7 @@ qt_add_executable(logdor
 
 target_link_libraries(logdor PRIVATE
     Qt6::Widgets
+    Qt6::Concurrent
 )
 
 set_target_properties(logdor PROPERTIES

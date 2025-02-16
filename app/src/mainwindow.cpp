@@ -9,9 +9,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QSpinBox>
-#include <thread>
+#include <QtConcurrent/QtConcurrent>
 #include <vector>
-#include <mutex>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -80,6 +79,37 @@ void MainWindow::loadPlugins()
     }
 }
 
+// Structure to hold a chunk of the file to process
+struct FileChunk {
+    const char* start;
+    const char* end;
+    bool isFirstChunk;
+};
+
+// Function to process a single chunk and return its lines
+QVector<QPair<const char*, qsizetype>> processChunk(const FileChunk& chunk) {
+    QVector<QPair<const char*, qsizetype>> lines;
+    const char* current = chunk.start;
+    
+    // If not the first chunk, move start to next line boundary
+    if (!chunk.isFirstChunk) {
+        while (current < chunk.end && *(current - 1) != '\n') {
+            ++current;
+        }
+    }
+    
+    while (current < chunk.end) {
+        auto next = reinterpret_cast<const char*>(memchr(current, '\n', chunk.end - current));
+        if (!next) {
+            next = chunk.end;
+        }
+        lines.append({current, next - current});
+        current = next + 1;
+    }
+    
+    return lines;
+}
+
 bool MainWindow::openFile(const QString& fileName)
 {
     m_currentFile.setFileName(fileName);
@@ -99,59 +129,34 @@ bool MainWindow::openFile(const QString& fileName)
 
     qDebug() << tr("File mapped successfully");
 
-    // Parse the log file into m_logEntries using parallel processing
+    // Parse the log file into m_logEntries using QtConcurrent
     const size_t fileSize = m_currentFile.size();
-    const unsigned int numThreads = std::thread::hardware_concurrency();
+    const int numThreads = QThread::idealThreadCount();
     const size_t chunkSize = fileSize / numThreads;
     
-    struct ChunkResult {
-        std::vector<std::pair<const char*, const char*>> lines;  // start and end of each line
-        const char* chunkStart;  // where this chunk started
-    };
-    
-    std::vector<ChunkResult> results(numThreads);
-    std::vector<std::thread> threads;
-    
-    // Process each chunk in parallel
-    for (unsigned int i = 0; i < numThreads; ++i) {
+    // Create chunks to process
+    QVector<FileChunk> chunks;
+    for (int i = 0; i < numThreads; ++i) {
         const char* chunkStart = data + (i * chunkSize);
         const char* chunkEnd = (i == numThreads - 1) ? data + fileSize : data + ((i + 1) * chunkSize);
-        
-        // If not the first chunk, move start to next line boundary
-        if (i > 0) {
-            while (chunkStart < chunkEnd && *(chunkStart - 1) != '\n') {
-                ++chunkStart;
-            }
-        }
-        
-        threads.emplace_back([chunkStart, chunkEnd, i, &results]() {
-            ChunkResult& result = results[i];
-            result.chunkStart = chunkStart;
-            
-            const char* current = chunkStart;
-            while (current < chunkEnd) {
-                auto next = reinterpret_cast<const char*>(memchr(current, '\n', chunkEnd - current));
-                if (!next) {
-                    next = chunkEnd;
-                }
-                result.lines.emplace_back(current, next);
-                current = next + 1;
-            }
-        });
+        chunks.append({chunkStart, chunkEnd, i == 0});
     }
     
-    // Wait for all threads to complete
-    for (auto& thread : threads) {
-        thread.join();
-    }
+    // Process chunks in parallel using QtConcurrent
+    QFuture<QVector<QPair<const char*, qsizetype>>> future = 
+        QtConcurrent::mapped(chunks, processChunk);
     
-    // Combine results in order
+    // Wait for all chunks to be processed and combine results
+    future.waitForFinished();
+    
     m_logEntries.clear();
-    for (const auto& result : results) {
-        for (const auto& line : result.lines) {
-            m_logEntries.append(LogEntry(line.first, line.second - line.first));
+    const auto results = future.results();
+    for (const auto& chunkLines : results) {
+        for (const auto& line : chunkLines) {
+            m_logEntries.append(LogEntry(line.first, line.second));
         }
     }
+    
     qDebug() << tr("File parsed successfully");
     
     bool success = false;
