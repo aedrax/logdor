@@ -216,12 +216,16 @@ void LogcatTableModel::applyFilter(const QString& query, const QSet<QString>& ta
     beginResetModel();
     m_visibleRows.clear();
 
-    // First pass: find direct matches
-    QVector<bool> directMatches(m_entries.size(), false);
-    for (int i = 0; i < m_entries.size(); ++i) {
+    // First pass: find direct matches in parallel
+    QVector<int> indices(m_entries.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    
+    auto future = QtConcurrent::mapped(indices, [this, &query, &tags, &levelFilters](int i) {
         LogcatEntry entry = logEntryToLogcatEntry(m_entries[i]);
-        directMatches[i] = matchesFilter(entry, query, tags, levelFilters);
-    }
+        return matchesFilter(entry, query, tags, levelFilters);
+    });
+    
+    QVector<bool> directMatches = future.results();
 
     // Second pass: add matches and context lines
     QSet<int> linesToShow;
