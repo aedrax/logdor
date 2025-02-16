@@ -27,6 +27,7 @@ target_link_libraries(logcatviewer
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
+        Qt6::Concurrent
 )
 
 # Install plugin to plugins directory

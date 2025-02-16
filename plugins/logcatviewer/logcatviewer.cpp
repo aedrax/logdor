@@ -6,6 +6,7 @@
 #include <QStyle>
 #include <QTextStream>
 #include <algorithm>
+#include <QtConcurrent/QtConcurrent>
 
 TagLabel::TagLabel(const QString& tag, QWidget* parent)
     : QFrame(parent)
@@ -170,13 +171,19 @@ void LogcatTableModel::setLogEntries(const QVector<LogEntry>& entries)
 
 QSet<QString> LogcatTableModel::getUniqueTags() const
 {
-    QSet<QString> tags;
-    for (const auto& entry : m_entries) {
+    auto extractTag = [this](const LogEntry& entry) -> QString {
         LogcatEntry logcatEntry = logEntryToLogcatEntry(entry);
-        if (!logcatEntry.tag.isEmpty()) {
-            tags.insert(logcatEntry.tag);
+        return logcatEntry.tag;
+    };
+
+    auto collectTags = [](QSet<QString>& tags, const QString& tag) {
+        if (!tag.isEmpty()) {
+            tags.insert(tag);
         }
-    }
+    };
+
+    QSet<QString> tags;
+    QtConcurrent::blockingMappedReduced<QSet<QString>>(m_entries, extractTag, collectTags);
     return tags;
 }
 
