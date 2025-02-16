@@ -7,13 +7,11 @@
 #include <QtPlugin>
 
 struct LogEntry {
-    QDateTime timestamp;
     const char* message;
     size_t length;
 
-    LogEntry(const QDateTime& ts = QDateTime(), const char* msg = nullptr, size_t len = 0)
-        : timestamp(ts)
-        , message(msg)
+    LogEntry(const char* msg = nullptr, size_t len = 0)
+        : message(msg)
         , length(len)
     {
     }
