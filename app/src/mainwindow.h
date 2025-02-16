@@ -3,7 +3,10 @@
 
 #include <QFile>
 #include <QMainWindow>
+#include <QTimer>
 #include "pluginmanager.h"
+
+#define FILTER_DEBOUNCE_TIMEOUT_MILLISECONDS 300
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -37,6 +40,7 @@ private:
     QLineEdit* m_filterInput;
     QSpinBox* m_beforeSpinBox;
     QSpinBox* m_afterSpinBox;
+    QTimer* m_filterTimer;
 };
 
 #endif // MAINWINDOW_H

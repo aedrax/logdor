@@ -19,6 +19,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_filterInput(new QLineEdit(this))
     , m_beforeSpinBox(new QSpinBox(this))
     , m_afterSpinBox(new QSpinBox(this))
+    , m_filterTimer(new QTimer(this))
 {
     ui->setupUi(this);
     // this allows the dock widget to use the full window
@@ -54,7 +55,15 @@ MainWindow::MainWindow(QWidget* parent)
     m_afterSpinBox->setToolTip(tr("Number of context lines to show after matches"));
     filterToolBar->addWidget(m_afterSpinBox);
     
-    connect(m_filterInput, &QLineEdit::textChanged, this, &MainWindow::onFilterChanged);
+    // Set up filter timer with delay
+    m_filterTimer->setSingleShot(true);
+    m_filterTimer->setInterval(FILTER_DEBOUNCE_TIMEOUT_MILLISECONDS);
+    
+    // Connect filter input to timer restart
+    connect(m_filterInput, &QLineEdit::textChanged, m_filterTimer, qOverload<>(&QTimer::start));
+    connect(m_filterTimer, &QTimer::timeout, this, &MainWindow::onFilterChanged);
+    
+    // Connect spin boxes directly since they don't need debouncing
     connect(m_beforeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
     connect(m_afterSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
 
