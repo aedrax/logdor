@@ -2,6 +2,8 @@
 #include <QHeaderView>
 #include <QSet>
 #include <algorithm>
+#include <QtConcurrent/QtConcurrent>
+#include <numeric>
 
 PlainTextTableModel::PlainTextTableModel(QObject* parent)
     : QAbstractTableModel(parent)
@@ -81,16 +83,23 @@ void PlainTextTableModel::applyFilter(const FilterOptions& options)
     if (options.query.isEmpty()) {
         // Show all entries
         m_visibleRows.resize(m_entries.size());
-        for (int i = 0; i < m_entries.size(); ++i) {
-            m_visibleRows[i] = i;
-        }
+        std::iota(m_visibleRows.begin(), m_visibleRows.end(), 0);
     } else {
-        // Find matches
+        // Find matches in parallel using QtConcurrent::mapped
+        QVector<int> indices(m_entries.size());
+        std::iota(indices.begin(), indices.end(), 0);
+        
+        auto future = QtConcurrent::mapped(indices, [this, &options](int i) {
+            return QPair<int, bool>(i, m_entries[i].getMessage().contains(options.query, options.caseSensitivity));
+        });
+        
+        auto results = future.results();
+        
+        // Collect matching indices
         QVector<int> matchIndices;
-        for (int i = 0; i < m_entries.size(); ++i) {
-            QString line = m_entries[i].getMessage();
-            if (line.contains(options.query, options.caseSensitivity)) {
-                matchIndices.append(i);
+        for (const auto& result : results) {
+            if (result.second) {
+                matchIndices.append(result.first);
             }
         }
 
@@ -101,10 +110,10 @@ void PlainTextTableModel::applyFilter(const FilterOptions& options)
             for (int i = std::max(0, matchIndex - options.contextLinesBefore); i < matchIndex; ++i) {
                 linesToShow.insert(i);
             }
-            
+
             // Add the matching line
             linesToShow.insert(matchIndex);
-            
+
             // Add context lines after
             for (int i = matchIndex + 1; i <= std::min<int>(m_entries.size() - 1, matchIndex + options.contextLinesAfter); ++i) {
                 linesToShow.insert(i);
@@ -115,7 +124,7 @@ void PlainTextTableModel::applyFilter(const FilterOptions& options)
         m_visibleRows = linesToShow.values().toVector();
         std::sort(m_visibleRows.begin(), m_visibleRows.end());
     }
-    
+
     endResetModel();
 }
 
