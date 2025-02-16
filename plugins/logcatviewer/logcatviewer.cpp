@@ -56,7 +56,7 @@ QVariant LogcatTableModel::data(const QModelIndex& index, int role) const
     if (!index.isValid() || index.row() >= m_visibleRows.size())
         return QVariant();
 
-    const LogcatEntry& entry = m_entries[m_visibleRows[index.row()]];
+    const LogcatEntry& entry = logEntryToLogcatEntry(m_entries[m_visibleRows[index.row()]]);
 
     if (role == Qt::DisplayRole) {
         switch (index.column()) {
@@ -122,8 +122,8 @@ void LogcatTableModel::sort(int column, Qt::SortOrder order)
     
     std::sort(m_visibleRows.begin(), m_visibleRows.end(), 
         [this, column, order](int left, int right) {
-            const LogcatEntry& leftEntry = m_entries[left];
-            const LogcatEntry& rightEntry = m_entries[right];
+            const LogcatEntry& leftEntry = logEntryToLogcatEntry(m_entries[left]);
+            const LogcatEntry& rightEntry = logEntryToLogcatEntry(m_entries[right]);
             
             bool lessThan;
             switch (column) {
@@ -157,7 +157,7 @@ void LogcatTableModel::sort(int column, Qt::SortOrder order)
     endResetModel();
 }
 
-void LogcatTableModel::setLogEntries(const QVector<LogcatEntry>& entries)
+void LogcatTableModel::setLogEntries(const QVector<LogEntry>& entries)
 {
     beginResetModel();
     m_entries = entries;
@@ -172,8 +172,9 @@ QSet<QString> LogcatTableModel::getUniqueTags() const
 {
     QSet<QString> tags;
     for (const auto& entry : m_entries) {
-        if (!entry.tag.isEmpty()) {
-            tags.insert(entry.tag);
+        LogcatEntry logcatEntry = logEntryToLogcatEntry(entry);
+        if (!logcatEntry.tag.isEmpty()) {
+            tags.insert(logcatEntry.tag);
         }
     }
     return tags;
@@ -211,7 +212,8 @@ void LogcatTableModel::applyFilter(const QString& query, const QSet<QString>& ta
     // First pass: find direct matches
     QVector<bool> directMatches(m_entries.size(), false);
     for (int i = 0; i < m_entries.size(); ++i) {
-        directMatches[i] = matchesFilter(m_entries[i], query, tags, levelFilters);
+        LogcatEntry entry = logEntryToLogcatEntry(m_entries[i]);
+        directMatches[i] = matchesFilter(entry, query, tags, levelFilters);
     }
 
     // Second pass: add matches and context lines
@@ -241,6 +243,22 @@ void LogcatTableModel::applyFilter(const QString& query, const QSet<QString>& ta
     }
     
     endResetModel();
+}
+
+LogcatEntry LogcatTableModel::logEntryToLogcatEntry(const LogEntry& entry) const
+{
+    LogcatEntry logcatEntry;
+    static QRegularExpression re(R"((\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+)\s*:\s*(.*))");
+    auto match = re.match(entry.getMessage());
+    if (match.hasMatch()) {
+        logcatEntry.timestamp = match.captured(1);
+        logcatEntry.pid = match.captured(2);
+        logcatEntry.tid = match.captured(3);
+        logcatEntry.level = LogcatEntry::parseLevel(match.captured(4)[0]);
+        logcatEntry.tag = match.captured(5).trimmed();
+        logcatEntry.message = match.captured(6);
+    }
+    return logcatEntry;
 }
 
 LogcatViewer::LogcatViewer()
@@ -381,28 +399,14 @@ void LogcatViewer::addTagLabel(const QString& tag)
 
 bool LogcatViewer::loadContent(const QVector<LogEntry>& content)
 {
-    // Parse logcat entries
-    QVector<LogcatEntry> entries;
-    for (const LogEntry& line : content) {
-        static QRegularExpression re(R"((\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+)\s*:\s*(.*))");
-        auto match = re.match(line.message);
-        if (match.hasMatch()) {
-            LogcatEntry entry;
-            entry.timestamp = match.captured(1);
-            entry.pid = match.captured(2);
-            entry.tid = match.captured(3);
-            entry.level = LogcatEntry::parseLevel(match.captured(4)[0]);
-            entry.tag = match.captured(5).trimmed();
-            entry.message = match.captured(6);
-            entries.append(entry);
-        }
-    }
-
-    m_model->setLogEntries(entries);
+    m_model->setLogEntries(content);
 
     // Update tag combobox
     m_tagComboBox->clear();
-    QSet<QString> tags = m_model->getUniqueTags();
+    QSet<QString> tagSet = m_model->getUniqueTags();
+    QVector<QString> tags = tagSet.values();
+    std::sort(tags.begin(), tags.end());
+    
     for (const QString& tag : tags) {
         m_tagComboBox->addItem(tag);
     }

@@ -100,18 +100,19 @@ public:
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
     void sort(int column, Qt::SortOrder order = Qt::AscendingOrder) override;
     
-    void setLogEntries(const QVector<LogcatEntry>& entries);
+    void setLogEntries(const QVector<LogEntry>& entries);
     void applyFilter(const QString& query, const QSet<QString>& tags, 
                     const QMap<LogcatEntry::Level, bool>& levelFilters,
                     int contextBefore, int contextAfter);
     QSet<QString> getUniqueTags() const;
+    LogcatEntry logEntryToLogcatEntry(const LogEntry& entry) const;
 
 private:
     bool matchesFilter(const LogcatEntry& entry, const QString& query, 
                       const QSet<QString>& tags,
                       const QMap<LogcatEntry::Level, bool>& levelFilters) const;
 
-    QVector<LogcatEntry> m_entries;
+    QVector<LogEntry> m_entries;
     QVector<int> m_visibleRows;  // Indices into m_entries for filtered view
     int m_sortColumn{0};
     Qt::SortOrder m_sortOrder{Qt::AscendingOrder};
