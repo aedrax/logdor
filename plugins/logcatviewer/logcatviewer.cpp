@@ -365,8 +365,10 @@ void LogcatViewer::setupUi()
     m_tagsLayout->setSpacing(2);
     m_tagsLayout->addStretch();
 
-    // Add tag combobox and container to toolbar
+    // Add tag label, combobox and container to toolbar
     m_toolbar->addSeparator();
+    QLabel* tagLabel = new QLabel(tr("Tags: "));
+    m_toolbar->addWidget(tagLabel);
     m_toolbar->addWidget(m_tagComboBox);
     m_toolbar->addWidget(m_scrollArea);
 
