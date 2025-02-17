@@ -3,6 +3,7 @@
 #include <QDockWidget>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QTextStream>
 #include <QToolBar>
@@ -185,6 +186,9 @@ bool MainWindow::openFile(const QString& fileName)
     if (!success) {
         QMessageBox::warning(this, tr("Error"),
             tr("No plugin was able to load the file: %1").arg(fileName));
+    } else {
+        // Update window title with the current file name
+        setWindowTitle(tr("Logdor - %1").arg(QFileInfo(fileName).fileName()));
     }
 
     return success;
