@@ -426,16 +426,6 @@ bool LogcatViewer::loadContent(const QVector<LogEntry>& content)
 {
     m_model->setLogEntries(content);
 
-    // Update tag combobox
-    m_tagComboBox->clear();
-    QSet<QString> tagSet = m_model->getUniqueTags();
-    QVector<QString> tags = tagSet.values();
-    std::sort(tags.begin(), tags.end());
-    
-    for (const QString& tag : tags) {
-        m_tagComboBox->addItem(tag);
-    }
-
     // Clear selected tags
     while (m_tagsLayout->count() > 1) { // Keep the stretch
         QLayoutItem* item = m_tagsLayout->takeAt(0);
@@ -446,6 +436,26 @@ bool LogcatViewer::loadContent(const QVector<LogEntry>& content)
     }
     m_selectedTags.clear();
 
+    // Start background tag population
+    QFuture<QSet<QString>> future = QtConcurrent::run([this]() {
+        return m_model->getUniqueTags();
+    });
+
+    QFutureWatcher<QSet<QString>>* watcher = new QFutureWatcher<QSet<QString>>(this);
+    connect(watcher, &QFutureWatcher<QSet<QString>>::finished, this, [this, watcher]() {
+        QSet<QString> tagSet = watcher->result();
+        QVector<QString> tags = tagSet.values();
+        std::sort(tags.begin(), tags.end());
+        
+        m_tagComboBox->clear();
+        for (const QString& tag : tags) {
+            m_tagComboBox->addItem(tag);
+        }
+        
+        watcher->deleteLater();
+    });
+
+    watcher->setFuture(future);
     return true;
 }
 
