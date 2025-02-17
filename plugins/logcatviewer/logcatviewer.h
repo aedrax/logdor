@@ -42,7 +42,8 @@ public:
         Info,
         Warning,
         Error,
-        Fatal
+        Fatal,
+        Unknown
     };
 
     QString timestamp;
@@ -60,7 +61,7 @@ public:
             case 'W': return Level::Warning;
             case 'E': return Level::Error;
             case 'F': return Level::Fatal;
-            default: return Level::Info;
+            default: return Level::Unknown;
         }
     }
 
@@ -84,7 +85,8 @@ public:
             case Level::Warning: return QColor(255, 165, 0);    // Orange
             case Level::Error: return QColor(255, 99, 71);      // Tomato Red
             case Level::Fatal: return QColor(186, 85, 211);     // Medium Purple
-            default: return QColor(255, 255, 255);              // White
+            case Level::Unknown: return QColor(255, 255, 255);  // White
+            default: return QColor(255, 255, 255);             // White
         }
     }
 };

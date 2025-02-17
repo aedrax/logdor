@@ -265,6 +265,7 @@ void LogcatTableModel::applyFilter(const FilterOptions& filterOptions, const QSe
 LogcatEntry LogcatTableModel::logEntryToLogcatEntry(const LogEntry& entry) const
 {
     LogcatEntry logcatEntry;
+    logcatEntry.level = LogcatEntry::Level::Unknown;
     static QRegularExpression re(R"((\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+)\s*:\s*(.*))");
     auto match = re.match(entry.getMessage());
     if (match.hasMatch()) {
@@ -299,6 +300,7 @@ LogcatViewer::LogcatViewer(QObject* parent)
     m_levelFilters[LogcatEntry::Level::Warning] = true;
     m_levelFilters[LogcatEntry::Level::Error] = true;
     m_levelFilters[LogcatEntry::Level::Fatal] = true;
+    m_levelFilters[LogcatEntry::Level::Unknown] = true;
 }
 
 LogcatViewer::~LogcatViewer()
@@ -333,6 +335,7 @@ void LogcatViewer::setupUi()
     addLevelAction(LogcatEntry::Level::Warning);
     addLevelAction(LogcatEntry::Level::Error);
     addLevelAction(LogcatEntry::Level::Fatal);
+    addLevelAction(LogcatEntry::Level::Unknown);
 
     // Setup tag combobox
     m_tagComboBox->setEditable(true);
