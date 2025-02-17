@@ -94,6 +94,24 @@ bool PluginManager::loadPlugin(const QString& fileName)
     }
     
     m_pluginLoaders[interface->name()] = loader;
+    
+    // Connect the new plugin's signals to all existing plugins' slots
+    for (QPluginLoader* existingLoader : m_pluginLoaders) {
+        if (existingLoader != loader) {
+            if (QObject* existingInstance = existingLoader->instance()) {
+                if (PluginInterface* existingInterface = qobject_cast<PluginInterface*>(existingInstance)) {
+                    // Connect new plugin's signals to existing plugin's slots
+                    connect(interface, &PluginInterface::pluginEvent,
+                            existingInterface, &PluginInterface::onPluginEvent);
+                    
+                    // Connect existing plugin's signals to new plugin's slots
+                    connect(existingInterface, &PluginInterface::pluginEvent,
+                            interface, &PluginInterface::onPluginEvent);
+                }
+            }
+        }
+    }
+    
     return true;
 }
 
