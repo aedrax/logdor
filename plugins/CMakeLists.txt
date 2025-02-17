@@ -1,3 +1,4 @@
 add_subdirectory(plaintextviewer)
 add_subdirectory(logcatviewer)
 add_subdirectory(selectedlineviewer)
+add_subdirectory(bookmarkviewer)
