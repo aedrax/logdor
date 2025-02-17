@@ -118,12 +118,12 @@ private:
     Qt::SortOrder m_sortOrder{Qt::AscendingOrder};
 };
 
-class LogcatViewer : public QObject, public PluginInterface {
+class LogcatViewer : public PluginInterface {
     Q_OBJECT
     Q_INTERFACES(PluginInterface)
     Q_PLUGIN_METADATA(IID PluginInterface_iid)
 public:
-    LogcatViewer();
+    explicit LogcatViewer(QObject* parent = nullptr);
     ~LogcatViewer();
 
     // PluginInterface implementation

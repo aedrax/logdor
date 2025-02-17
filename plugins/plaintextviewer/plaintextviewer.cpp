@@ -128,8 +128,9 @@ void PlainTextTableModel::applyFilter(const FilterOptions& options)
     endResetModel();
 }
 
-PlainTextViewer::PlainTextViewer()
-    : m_tableView(new QTableView())
+PlainTextViewer::PlainTextViewer(QObject* parent)
+    : PluginInterface(parent)
+    , m_tableView(new QTableView())
     , m_model(new PlainTextTableModel(this))
 {
     m_tableView->setModel(m_model);

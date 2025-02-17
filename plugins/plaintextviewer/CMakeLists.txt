@@ -24,6 +24,7 @@ target_include_directories(plaintextviewer
 
 target_link_libraries(plaintextviewer
     PRIVATE
+        logdor_interface
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets

@@ -272,8 +272,9 @@ LogcatEntry LogcatTableModel::logEntryToLogcatEntry(const LogEntry& entry) const
     return logcatEntry;
 }
 
-LogcatViewer::LogcatViewer()
-    : m_container(new QWidget())
+LogcatViewer::LogcatViewer(QObject* parent)
+    : PluginInterface(parent)
+    , m_container(new QWidget())
     , m_layout(new QVBoxLayout(m_container))
     , m_toolbar(new QToolBar())
     , m_tableView(new QTableView())

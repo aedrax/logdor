@@ -9,14 +9,25 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Concurrent)
 
+# Create plugin interface library
+add_library(logdor_interface SHARED
+    src/plugininterface.h
+)
+
+target_link_libraries(logdor_interface PUBLIC
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Concurrent
+)
+
+# Main executable
 set(PROJECT_SOURCES
     src/main.cpp
     src/mainwindow.cpp
     src/mainwindow.h
     src/mainwindow.ui
-    src/plugininterface.h
     src/pluginmanager.cpp
     src/pluginmanager.h
     resources/resources.qrc
@@ -28,6 +39,8 @@ qt_add_executable(logdor
 )
 
 target_link_libraries(logdor PRIVATE
+    logdor_interface
+    Qt6::Core
     Qt6::Widgets
     Qt6::Concurrent
 )

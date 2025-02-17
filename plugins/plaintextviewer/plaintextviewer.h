@@ -25,12 +25,12 @@ private:
     QVector<int> m_visibleRows;  // Indices into m_entries for filtered view
 };
 
-class PlainTextViewer : public QObject, public PluginInterface {
+class PlainTextViewer : public PluginInterface {
     Q_OBJECT
     Q_INTERFACES(PluginInterface)
     Q_PLUGIN_METADATA(IID PluginInterface_iid)
 public:
-    PlainTextViewer();
+    explicit PlainTextViewer(QObject* parent = nullptr);
     ~PlainTextViewer();
 
     // PluginInterface implementation

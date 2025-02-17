@@ -36,8 +36,13 @@ struct FilterOptions {
     }
 };
 
-class PluginInterface {
+class PluginInterface : public QObject {
+    Q_OBJECT
 public:
+    // Constructor
+    explicit PluginInterface(QObject* parent = nullptr) : QObject(parent) {}
+
+    // Virtual destructor for proper cleanup
     virtual ~PluginInterface() = default;
 
     // Get the name of the plugin
