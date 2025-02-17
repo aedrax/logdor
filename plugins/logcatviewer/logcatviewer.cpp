@@ -171,20 +171,27 @@ void LogcatTableModel::setLogEntries(const QVector<LogEntry>& entries)
 
 QSet<QString> LogcatTableModel::getUniqueTags() const
 {
-    auto extractTag = [this](const LogEntry& entry) -> QString {
-        LogcatEntry logcatEntry = logEntryToLogcatEntry(entry);
-        return logcatEntry.tag;
-    };
-
-    auto collectTags = [](QSet<QString>& tags, const QString& tag) {
+    // Reduce function that safely combines tags into the result set
+    auto reduceTags = [](QSet<QString>& result, const QString& tag) {
         if (!tag.isEmpty()) {
-            tags.insert(tag);
+            result.insert(tag);
         }
+        return result;
     };
 
-    QSet<QString> tags;
-    QtConcurrent::blockingMappedReduced<QSet<QString>>(m_entries, extractTag, collectTags);
-    return tags;
+    // Process entries and reduce results in parallel
+    return QtConcurrent::blockingMappedReduced<QSet<QString>>(
+        m_entries,
+        // Map function to extract tags
+        [this](const LogEntry& entry) {
+            LogcatEntry logcatEntry = logEntryToLogcatEntry(entry);
+            return logcatEntry.tag;
+        },
+        // Reduce function to combine results
+        reduceTags,
+        // Use parallel reduction
+        QtConcurrent::ReduceOption::UnorderedReduce
+    );
 }
 
 bool LogcatTableModel::matchesFilter(const LogcatEntry& entry, const QString& query, Qt::CaseSensitivity caseSensitivity,
