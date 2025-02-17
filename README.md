@@ -7,6 +7,8 @@ Logdor was a man! No... he was a logging man! ...or... maybe he was just a log v
 
 Logdor is a tool to simplify looking at log files by enabling filtering, color coding, and anything else I find useful.
 
+![image](https://github.com/user-attachments/assets/679a40ce-82b1-4c57-af61-1d43c7ad2985)
+
 ## Features
 
 ### Plain Text Viewer
