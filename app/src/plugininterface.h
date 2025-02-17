@@ -36,6 +36,11 @@ struct FilterOptions {
     }
 };
 
+enum PluginEvent {
+    Custom,
+    LinesSelected
+};
+
 class PluginInterface : public QObject {
     Q_OBJECT
 public:
@@ -56,6 +61,14 @@ public:
 
     // Apply filter options to the content
     virtual void applyFilter(const FilterOptions& options) = 0;
+
+public slots:
+    // Handle plugin events
+    virtual void onPluginEvent(PluginEvent event, const QVariant& data) = 0;
+    
+signals:
+    // Signal to notify about plugin events
+    void pluginEvent(PluginEvent event, const QVariant& data);
 };
 
 // Define the plugin interface ID

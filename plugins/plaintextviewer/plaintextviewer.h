@@ -39,6 +39,9 @@ public:
     bool loadContent(const QVector<LogEntry>& content) override;
     void applyFilter(const FilterOptions& options) override;
 
+public slots:
+    void onPluginEvent(PluginEvent event, const QVariant& data) override;
+
 private:
     QTableView* m_tableView;
     PlainTextTableModel* m_model;

@@ -460,3 +460,8 @@ void LogcatViewer::handleSort(int column, Qt::SortOrder order)
 {
     m_model->sort(column, order);
 }
+
+void LogcatViewer::onPluginEvent(PluginEvent event, const QVariant& data)
+{
+    
+}

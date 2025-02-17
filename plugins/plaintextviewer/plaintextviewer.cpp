@@ -156,3 +156,8 @@ void PlainTextViewer::applyFilter(const FilterOptions& options)
 {
     m_model->applyFilter(options);
 }
+
+void PlainTextViewer::onPluginEvent(PluginEvent event, const QVariant& data)
+{
+    
+}
