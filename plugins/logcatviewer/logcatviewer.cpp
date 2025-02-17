@@ -428,7 +428,10 @@ void LogcatViewer::addTagLabel(const QString& tag)
 bool LogcatViewer::loadContent(const QVector<LogEntry>& content)
 {
     m_model->setLogEntries(content);
-
+    
+    // Set default sorting to ascending by first column
+    m_tableView->sortByColumn(0, Qt::AscendingOrder);
+    
     // Clear selected tags
     while (m_tagsLayout->count() > 1) { // Keep the stretch
         QLayoutItem* item = m_tagsLayout->takeAt(0);
