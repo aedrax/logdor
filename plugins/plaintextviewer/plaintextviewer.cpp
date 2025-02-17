@@ -139,6 +139,11 @@ PlainTextViewer::PlainTextViewer(QObject* parent)
     m_tableView->verticalHeader()->hide();
     m_tableView->setAlternatingRowColors(true);
     m_tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_tableView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    
+    // Connect selection changes to our handler
+    connect(m_tableView->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &PlainTextViewer::onSelectionChanged);
 }
 
 PlainTextViewer::~PlainTextViewer()
@@ -157,7 +162,22 @@ void PlainTextViewer::applyFilter(const FilterOptions& options)
     m_model->applyFilter(options);
 }
 
+void PlainTextViewer::onSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected)
+{
+    Q_UNUSED(selected);
+    Q_UNUSED(deselected);
+    
+    QList<int> selectedLines;
+    const auto indexes = m_tableView->selectionModel()->selectedRows();
+    for (const auto& index : indexes) {
+        selectedLines.append(m_model->mapToSourceRow(index.row()));
+    }
+    
+    emit pluginEvent(PluginEvent::LinesSelected, QVariant::fromValue(selectedLines));
+}
+
 void PlainTextViewer::onPluginEvent(PluginEvent event, const QVariant& data)
 {
-    
+    Q_UNUSED(event);
+    Q_UNUSED(data);
 }

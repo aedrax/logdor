@@ -106,6 +106,7 @@ public:
                     int contextBefore, int contextAfter);
     QSet<QString> getUniqueTags() const;
     LogcatEntry logEntryToLogcatEntry(const LogEntry& entry) const;
+    int mapToSourceRow(int visibleRow) const { return m_visibleRows[visibleRow]; }
 
 private:
     bool matchesFilter(const LogcatEntry& entry, const QString& query, 
@@ -139,6 +140,7 @@ private slots:
     void toggleLevel(LogcatEntry::Level level, bool enabled);
     void updateVisibleRows();
     void handleSort(int column, Qt::SortOrder order);
+    void onSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected);
 
 private:
     void setupUi();

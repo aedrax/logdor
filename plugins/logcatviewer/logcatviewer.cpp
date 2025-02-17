@@ -380,6 +380,11 @@ void LogcatViewer::setupUi()
     m_tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_tableView->setSortingEnabled(true);
     m_tableView->setFont(QFont("Monospace"));
+    m_tableView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    
+    // Connect selection changes to our handler
+    connect(m_tableView->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &LogcatViewer::onSelectionChanged);
 
     connect(m_tableView->horizontalHeader(), &QHeaderView::sortIndicatorChanged,
             this, &LogcatViewer::handleSort);
@@ -461,7 +466,22 @@ void LogcatViewer::handleSort(int column, Qt::SortOrder order)
     m_model->sort(column, order);
 }
 
+void LogcatViewer::onSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected)
+{
+    Q_UNUSED(deselected);
+    Q_UNUSED(selected);
+    
+    QList<int> selectedLines;
+    const auto indexes = m_tableView->selectionModel()->selectedRows();
+    for (const auto& index : indexes) {
+        selectedLines.append(m_model->mapToSourceRow(index.row()));
+    }
+    
+    emit pluginEvent(PluginEvent::LinesSelected, QVariant::fromValue(selectedLines));
+}
+
 void LogcatViewer::onPluginEvent(PluginEvent event, const QVariant& data)
 {
-    
+    Q_UNUSED(event);
+    Q_UNUSED(data);
 }

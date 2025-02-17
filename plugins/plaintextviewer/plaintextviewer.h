@@ -6,6 +6,7 @@
 #include <QAbstractTableModel>
 #include <QString>
 #include <QtPlugin>
+#include <QItemSelection>
 
 class PlainTextTableModel : public QAbstractTableModel {
     Q_OBJECT
@@ -19,6 +20,7 @@ public:
     
     void setLogEntries(const QVector<LogEntry>& entries);
     void applyFilter(const FilterOptions& options);
+    int mapToSourceRow(int visibleRow) const { return m_visibleRows[visibleRow]; }
 
 private:
     QVector<LogEntry> m_entries;
@@ -41,6 +43,9 @@ public:
 
 public slots:
     void onPluginEvent(PluginEvent event, const QVariant& data) override;
+
+private slots:
+    void onSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected);
 
 private:
     QTableView* m_tableView;
