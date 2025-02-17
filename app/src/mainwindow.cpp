@@ -70,7 +70,7 @@ MainWindow::MainWindow(QWidget* parent)
     // Connect spin boxes directly since they don't need debouncing
     connect(m_beforeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
     connect(m_afterSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
-    connect(m_caseSensitiveCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onFilterChanged);
+    connect(m_caseSensitiveCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
 
     loadPlugins();
 }
