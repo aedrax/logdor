@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QMainWindow>
 #include <QTimer>
+#include <QCheckBox>
 #include "pluginmanager.h"
 
 #define FILTER_DEBOUNCE_TIMEOUT_MILLISECONDS 300
@@ -38,6 +39,7 @@ private:
     
     // Filter controls
     QLineEdit* m_filterInput;
+    QCheckBox* m_caseSensitiveCheckBox;
     QSpinBox* m_beforeSpinBox;
     QSpinBox* m_afterSpinBox;
     QTimer* m_filterTimer;

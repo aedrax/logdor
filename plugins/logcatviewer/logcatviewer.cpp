@@ -187,7 +187,7 @@ QSet<QString> LogcatTableModel::getUniqueTags() const
     return tags;
 }
 
-bool LogcatTableModel::matchesFilter(const LogcatEntry& entry, const QString& query,
+bool LogcatTableModel::matchesFilter(const LogcatEntry& entry, const QString& query, Qt::CaseSensitivity caseSensitivity,
                                    const QSet<QString>& tags,
                                    const QMap<LogcatEntry::Level, bool>& levelFilters) const
 {
@@ -202,16 +202,15 @@ bool LogcatTableModel::matchesFilter(const LogcatEntry& entry, const QString& qu
     }
 
     // Check text filter
-    if (!query.isEmpty() && !entry.message.contains(query, Qt::CaseInsensitive)) {
+    if (!query.isEmpty() && !entry.message.contains(query, caseSensitivity)) {
         return false;
     }
 
     return true;
 }
 
-void LogcatTableModel::applyFilter(const QString& query, const QSet<QString>& tags,
-                                 const QMap<LogcatEntry::Level, bool>& levelFilters,
-                                 int contextBefore, int contextAfter)
+void LogcatTableModel::applyFilter(const FilterOptions& filterOptions, const QSet<QString>& tags,
+                                 const QMap<LogcatEntry::Level, bool>& levelFilters)
 {
     beginResetModel();
     m_visibleRows.clear();
@@ -220,9 +219,9 @@ void LogcatTableModel::applyFilter(const QString& query, const QSet<QString>& ta
     QVector<int> indices(m_entries.size());
     std::iota(indices.begin(), indices.end(), 0);
     
-    auto future = QtConcurrent::mapped(indices, [this, &query, &tags, &levelFilters](int i) {
+    auto future = QtConcurrent::mapped(indices, [this, &filterOptions, &tags, &levelFilters](int i) {
         LogcatEntry entry = logEntryToLogcatEntry(m_entries[i]);
-        return matchesFilter(entry, query, tags, levelFilters);
+        return matchesFilter(entry, filterOptions.query, filterOptions.caseSensitivity, tags, levelFilters);
     });
     
     QVector<bool> directMatches = future.results();
@@ -232,7 +231,7 @@ void LogcatTableModel::applyFilter(const QString& query, const QSet<QString>& ta
     for (int i = 0; i < m_entries.size(); ++i) {
         if (directMatches[i]) {
             // Add context lines before
-            for (int j = std::max(0, i - contextBefore); j < i; ++j) {
+            for (int j = std::max(0, i - filterOptions.contextLinesBefore); j < i; ++j) {
                 linesToShow.insert(j);
             }
             
@@ -240,7 +239,7 @@ void LogcatTableModel::applyFilter(const QString& query, const QSet<QString>& ta
             linesToShow.insert(i);
             
             // Add context lines after
-            for (int j = i + 1; j <= std::min<int>(m_entries.size() - 1, i + contextAfter); ++j) {
+            for (int j = i + 1; j <= std::min<int>(m_entries.size() - 1, i + filterOptions.contextLinesAfter); ++j) {
                 linesToShow.insert(j);
             }
         }
@@ -449,15 +448,12 @@ void LogcatViewer::toggleLevel(LogcatEntry::Level level, bool enabled)
 
 void LogcatViewer::updateVisibleRows()
 {
-    m_model->applyFilter(m_filterQuery, m_selectedTags, m_levelFilters,
-                        m_contextLinesBefore, m_contextLinesAfter);
+    m_model->applyFilter(m_filterOptions, m_selectedTags, m_levelFilters);
 }
 
 void LogcatViewer::applyFilter(const FilterOptions& options)
 {
-    m_filterQuery = options.query;
-    m_contextLinesBefore = options.contextLinesBefore;
-    m_contextLinesAfter = options.contextLinesAfter;
+    m_filterOptions = options;
     updateVisibleRows();
 }
 

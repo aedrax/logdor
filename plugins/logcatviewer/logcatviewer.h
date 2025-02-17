@@ -101,15 +101,14 @@ public:
     void sort(int column, Qt::SortOrder order = Qt::AscendingOrder) override;
     
     void setLogEntries(const QVector<LogEntry>& entries);
-    void applyFilter(const QString& query, const QSet<QString>& tags, 
-                    const QMap<LogcatEntry::Level, bool>& levelFilters,
-                    int contextBefore, int contextAfter);
+    void applyFilter(const FilterOptions& filterOptions, const QSet<QString>& tags, 
+                    const QMap<LogcatEntry::Level, bool>& levelFilters);
     QSet<QString> getUniqueTags() const;
     LogcatEntry logEntryToLogcatEntry(const LogEntry& entry) const;
     int mapToSourceRow(int visibleRow) const { return m_visibleRows[visibleRow]; }
 
 private:
-    bool matchesFilter(const LogcatEntry& entry, const QString& query, 
+    bool matchesFilter(const LogcatEntry& entry, const QString& query, Qt::CaseSensitivity caseSensitivity,
                       const QSet<QString>& tags,
                       const QMap<LogcatEntry::Level, bool>& levelFilters) const;
 
@@ -159,10 +158,8 @@ private:
     QScrollArea* m_scrollArea;
     QFrame* m_tagsContainer;
     QHBoxLayout* m_tagsLayout;
-    QString m_filterQuery;
     QMap<LogcatEntry::Level, bool> m_levelFilters;
-    int m_contextLinesBefore{0};
-    int m_contextLinesAfter{0};
+    FilterOptions m_filterOptions;
 };
 
 #endif // LOGCATVIEWER_H

@@ -17,6 +17,7 @@ MainWindow::MainWindow(QWidget* parent)
     , ui(new Ui::MainWindow)
     , m_pluginManager(new PluginManager(this))
     , m_filterInput(new QLineEdit(this))
+    , m_caseSensitiveCheckBox(new QCheckBox(tr("Case Sensitive"), this))
     , m_beforeSpinBox(new QSpinBox(this))
     , m_afterSpinBox(new QSpinBox(this))
     , m_filterTimer(new QTimer(this))
@@ -35,6 +36,9 @@ MainWindow::MainWindow(QWidget* parent)
     
     m_filterInput->setPlaceholderText(tr("Enter filter text..."));
     filterToolBar->addWidget(m_filterInput);
+    
+    m_caseSensitiveCheckBox->setToolTip(tr("Toggle case sensitive filtering"));
+    filterToolBar->addWidget(m_caseSensitiveCheckBox);
     
     // Add context line controls
     filterToolBar->addSeparator();
@@ -66,6 +70,7 @@ MainWindow::MainWindow(QWidget* parent)
     // Connect spin boxes directly since they don't need debouncing
     connect(m_beforeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
     connect(m_afterSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
+    connect(m_caseSensitiveCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onFilterChanged);
 
     loadPlugins();
 }
@@ -197,7 +202,8 @@ void MainWindow::onFilterChanged()
 {
     FilterOptions options(m_filterInput->text(),
                          m_beforeSpinBox->value(),
-                         m_afterSpinBox->value());
+                         m_afterSpinBox->value(),
+                         m_caseSensitiveCheckBox->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive);
 
     // Apply filter to all active plugins with context lines
     for (PluginInterface* plugin : m_activePlugins) {
