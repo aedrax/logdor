@@ -106,13 +106,6 @@ QVector<QPair<const char*, qsizetype>> processChunk(const FileChunk& chunk) {
     QVector<QPair<const char*, qsizetype>> lines;
     const char* current = chunk.start;
     
-    // If not the first chunk, move start to next line boundary
-    if (!chunk.isFirstChunk) {
-        while (current < chunk.end && *(current - 1) != '\n') {
-            ++current;
-        }
-    }
-    
     while (current < chunk.end) {
         auto next = reinterpret_cast<const char*>(memchr(current, '\n', chunk.end - current));
         if (!next) {
@@ -151,10 +144,25 @@ bool MainWindow::openFile(const QString& fileName)
     
     // Create chunks to process
     QVector<FileChunk> chunks;
+    const char* chunkStart = data;
+    const char* chunkEnd = data + chunkSize;
+    const char* fileEnd = data + fileSize;
     for (int i = 0; i < numThreads; ++i) {
-        const char* chunkStart = data + (i * chunkSize);
-        const char* chunkEnd = (i == numThreads - 1) ? data + fileSize : data + ((i + 1) * chunkSize);
+        auto next = reinterpret_cast<const char*>(memchr(chunkEnd, '\n', fileEnd - chunkEnd));
+        if (next) {
+            chunkEnd = next;
+        } else {
+            chunkEnd = fileEnd;
+        }
         chunks.append({chunkStart, chunkEnd, i == 0});
+        chunkStart = chunkEnd + 1;
+        chunkEnd = chunkStart + chunkSize;
+        if (chunkEnd > fileEnd) {
+            chunkEnd = fileEnd;
+        }
+        if (chunkStart >= fileEnd) {
+            break;
+        }
     }
     
     // Process chunks in parallel using QtConcurrent
