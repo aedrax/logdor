@@ -4,6 +4,8 @@
 #include <QChar>
 #include <QColor>
 #include <QString>
+#include <QRegularExpression>
+#include "../../app/src/plugininterface.h"
 
 class LogcatEntry {
 public:
@@ -23,6 +25,21 @@ public:
     Level level;
     QString tag;
     QString message;
+
+    LogcatEntry(const LogEntry& entry)
+    {
+        level = Level::Unknown;
+        static QRegularExpression re(R"((\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+)\s*:\s*(.*))");
+        auto match = re.match(entry.getMessage());
+        if (match.hasMatch()) {
+            timestamp = match.captured(1);
+            pid = match.captured(2);
+            tid = match.captured(3);
+            level = parseLevel(match.captured(4)[0]);
+            tag = match.captured(5).trimmed();
+            message = match.captured(6);
+        }
+    }
 
     static Level parseLevel(const QChar& levelChar) {
         switch (levelChar.toLatin1()) {

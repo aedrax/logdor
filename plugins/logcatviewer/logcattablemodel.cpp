@@ -30,7 +30,7 @@ QVariant LogcatTableModel::data(const QModelIndex& index, int role) const
     if (!index.isValid() || index.row() >= m_visibleRows.size())
         return QVariant();
 
-    const LogcatEntry& entry = logEntryToLogcatEntry(m_entries[m_visibleRows[index.row()]]);
+    const LogcatEntry& entry(m_entries[m_visibleRows[index.row()]]);
 
     if (role == Qt::DisplayRole) {
         switch (index.column()) {
@@ -96,8 +96,8 @@ void LogcatTableModel::sort(int column, Qt::SortOrder order)
     
     std::sort(m_visibleRows.begin(), m_visibleRows.end(), 
         [this, column, order](int left, int right) {
-            const LogcatEntry& leftEntry = logEntryToLogcatEntry(m_entries[left]);
-            const LogcatEntry& rightEntry = logEntryToLogcatEntry(m_entries[right]);
+            const LogcatEntry& leftEntry(m_entries[left]);
+            const LogcatEntry& rightEntry(m_entries[right]);
             
             bool lessThan;
             switch (column) {
@@ -142,90 +142,11 @@ void LogcatTableModel::setLogEntries(const QVector<LogEntry>& entries)
     endResetModel();
 }
 
-QSet<QString> LogcatTableModel::getUniqueTags() const
-{
-    // Reduce function that safely combines tags into the result set
-    auto reduceTags = [](QSet<QString>& result, const QString& tag) {
-        if (!tag.isEmpty()) {
-            result.insert(tag);
-        }
-        return result;
-    };
-
-    // Process entries and reduce results in parallel
-    return QtConcurrent::blockingMappedReduced<QSet<QString>>(
-        m_entries,
-        // Map function to extract tags
-        [this](const LogEntry& entry) {
-            LogcatEntry logcatEntry = logEntryToLogcatEntry(entry);
-            return logcatEntry.tag;
-        },
-        // Reduce function to combine results
-        reduceTags,
-        // Use parallel reduction
-        QtConcurrent::ReduceOption::UnorderedReduce
-    );
-}
-
-bool LogcatTableModel::matchesFilter(const LogcatEntry& entry, const QString& query, Qt::CaseSensitivity caseSensitivity,
-                                   const QSet<QString>& tags,
-                                   const QMap<LogcatEntry::Level, bool>& levelFilters) const
-{
-    // Check level filter
-    if (!levelFilters.value(entry.level, true)) {
-        return false;
-    }
-
-    // Check tag filters
-    if (!tags.isEmpty() && !tags.contains(entry.tag)) {
-        return false;
-    }
-
-    // Check text filter
-    if (!query.isEmpty() && !entry.message.contains(query, caseSensitivity)) {
-        return false;
-    }
-
-    return true;
-}
-
-void LogcatTableModel::applyFilter(const FilterOptions& filterOptions, const QSet<QString>& tags,
-                                 const QMap<LogcatEntry::Level, bool>& levelFilters)
+void LogcatTableModel::applyFilter(const QVector<int>& linesToShow)
 {
     beginResetModel();
     m_visibleRows.clear();
-
-    // First pass: find direct matches in parallel
-    QVector<int> indices(m_entries.size());
-    std::iota(indices.begin(), indices.end(), 0);
-    
-    auto future = QtConcurrent::mapped(indices, [this, &filterOptions, &tags, &levelFilters](int i) {
-        LogcatEntry entry = logEntryToLogcatEntry(m_entries[i]);
-        return matchesFilter(entry, filterOptions.query, filterOptions.caseSensitivity, tags, levelFilters);
-    });
-    
-    QVector<bool> directMatches = future.results();
-
-    // Second pass: add matches and context lines
-    QSet<int> linesToShow;
-    for (int i = 0; i < m_entries.size(); ++i) {
-        if (directMatches[i]) {
-            // Add context lines before
-            for (int j = std::max(0, i - filterOptions.contextLinesBefore); j < i; ++j) {
-                linesToShow.insert(j);
-            }
-            
-            // Add the matching line
-            linesToShow.insert(i);
-            
-            // Add context lines after
-            for (int j = i + 1; j <= std::min<int>(m_entries.size() - 1, i + filterOptions.contextLinesAfter); ++j) {
-                linesToShow.insert(j);
-            }
-        }
-    }
-
-    m_visibleRows = linesToShow.values().toVector();
+    m_visibleRows = linesToShow;
     std::sort(m_visibleRows.begin(), m_visibleRows.end());
     
     if (m_sortColumn >= 0) {
@@ -233,21 +154,4 @@ void LogcatTableModel::applyFilter(const FilterOptions& filterOptions, const QSe
     }
     
     endResetModel();
-}
-
-LogcatEntry LogcatTableModel::logEntryToLogcatEntry(const LogEntry& entry) const
-{
-    LogcatEntry logcatEntry;
-    logcatEntry.level = LogcatEntry::Level::Unknown;
-    static QRegularExpression re(R"((\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+)\s*:\s*(.*))");
-    auto match = re.match(entry.getMessage());
-    if (match.hasMatch()) {
-        logcatEntry.timestamp = match.captured(1);
-        logcatEntry.pid = match.captured(2);
-        logcatEntry.tid = match.captured(3);
-        logcatEntry.level = LogcatEntry::parseLevel(match.captured(4)[0]);
-        logcatEntry.tag = match.captured(5).trimmed();
-        logcatEntry.message = match.captured(6);
-    }
-    return logcatEntry;
 }

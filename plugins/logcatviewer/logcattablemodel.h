@@ -21,10 +21,7 @@ public:
     void sort(int column, Qt::SortOrder order = Qt::AscendingOrder) override;
     
     void setLogEntries(const QVector<LogEntry>& entries);
-    void applyFilter(const FilterOptions& filterOptions, const QSet<QString>& tags, 
-                    const QMap<LogcatEntry::Level, bool>& levelFilters);
-    QSet<QString> getUniqueTags() const;
-    LogcatEntry logEntryToLogcatEntry(const LogEntry& entry) const;
+    void applyFilter(const QVector<int>& linesToShow);
     int mapToSourceRow(int visibleRow) const { return m_visibleRows[visibleRow]; }
 
 private:

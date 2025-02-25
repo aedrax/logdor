@@ -34,6 +34,7 @@ public:
     QWidget* widget() override { return m_container; }
     bool loadContent(const QVector<LogEntry>& content) override;
     void applyFilter(const FilterOptions& options) override;
+    QSet<QString> getUniqueTags() const;
 
 public slots:
     void onPluginEvent(PluginEvent event, const QVariant& data) override;
@@ -63,6 +64,7 @@ private:
     QHBoxLayout* m_tagsLayout;
     QMap<LogcatEntry::Level, bool> m_levelFilters;
     FilterOptions m_filterOptions;
+    QVector<LogEntry> m_entries;
 };
 
 #endif // LOGCATVIEWER_H

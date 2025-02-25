@@ -158,6 +158,7 @@ void LogcatViewer::addTagLabel(const QString& tag)
 
 bool LogcatViewer::loadContent(const QVector<LogEntry>& content)
 {
+    m_entries = content;
     m_model->setLogEntries(content);
 
     // Clear selected tags
@@ -172,7 +173,7 @@ bool LogcatViewer::loadContent(const QVector<LogEntry>& content)
 
     // Start background tag population
     QFuture<QSet<QString>> future = QtConcurrent::run([this]() {
-        return m_model->getUniqueTags();
+        return getUniqueTags();
     });
 
     QFutureWatcher<QSet<QString>>* watcher = new QFutureWatcher<QSet<QString>>(this);
@@ -201,7 +202,36 @@ void LogcatViewer::toggleLevel(LogcatEntry::Level level, bool enabled)
 
 void LogcatViewer::updateVisibleRows()
 {
-    m_model->applyFilter(m_filterOptions, m_selectedTags, m_levelFilters);
+    // First pass: find direct matches in parallel
+    QVector<int> indices(m_entries.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    
+    auto future = QtConcurrent::mapped(indices, [this](int i) {
+        LogcatEntry entry(m_entries[i]);
+        return matchesFilter(entry);
+    });
+    
+    QVector<bool> directMatches = future.results();
+
+    // Second pass: add matches and context lines
+    QSet<int> linesToShow;
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (directMatches[i]) {
+            // Add context lines before
+            for (int j = std::max(0, i - m_filterOptions.contextLinesBefore); j < i; ++j) {
+                linesToShow.insert(j);
+            }
+            
+            // Add the matching line
+            linesToShow.insert(i);
+            
+            // Add context lines after
+            for (int j = i + 1; j <= std::min<int>(m_entries.size() - 1, i + m_filterOptions.contextLinesAfter); ++j) {
+                linesToShow.insert(j);
+            }
+        }
+    }
+    m_model->applyFilter(linesToShow.values().toVector());
 }
 
 void LogcatViewer::applyFilter(const FilterOptions& options)
@@ -233,4 +263,49 @@ void LogcatViewer::onPluginEvent(PluginEvent event, const QVariant& data)
 {
     Q_UNUSED(event);
     Q_UNUSED(data);
+}
+
+QSet<QString> LogcatViewer::getUniqueTags() const
+{
+    // Reduce function that safely combines tags into the result set
+    auto reduceTags = [](QSet<QString>& result, const QString& tag) {
+        if (!tag.isEmpty()) {
+            result.insert(tag);
+        }
+        return result;
+    };
+
+    // Process entries and reduce results in parallel
+    return QtConcurrent::blockingMappedReduced<QSet<QString>>(
+        m_entries,
+        // Map function to extract tags
+        [this](const LogEntry& entry) {
+            LogcatEntry logcatEntry(entry);
+            return logcatEntry.tag;
+        },
+        // Reduce function to combine results
+        reduceTags,
+        // Use parallel reduction
+        QtConcurrent::ReduceOption::UnorderedReduce
+    );
+}
+
+bool LogcatViewer::matchesFilter(const LogcatEntry& entry) const
+{
+    // Check level filter
+    if (!m_levelFilters.value(entry.level, true)) {
+        return false;
+    }
+
+    // Check tag filters
+    if (!m_selectedTags.isEmpty() && !m_selectedTags.contains(entry.tag)) {
+        return false;
+    }
+
+    // Check text filter
+    if (!m_filterOptions.query.isEmpty() && !entry.message.contains(m_filterOptions.query, m_filterOptions.caseSensitivity)) {
+        return false;
+    }
+
+    return true;
 }
