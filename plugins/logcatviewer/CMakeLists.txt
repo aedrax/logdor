@@ -7,6 +7,12 @@ qt_add_plugin(logcatviewer
 target_sources(logcatviewer
     PRIVATE
         logcatviewer.cpp
+        logcattablemodel.cpp
+        logcattablemodel.h
+        taglabel.cpp
+        taglabel.h
+        logcatentry.h
+    PUBLIC
         logcatviewer.h
 )
 

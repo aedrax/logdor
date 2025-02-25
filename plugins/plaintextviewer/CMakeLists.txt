@@ -7,6 +7,9 @@ qt_add_plugin(plaintextviewer
 target_sources(plaintextviewer
     PRIVATE
         plaintextviewer.cpp
+        plaintexttablemodel.cpp
+        plaintexttablemodel.h
+    PUBLIC
         plaintextviewer.h
 )
 
