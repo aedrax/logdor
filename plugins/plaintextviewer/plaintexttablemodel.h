@@ -8,6 +8,11 @@
 #include <QtPlugin>
 #include <QItemSelection>
 
+enum PlainTextColumn {
+    No,
+    Log
+};
+
 class PlainTextTableModel : public QAbstractTableModel {
     Q_OBJECT
 public:

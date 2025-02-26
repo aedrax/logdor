@@ -34,19 +34,19 @@ QVariant LogcatTableModel::data(const QModelIndex& index, int role) const
 
     if (role == Qt::DisplayRole) {
         switch (index.column()) {
-        case 0:
+        case LogcatColumn::No:
             return m_visibleRows[index.row()] + 1; // Line number (1-based)
-        case 1:
+        case LogcatColumn::Time:
             return entry.timestamp;
-        case 2:
+        case LogcatColumn::Pid:
             return entry.pid;
-        case 3:
+        case LogcatColumn::Tid:
             return entry.tid;
-        case 4:
+        case LogcatColumn::Level:
             return LogcatEntry::levelToString(entry.level);
-        case 5:
+        case LogcatColumn::Tag:
             return entry.tag;
-        case 6:
+        case LogcatColumn::Message:
             return entry.message;
         }
     }
@@ -58,9 +58,9 @@ QVariant LogcatTableModel::data(const QModelIndex& index, int role) const
     }
     else if (role == Qt::TextAlignmentRole) {
         switch (index.column()) {
-        case 0:
-        case 2:
-        case 3:
+        case LogcatColumn::No:
+        case LogcatColumn::Pid:
+        case LogcatColumn::Tid:
             return int(Qt::AlignRight | Qt::AlignVCenter);
         default:
             return int(Qt::AlignLeft | Qt::AlignVCenter);
@@ -76,13 +76,13 @@ QVariant LogcatTableModel::headerData(int section, Qt::Orientation orientation, 
         return QVariant();
 
     switch (section) {
-    case 0: return tr("No.");
-    case 1: return tr("Time");
-    case 2: return tr("PID");
-    case 3: return tr("TID");
-    case 4: return tr("Level");
-    case 5: return tr("Tag");
-    case 6: return tr("Message");
+    case LogcatColumn::No: return tr("No.");
+    case LogcatColumn::Time: return tr("Time");
+    case LogcatColumn::Pid: return tr("PID");
+    case LogcatColumn::Tid: return tr("TID");
+    case LogcatColumn::Level: return tr("Level");
+    case LogcatColumn::Tag: return tr("Tag");
+    case LogcatColumn::Message: return tr("Message");
     default: return QVariant();
     }
 }

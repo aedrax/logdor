@@ -29,9 +29,9 @@ QVariant PlainTextTableModel::data(const QModelIndex& index, int role) const
 
     if (role == Qt::DisplayRole) {
         switch (index.column()) {
-        case 0:
+        case PlainTextColumn::No:
             return m_visibleRows[index.row()] + 1; // Line number (1-based)
-        case 1:
+        case PlainTextColumn::Log:
             return entry.getMessage();
         }
     }
@@ -49,9 +49,9 @@ QVariant PlainTextTableModel::headerData(int section, Qt::Orientation orientatio
 
     if (orientation == Qt::Horizontal) {
         switch (section) {
-        case 0:
+        case PlainTextColumn::No:
             return tr("No.");
-        case 1:
+        case PlainTextColumn::Log:
             return tr("Log");
         }
     }

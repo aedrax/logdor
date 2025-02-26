@@ -9,6 +9,17 @@
 #include "../../app/src/plugininterface.h"
 #include "logcatentry.h"
 
+// No., Time, PID, TID, Level, Tag, Message
+enum LogcatColumn {
+    No,
+    Time,
+    Pid,
+    Tid,
+    Level,
+    Tag,
+    Message
+};
+
 class LogcatTableModel : public QAbstractTableModel {
     Q_OBJECT
 public:
