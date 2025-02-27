@@ -26,6 +26,7 @@ public:
 private slots:
     void onActionOpenTriggered();
     void onFilterChanged();
+    void onFocusFilterInput();
 
 private:
     void loadPlugins();

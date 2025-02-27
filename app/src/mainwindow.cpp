@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QSpinBox>
+#include <QShortcut>
 #include <QtConcurrent/QtConcurrent>
 #include <vector>
 
@@ -72,6 +73,10 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_beforeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
     connect(m_afterSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
     connect(m_caseSensitiveCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
+
+    // Setup Ctrl+L shortcut to focus filter input
+    QShortcut* filterShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_L), this);
+    connect(filterShortcut, &QShortcut::activated, this, &MainWindow::onFocusFilterInput);
 
     loadPlugins();
 }
@@ -208,6 +213,12 @@ void MainWindow::onActionOpenTriggered()
     while (fileDialog.exec() == QDialog::Accepted
         && !openFile(fileDialog.selectedFiles().constFirst())) {
     }
+}
+
+void MainWindow::onFocusFilterInput()
+{
+    m_filterInput->setFocus();
+    m_filterInput->selectAll();
 }
 
 void MainWindow::onFilterChanged()
