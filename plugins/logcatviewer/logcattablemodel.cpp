@@ -131,7 +131,7 @@ void LogcatTableModel::sort(int column, Qt::SortOrder order)
     endResetModel();
 }
 
-void LogcatTableModel::setLogEntries(const QVector<LogEntry>& entries)
+void LogcatTableModel::setLogEntries(const QList<LogEntry>& entries)
 {
     beginResetModel();
     m_entries = entries;
@@ -142,7 +142,7 @@ void LogcatTableModel::setLogEntries(const QVector<LogEntry>& entries)
     endResetModel();
 }
 
-void LogcatTableModel::setFilter(const QVector<int>& linesToShow)
+void LogcatTableModel::setFilter(const QList<int>& linesToShow)
 {
     beginResetModel();
     m_visibleRows.clear();

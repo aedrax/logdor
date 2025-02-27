@@ -23,13 +23,13 @@ public:
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
     
-    void setLogEntries(const QVector<LogEntry>& entries);
+    void setLogEntries(const QList<LogEntry>& entries);
     void setFilter(const FilterOptions& options);
     int mapToSourceRow(int visibleRow) const { return m_visibleRows[visibleRow]; }
 
 private:
-    QVector<LogEntry> m_entries;
-    QVector<int> m_visibleRows;  // Indices into m_entries for filtered view
+    QList<LogEntry> m_entries;
+    QList<int> m_visibleRows;  // Indices into m_entries for filtered view
 };
 
 #endif // PLAINTEXTTABLEMODEL_H

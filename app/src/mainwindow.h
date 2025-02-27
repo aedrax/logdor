@@ -35,7 +35,7 @@ private:
     PluginManager* m_pluginManager;
     QMap<QString, PluginInterface*> m_activePlugins;
     QFile m_currentFile;
-    QVector<LogEntry> m_logEntries;
+    QList<LogEntry> m_logEntries;
     
     // Filter controls
     QLineEdit* m_filterInput;

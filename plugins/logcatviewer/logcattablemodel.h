@@ -3,7 +3,7 @@
 
 #include <QAbstractTableModel>
 #include <QSet>
-#include <QVector>
+#include <QList>
 #include <QMap>
 
 #include "../../app/src/plugininterface.h"
@@ -31,8 +31,8 @@ public:
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
     void sort(int column, Qt::SortOrder order = Qt::AscendingOrder) override;
     
-    void setLogEntries(const QVector<LogEntry>& entries);
-    void setFilter(const QVector<int>& linesToShow);
+    void setLogEntries(const QList<LogEntry>& entries);
+    void setFilter(const QList<int>& linesToShow);
     int mapToSourceRow(int visibleRow) const { return m_visibleRows[visibleRow]; }
 
 private:
@@ -40,8 +40,8 @@ private:
                       const QSet<QString>& tags,
                       const QMap<LogcatEntry::Level, bool>& levelFilters) const;
 
-    QVector<LogEntry> m_entries;
-    QVector<int> m_visibleRows;  // Indices into m_entries for filtered view
+    QList<LogEntry> m_entries;
+    QList<int> m_visibleRows;  // Indices into m_entries for filtered view
     int m_sortColumn{0};
     Qt::SortOrder m_sortOrder{Qt::AscendingOrder};
 };

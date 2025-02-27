@@ -102,8 +102,8 @@ struct FileChunk {
 };
 
 // Function to process a single chunk and return its lines
-QVector<QPair<const char*, qsizetype>> processChunk(const FileChunk& chunk) {
-    QVector<QPair<const char*, qsizetype>> lines;
+QList<QPair<const char*, qsizetype>> processChunk(const FileChunk& chunk) {
+    QList<QPair<const char*, qsizetype>> lines;
     const char* current = chunk.start;
     
     while (current < chunk.end) {
@@ -143,7 +143,7 @@ bool MainWindow::openFile(const QString& fileName)
     const size_t chunkSize = fileSize / numThreads;
     
     // Create chunks to process
-    QVector<FileChunk> chunks;
+    QList<FileChunk> chunks;
     const char* chunkStart = data;
     const char* chunkEnd = data + chunkSize;
     const char* fileEnd = data + fileSize;
@@ -166,7 +166,7 @@ bool MainWindow::openFile(const QString& fileName)
     }
     
     // Process chunks in parallel using QtConcurrent
-    QFuture<QVector<QPair<const char*, qsizetype>>> future = 
+    QFuture<QList<QPair<const char*, qsizetype>>> future = 
         QtConcurrent::mapped(chunks, processChunk);
     
     // Wait for all chunks to be processed and combine results

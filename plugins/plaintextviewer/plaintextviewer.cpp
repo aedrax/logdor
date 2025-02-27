@@ -28,7 +28,7 @@ PlainTextViewer::~PlainTextViewer()
     delete m_tableView;
 }
 
-bool PlainTextViewer::setLogs(const QVector<LogEntry>& content)
+bool PlainTextViewer::setLogs(const QList<LogEntry>& content)
 {
     m_model->setLogEntries(content);
     return true;

@@ -19,7 +19,7 @@ public:
     QString version() const override { return "0.1.0"; }
     QString description() const override { return tr("A viewer for selected lines of logs."); }
     QWidget* widget() override { return m_textBrowser; }
-    bool setLogs(const QVector<LogEntry>& content) override;
+    bool setLogs(const QList<LogEntry>& content) override;
     void setFilter(const FilterOptions& options) override;
     QList<FieldInfo> availableFields() const override;
     QSet<int> filteredLines() const override;
@@ -30,7 +30,7 @@ public slots:
 
 private:
     QTextBrowser* m_textBrowser;
-    QVector<LogEntry> m_entries;
+    QList<LogEntry> m_entries;
 };
 
 #endif // SELECTEDLINEVIEWER_H

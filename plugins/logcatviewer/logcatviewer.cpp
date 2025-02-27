@@ -156,7 +156,7 @@ void LogcatViewer::addTagLabel(const QString& tag)
     updateVisibleRows();
 }
 
-bool LogcatViewer::setLogs(const QVector<LogEntry>& content)
+bool LogcatViewer::setLogs(const QList<LogEntry>& content)
 {
     m_entries = content;
     m_model->setLogEntries(content);
@@ -179,7 +179,7 @@ bool LogcatViewer::setLogs(const QVector<LogEntry>& content)
     QFutureWatcher<QSet<QString>>* watcher = new QFutureWatcher<QSet<QString>>(this);
     connect(watcher, &QFutureWatcher<QSet<QString>>::finished, this, [this, watcher]() {
         QSet<QString> tagSet = watcher->result();
-        QVector<QString> tags = tagSet.values();
+        QList<QString> tags = tagSet.values();
         std::sort(tags.begin(), tags.end());
         
         m_tagComboBox->clear();
@@ -203,7 +203,7 @@ void LogcatViewer::toggleLevel(LogcatEntry::Level level, bool enabled)
 void LogcatViewer::updateVisibleRows()
 {
     // First pass: find direct matches in parallel
-    QVector<int> indices(m_entries.size());
+    QList<int> indices(m_entries.size());
     std::iota(indices.begin(), indices.end(), 0);
     
     auto future = QtConcurrent::mapped(indices, [this](int i) {
@@ -211,7 +211,7 @@ void LogcatViewer::updateVisibleRows()
         return matchesFilter(entry);
     });
     
-    QVector<bool> directMatches = future.results();
+    QList<bool> directMatches = future.results();
 
     // Second pass: add matches and context lines
     QSet<int> linesToShow;
@@ -247,7 +247,7 @@ QList<FieldInfo> LogcatViewer::availableFields() const
         {"Time", DataType::DateTime},
         {"PID", DataType::Integer},
         {"TID", DataType::Integer},
-        {"Level", DataType::String, QVector<QVariant>({
+        {"Level", DataType::String, QList<QVariant>({
             "Verbose", "Debug", "Info", "Warning", "Error", "Fatal", "Unknown"
         })},
         {"Tag", DataType::String},

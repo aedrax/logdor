@@ -34,7 +34,7 @@ public:
     QString version() const override { return "0.1.0"; }
     QString description() const override { return tr("A viewer for Android logcat logs with filtering and tag selection."); }
     QWidget* widget() override { return m_container; }
-    bool setLogs(const QVector<LogEntry>& content) override;
+    bool setLogs(const QList<LogEntry>& content) override;
     void setFilter(const FilterOptions& options) override;
     QList<FieldInfo> availableFields() const override;
     QSet<int> filteredLines() const override;
@@ -69,7 +69,7 @@ private:
     QHBoxLayout* m_tagsLayout;
     QMap<LogcatEntry::Level, bool> m_levelFilters;
     FilterOptions m_filterOptions;
-    QVector<LogEntry> m_entries;
+    QList<LogEntry> m_entries;
 };
 
 #endif // LOGCATVIEWER_H

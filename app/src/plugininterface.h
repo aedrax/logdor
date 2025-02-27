@@ -78,7 +78,7 @@ public:
     virtual QWidget* widget() = 0;
 
     // Load logs into the plugin's widget
-    virtual bool setLogs(const QVector<LogEntry>& logs) = 0;
+    virtual bool setLogs(const QList<LogEntry>& logs) = 0;
 
     // Apply filter options to the logs
     virtual void setFilter(const FilterOptions& options) = 0;

@@ -59,7 +59,7 @@ QVariant PlainTextTableModel::headerData(int section, Qt::Orientation orientatio
     return QVariant();
 }
 
-void PlainTextTableModel::setLogEntries(const QVector<LogEntry>& entries)
+void PlainTextTableModel::setLogEntries(const QList<LogEntry>& entries)
 {
     beginResetModel();
     m_entries = entries;
@@ -82,7 +82,7 @@ void PlainTextTableModel::setFilter(const FilterOptions& options)
         std::iota(m_visibleRows.begin(), m_visibleRows.end(), 0);
     } else {
         // Find matches in parallel using QtConcurrent::mapped
-        QVector<int> indices(m_entries.size());
+        QList<int> indices(m_entries.size());
         std::iota(indices.begin(), indices.end(), 0);
         
         auto future = QtConcurrent::mapped(indices, [this, &options](int i) {
@@ -92,7 +92,7 @@ void PlainTextTableModel::setFilter(const FilterOptions& options)
         auto results = future.results();
         
         // Collect matching indices
-        QVector<int> matchIndices;
+        QList<int> matchIndices;
         for (const auto& result : results) {
             if (result.second) {
                 matchIndices.append(result.first);

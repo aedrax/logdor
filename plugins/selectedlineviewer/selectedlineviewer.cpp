@@ -19,7 +19,7 @@ SelectedLineViewer::~SelectedLineViewer()
     delete m_textBrowser;
 }
 
-bool SelectedLineViewer::setLogs(const QVector<LogEntry>& logs)
+bool SelectedLineViewer::setLogs(const QList<LogEntry>& logs)
 {
     m_entries = logs;
     return true;
