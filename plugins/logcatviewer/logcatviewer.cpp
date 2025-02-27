@@ -202,21 +202,10 @@ void LogcatViewer::toggleLevel(LogcatEntry::Level level, bool enabled)
 
 void LogcatViewer::updateVisibleRows()
 {
-    // First pass: find direct matches in parallel
-    QList<int> indices(m_entries.size());
-    std::iota(indices.begin(), indices.end(), 0);
-    
-    auto future = QtConcurrent::mapped(indices, [this](int i) {
-        LogcatEntry entry(m_entries[i]);
-        return matchesFilter(entry);
-    });
-    
-    QList<bool> directMatches = future.results();
-
-    // Second pass: add matches and context lines
     QSet<int> linesToShow;
     for (int i = 0; i < m_entries.size(); ++i) {
-        if (directMatches[i]) {
+        LogcatEntry entry(m_entries[i]);
+        if (matchesFilter(entry)) {
             // Add context lines before
             for (int j = std::max(0, i - m_filterOptions.contextLinesBefore); j < i; ++j) {
                 linesToShow.insert(j);
