@@ -142,7 +142,7 @@ void LogcatTableModel::setLogEntries(const QList<LogEntry>& entries)
     endResetModel();
 }
 
-void LogcatTableModel::setFilter(const QList<int>& linesToShow)
+void LogcatTableModel::setVisibleRows(const QList<int>& linesToShow)
 {
     beginResetModel();
     m_visibleRows.clear();

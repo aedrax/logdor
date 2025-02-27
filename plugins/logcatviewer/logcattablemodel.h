@@ -32,7 +32,7 @@ public:
     void sort(int column, Qt::SortOrder order = Qt::AscendingOrder) override;
     
     void setLogEntries(const QList<LogEntry>& entries);
-    void setFilter(const QList<int>& linesToShow);
+    void setVisibleRows(const QList<int>& linesToShow);
     int mapToSourceRow(int visibleRow) const { return m_visibleRows[visibleRow]; }
 
 private:

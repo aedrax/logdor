@@ -220,7 +220,7 @@ void LogcatViewer::updateVisibleRows()
             }
         }
     }
-    m_model->setFilter(linesToShow.values().toVector());
+    m_model->setVisibleRows(linesToShow.values().toVector());
 }
 
 void LogcatViewer::setFilter(const FilterOptions& options)
