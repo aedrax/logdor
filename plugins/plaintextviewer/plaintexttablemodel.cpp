@@ -81,21 +81,12 @@ void PlainTextTableModel::setFilter(const FilterOptions& options)
         m_visibleRows.resize(m_entries.size());
         std::iota(m_visibleRows.begin(), m_visibleRows.end(), 0);
     } else {
-        // Find matches in parallel using QtConcurrent::mapped
-        QList<int> indices(m_entries.size());
-        std::iota(indices.begin(), indices.end(), 0);
-        
-        auto future = QtConcurrent::mapped(indices, [this, &options](int i) {
-            return QPair<int, bool>(i, m_entries[i].getMessage().contains(options.query, options.caseSensitivity));
-        });
-        
-        auto results = future.results();
-        
         // Collect matching indices
         QList<int> matchIndices;
-        for (const auto& result : results) {
-            if (result.second) {
-                matchIndices.append(result.first);
+        for (int i = 0; i < m_entries.size(); i++) {
+            bool matched = m_entries[i].getMessage().contains(options.query, options.caseSensitivity);
+            if (matched) {
+                matchIndices.emplace_back(i);
             }
         }
 
