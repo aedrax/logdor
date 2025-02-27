@@ -28,15 +28,36 @@ PlainTextViewer::~PlainTextViewer()
     delete m_tableView;
 }
 
-bool PlainTextViewer::loadContent(const QVector<LogEntry>& content)
+bool PlainTextViewer::setLogs(const QVector<LogEntry>& content)
 {
     m_model->setLogEntries(content);
     return true;
 }
 
-void PlainTextViewer::applyFilter(const FilterOptions& options)
+void PlainTextViewer::setFilter(const FilterOptions& options)
 {
-    m_model->applyFilter(options);
+    m_model->setFilter(options);
+}
+
+QList<FieldInfo> PlainTextViewer::availableFields() const
+{
+    return QList<FieldInfo>({
+        {tr("No."), DataType::Integer},
+        {tr("Log"), DataType::String}
+    });
+}
+
+QSet<int> PlainTextViewer::filteredLines() const
+{
+    // TODO: Implement this method to return the indices of filtered out lines
+    // For now, we return an empty set
+    return QSet<int>();
+}
+
+void PlainTextViewer::synchronizeFilteredLines(const QSet<int>& lines)
+{
+    // TODO: Implement this method to synchronize filtered lines with other plugins
+    Q_UNUSED(lines);
 }
 
 void PlainTextViewer::onSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected)

@@ -36,9 +36,24 @@ struct FilterOptions {
     }
 };
 
-enum PluginEvent {
+enum class DataType {
+    String,
+    Integer,
+    DateTime,
+    // Add other data types as needed
+};
+
+struct FieldInfo {
+    QString name;
+    DataType type;
+    QList<QVariant> possibleValues; // For non-basic types or enums
+};
+
+enum class PluginEvent {
     Custom,
-    LinesSelected
+    LinesSelected,
+    LinesFiltered,
+    // Add other events as needed
 };
 
 class PluginInterface : public QObject {
@@ -53,14 +68,27 @@ public:
     // Get the name of the plugin
     virtual QString name() const = 0;
 
+    // Get the version of the plugin
+    virtual QString version() const = 0;
+
+    // Get the description of the plugin
+    virtual QString description() const = 0;
+
     // Get the widget provided by the plugin
     virtual QWidget* widget() = 0;
 
-    // Load content into the plugin's widget
-    virtual bool loadContent(const QVector<LogEntry>& content) = 0;
+    // Load logs into the plugin's widget
+    virtual bool setLogs(const QVector<LogEntry>& logs) = 0;
 
-    // Apply filter options to the content
-    virtual void applyFilter(const FilterOptions& options) = 0;
+    // Apply filter options to the logs
+    virtual void setFilter(const FilterOptions& options) = 0;
+
+    // Metadata about fields
+    virtual QList<FieldInfo> availableFields() const = 0;
+
+    // Communicate filtered lines
+    virtual QSet<int> filteredLines() const = 0; // Returns indices of filtered out lines
+    virtual void synchronizeFilteredLines(const QSet<int>& lines) = 0; // Synchronize with other plugins    
 
 public slots:
     // Handle plugin events

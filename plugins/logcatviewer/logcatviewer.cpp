@@ -156,7 +156,7 @@ void LogcatViewer::addTagLabel(const QString& tag)
     updateVisibleRows();
 }
 
-bool LogcatViewer::loadContent(const QVector<LogEntry>& content)
+bool LogcatViewer::setLogs(const QVector<LogEntry>& content)
 {
     m_entries = content;
     m_model->setLogEntries(content);
@@ -231,13 +231,42 @@ void LogcatViewer::updateVisibleRows()
             }
         }
     }
-    m_model->applyFilter(linesToShow.values().toVector());
+    m_model->setFilter(linesToShow.values().toVector());
 }
 
-void LogcatViewer::applyFilter(const FilterOptions& options)
+void LogcatViewer::setFilter(const FilterOptions& options)
 {
     m_filterOptions = options;
     updateVisibleRows();
+}
+
+QList<FieldInfo> LogcatViewer::availableFields() const
+{
+    return QList<FieldInfo>({
+        {"No.", DataType::Integer},
+        {"Time", DataType::DateTime},
+        {"PID", DataType::Integer},
+        {"TID", DataType::Integer},
+        {"Level", DataType::String, QVector<QVariant>({
+            "Verbose", "Debug", "Info", "Warning", "Error", "Fatal", "Unknown"
+        })},
+        {"Tag", DataType::String},
+        {"Message", DataType::String}
+    });
+}
+
+QSet<int> LogcatViewer::filteredLines() const
+{
+    // TODO: Implement this method to return the indices of filtered out lines
+    // For now, we return an empty set
+    return QSet<int>();
+}
+
+void LogcatViewer::synchronizeFilteredLines(const QSet<int>& lines)
+{
+    // TODO: Implement this method to synchronize filtered lines with other plugins
+    // For now, we do nothing
+    Q_UNUSED(lines);
 }
 
 void LogcatViewer::handleSort(int column, Qt::SortOrder order)

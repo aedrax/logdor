@@ -31,9 +31,14 @@ public:
 
     // PluginInterface implementation
     QString name() const override { return tr("Logcat Viewer"); }
+    QString version() const override { return "0.1.0"; }
+    QString description() const override { return tr("A viewer for Android logcat logs with filtering and tag selection."); }
     QWidget* widget() override { return m_container; }
-    bool loadContent(const QVector<LogEntry>& content) override;
-    void applyFilter(const FilterOptions& options) override;
+    bool setLogs(const QVector<LogEntry>& content) override;
+    void setFilter(const FilterOptions& options) override;
+    QList<FieldInfo> availableFields() const override;
+    QSet<int> filteredLines() const override;
+    void synchronizeFilteredLines(const QSet<int>& lines) override;
     QSet<QString> getUniqueTags() const;
 
 public slots:

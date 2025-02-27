@@ -16,9 +16,14 @@ public:
 
     // PluginInterface implementation
     QString name() const override { return tr("Selected Line Viewer"); }
+    QString version() const override { return "0.1.0"; }
+    QString description() const override { return tr("A viewer for selected lines of logs."); }
     QWidget* widget() override { return m_textBrowser; }
-    bool loadContent(const QVector<LogEntry>& content) override;
-    void applyFilter(const FilterOptions& options) override;
+    bool setLogs(const QVector<LogEntry>& content) override;
+    void setFilter(const FilterOptions& options) override;
+    QList<FieldInfo> availableFields() const override;
+    QSet<int> filteredLines() const override;
+    void synchronizeFilteredLines(const QSet<int>& lines) override;
 
 public slots:
     void onPluginEvent(PluginEvent event, const QVariant& data) override;

@@ -71,7 +71,7 @@ void PlainTextTableModel::setLogEntries(const QVector<LogEntry>& entries)
     endResetModel();
 }
 
-void PlainTextTableModel::applyFilter(const FilterOptions& options)
+void PlainTextTableModel::setFilter(const FilterOptions& options)
 {
     beginResetModel();
     m_visibleRows.clear();

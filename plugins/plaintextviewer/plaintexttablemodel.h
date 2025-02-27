@@ -24,7 +24,7 @@ public:
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
     
     void setLogEntries(const QVector<LogEntry>& entries);
-    void applyFilter(const FilterOptions& options);
+    void setFilter(const FilterOptions& options);
     int mapToSourceRow(int visibleRow) const { return m_visibleRows[visibleRow]; }
 
 private:

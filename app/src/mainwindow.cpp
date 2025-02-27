@@ -186,7 +186,7 @@ bool MainWindow::openFile(const QString& fileName)
 
     // Try to load the content with each plugin
     for (PluginInterface* plugin : m_activePlugins) {
-        if (plugin->loadContent(m_logEntries)) {
+        if (plugin->setLogs(m_logEntries)) {
             success = true;
         }
     }
@@ -219,6 +219,6 @@ void MainWindow::onFilterChanged()
 
     // Apply filter to all active plugins with context lines
     for (PluginInterface* plugin : m_activePlugins) {
-        plugin->applyFilter(options);
+        plugin->setFilter(options);
     }
 }

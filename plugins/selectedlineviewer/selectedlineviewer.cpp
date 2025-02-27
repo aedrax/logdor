@@ -19,13 +19,13 @@ SelectedLineViewer::~SelectedLineViewer()
     delete m_textBrowser;
 }
 
-bool SelectedLineViewer::loadContent(const QVector<LogEntry>& content)
+bool SelectedLineViewer::setLogs(const QVector<LogEntry>& logs)
 {
-    m_entries = content;
+    m_entries = logs;
     return true;
 }
 
-void SelectedLineViewer::applyFilter(const FilterOptions& options)
+void SelectedLineViewer::setFilter(const FilterOptions& options)
 {
     // Not needed for this plugin
     Q_UNUSED(options);
@@ -50,4 +50,22 @@ void SelectedLineViewer::onPluginEvent(PluginEvent event, const QVariant& data)
         }
         m_textBrowser->setText(text);
     }
+}
+
+QList<FieldInfo> SelectedLineViewer::availableFields() const
+{
+    // This plugin does not provide field information
+    return QList<FieldInfo>();
+}
+
+QSet<int> SelectedLineViewer::filteredLines() const
+{
+    // This plugin does not filter lines
+    return QSet<int>();
+}
+
+void SelectedLineViewer::synchronizeFilteredLines(const QSet<int>& lines)
+{
+    // This plugin does not synchronize filtered lines
+    Q_UNUSED(lines);
 }
