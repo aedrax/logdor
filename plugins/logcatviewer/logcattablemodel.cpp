@@ -145,13 +145,7 @@ void LogcatTableModel::setLogEntries(const QList<LogEntry>& entries)
 void LogcatTableModel::setVisibleRows(const QList<int>& linesToShow)
 {
     beginResetModel();
-    m_visibleRows.clear();
     m_visibleRows = linesToShow;
-    std::sort(m_visibleRows.begin(), m_visibleRows.end());
-    
-    if (m_sortColumn >= 0) {
-        sort(m_sortColumn, m_sortOrder);
-    }
-    
+    sort(m_sortColumn, m_sortOrder);
     endResetModel();
 }

@@ -115,7 +115,7 @@ void LogcatViewer::setupUi()
 
     // Setup table view
     m_tableView->setModel(m_model);
-    m_tableView->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch); // Message column stretches
+    m_tableView->horizontalHeader()->setSectionResizeMode(LogcatColumn::Message, QHeaderView::Stretch); // Message column stretches
     m_tableView->setShowGrid(false);
     m_tableView->setAlternatingRowColors(false);
     m_tableView->verticalHeader()->setVisible(false);
@@ -123,6 +123,7 @@ void LogcatViewer::setupUi()
     m_tableView->setSortingEnabled(true);
     m_tableView->setFont(QFont("Monospace"));
     m_tableView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_tableView->sortByColumn(LogcatColumn::No, Qt::AscendingOrder);
     
     // Connect selection changes to our handler
     connect(m_tableView->selectionModel(), &QItemSelectionModel::selectionChanged,
