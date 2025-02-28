@@ -5,6 +5,7 @@
 #include <QMainWindow>
 #include <QTimer>
 #include <QCheckBox>
+#include <QSettings>
 #include "pluginmanager.h"
 
 #define FILTER_DEBOUNCE_TIMEOUT_MILLISECONDS 300
@@ -28,13 +29,19 @@ private slots:
     void onFilterChanged();
     void onFocusFilterInput();
 
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
 private:
     void loadPlugins();
     bool openFile(const QString& fileName);
+    void saveSettings();
+    void loadSettings();
 
     Ui::MainWindow* ui;
     PluginManager* m_pluginManager;
     QMap<QString, PluginInterface*> m_activePlugins;
+    QMap<QString, QDockWidget*> m_pluginDocks;
     QFile m_currentFile;
     QList<LogEntry> m_logEntries;
     

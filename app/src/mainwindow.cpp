@@ -79,6 +79,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(filterShortcut, &QShortcut::activated, this, &MainWindow::onFocusFilterInput);
 
     loadPlugins();
+    loadSettings();
 }
 
 MainWindow::~MainWindow()
@@ -94,9 +95,54 @@ void MainWindow::loadPlugins()
     for (PluginInterface* plugin : m_pluginManager->plugins()) {
         QDockWidget* dock = new QDockWidget(plugin->name(), this);
         dock->setWidget(plugin->widget());
+        dock->setObjectName(plugin->name()); // Important for state restoration
         addDockWidget(Qt::LeftDockWidgetArea, dock);
         m_activePlugins[plugin->name()] = plugin;
+        m_pluginDocks[plugin->name()] = dock;
     }
+}
+
+void MainWindow::saveSettings()
+{
+    QSettings settings("Logdor", "Logdor");
+    
+    // Save window geometry and state
+    settings.setValue("geometry", saveGeometry());
+    settings.setValue("windowState", saveState());
+    
+    // Save plugin visibility
+    settings.beginGroup("Plugins");
+    for (auto it = m_pluginDocks.constBegin(); it != m_pluginDocks.constEnd(); ++it) {
+        settings.setValue(it.key() + "/visible", it.value()->isVisible());
+    }
+    settings.endGroup();
+}
+
+void MainWindow::loadSettings()
+{
+    QSettings settings("Logdor", "Logdor");
+    
+    // Restore window geometry and state
+    if (settings.contains("geometry")) {
+        restoreGeometry(settings.value("geometry").toByteArray());
+    }
+    if (settings.contains("windowState")) {
+        restoreState(settings.value("windowState").toByteArray());
+    }
+    
+    // Restore plugin visibility
+    settings.beginGroup("Plugins");
+    for (auto it = m_pluginDocks.begin(); it != m_pluginDocks.end(); ++it) {
+        bool visible = settings.value(it.key() + "/visible", true).toBool();
+        it.value()->setVisible(visible);
+    }
+    settings.endGroup();
+}
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    saveSettings();
+    QMainWindow::closeEvent(event);
 }
 
 // Structure to hold a chunk of the file to process
