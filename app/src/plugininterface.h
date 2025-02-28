@@ -56,7 +56,9 @@ enum class PluginEvent {
     // Add other events as needed
 };
 
-class PluginInterface : public QObject {
+// Using Q_DECL_EXPORT to export the functions in the library (Windows)
+// don't need Q_DECL_IMPORT because it's never imported, only loaded at runtime
+class Q_DECL_EXPORT PluginInterface : public QObject {
     Q_OBJECT
 public:
     // Constructor
@@ -96,7 +98,8 @@ public slots:
     
 signals:
     // Signal to notify about plugin events
-    void pluginEvent(PluginEvent event, const QVariant& data);
+    // this is virtual because for some reason it won't export the signal otherwise
+    virtual void pluginEvent(PluginEvent event, const QVariant& data);
 };
 
 // Define the plugin interface ID
