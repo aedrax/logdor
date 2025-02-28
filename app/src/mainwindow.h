@@ -42,6 +42,8 @@ private:
     PluginManager* m_pluginManager;
     QMap<QString, PluginInterface*> m_activePlugins;
     QMap<QString, QDockWidget*> m_pluginDocks;
+    QMap<QString, QAction*> m_pluginActions;
+    QMenu* m_pluginsMenu;
     QFile m_currentFile;
     QList<LogEntry> m_logEntries;
     

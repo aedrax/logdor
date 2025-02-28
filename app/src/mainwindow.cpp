@@ -23,8 +23,10 @@ MainWindow::MainWindow(QWidget* parent)
     , m_beforeSpinBox(new QSpinBox(this))
     , m_afterSpinBox(new QSpinBox(this))
     , m_filterTimer(new QTimer(this))
+    , m_pluginsMenu(nullptr)
 {
     ui->setupUi(this);
+    m_pluginsMenu = ui->menuPlugins;
     // this allows the dock widget to use the full window
     this->setCentralWidget(nullptr);
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::onActionOpenTriggered);
@@ -91,14 +93,25 @@ void MainWindow::loadPlugins()
 {
     m_pluginManager->loadPlugins();
 
-    // Create dock widgets for each plugin
+    // Create dock widgets and menu actions for each plugin
     for (PluginInterface* plugin : m_pluginManager->plugins()) {
-        QDockWidget* dock = new QDockWidget(plugin->name(), this);
+        QString pluginName = plugin->name();
+        
+        // Create dock widget
+        QDockWidget* dock = new QDockWidget(pluginName, this);
         dock->setWidget(plugin->widget());
-        dock->setObjectName(plugin->name()); // Important for state restoration
+        dock->setObjectName(pluginName); // Important for state restoration
         addDockWidget(Qt::LeftDockWidgetArea, dock);
-        m_activePlugins[plugin->name()] = plugin;
-        m_pluginDocks[plugin->name()] = dock;
+        m_activePlugins[pluginName] = plugin;
+        m_pluginDocks[pluginName] = dock;
+        
+        // Create menu action
+        QAction* action = new QAction(pluginName, this);
+        action->setCheckable(true);
+        action->setChecked(true); // Default to visible
+        connect(action, &QAction::toggled, dock, &QWidget::setVisible);
+        m_pluginsMenu->addAction(action);
+        m_pluginActions[pluginName] = action;
     }
 }
 
@@ -112,8 +125,8 @@ void MainWindow::saveSettings()
     
     // Save plugin visibility
     settings.beginGroup("Plugins");
-    for (auto it = m_pluginDocks.constBegin(); it != m_pluginDocks.constEnd(); ++it) {
-        settings.setValue(it.key() + "/visible", it.value()->isVisible());
+    for (auto it = m_pluginActions.constBegin(); it != m_pluginActions.constEnd(); ++it) {
+        settings.setValue(it.key() + "/visible", it.value()->isChecked());
     }
     settings.endGroup();
 }
@@ -132,9 +145,9 @@ void MainWindow::loadSettings()
     
     // Restore plugin visibility
     settings.beginGroup("Plugins");
-    for (auto it = m_pluginDocks.begin(); it != m_pluginDocks.end(); ++it) {
+    for (auto it = m_pluginActions.begin(); it != m_pluginActions.end(); ++it) {
         bool visible = settings.value(it.key() + "/visible", true).toBool();
-        it.value()->setVisible(visible);
+        it.value()->setChecked(visible);
     }
     settings.endGroup();
 }
