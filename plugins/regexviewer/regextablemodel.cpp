@@ -1,6 +1,7 @@
 #include "regextablemodel.h"
 #include <QtConcurrent/QtConcurrent>
 #include <QDateTime>
+#include <QBrush>
 
 RegexTableModel::RegexTableModel(QObject* parent)
     : QAbstractTableModel(parent)
@@ -29,9 +30,12 @@ QVariant RegexTableModel::data(const QModelIndex& index, int role) const
 
     const RegexMatch& match = m_matches[index.row()];
 
-    if (role == Qt::DisplayRole) {
+    if (role == Qt::DisplayRole || role == Qt::BackgroundRole) {
         if (index.column() == 0) {
-            return match.sourceRow + 1; // Line number (1-based)
+            if (role == Qt::DisplayRole) {
+                return match.sourceRow + 1; // Line number (1-based)
+            }
+            return QVariant(); // No background color for line numbers
         } else if (index.column() <= m_fields.size()) {
             const RegexFieldInfo& field = m_fields[index.column() - 1];
             // Get the group based on the field's group number
@@ -39,7 +43,18 @@ QVariant RegexTableModel::data(const QModelIndex& index, int role) const
             if (field.groupNumber >= 0 && field.groupNumber < match.groups.size()) {
                 value = match.groups[field.groupNumber];
             }
-            return convertToType(value, field.type);
+
+            if (role == Qt::DisplayRole) {
+                return convertToType(value, field.type, index.column());
+            } else if (role == Qt::BackgroundRole && !value.isEmpty()) {
+                QVariant convertedValue = convertToType(value, field.type, index.column());
+                if (convertedValue.isValid()) {
+                    QColor color = field.getColorForValue(convertedValue);
+                    if (color.isValid()) {
+                        return QBrush(color);
+                    }
+                }
+            }
         }
     }
     else if (role == Qt::FontRole) {
@@ -141,23 +156,51 @@ void RegexTableModel::updateMatches()
     }
 }
 
-QVariant RegexTableModel::convertToType(const QString& value, DataType type) const
+QVariant RegexTableModel::convertToType(const QString& value, DataType type, int column) const
 {
+    if (value.isEmpty()) {
+        return QVariant();
+    }
+
+    QVariant convertedValue;
     switch (type) {
         case DataType::Integer: {
             bool ok;
             int intValue = value.toInt(&ok);
-            return ok ? QVariant(intValue) : QVariant(value);
+            convertedValue = ok ? QVariant(intValue) : QVariant(value);
+            break;
         }
         case DataType::DateTime: {
             QDateTime dt = QDateTime::fromString(value, Qt::ISODate);
             if (!dt.isValid()) {
                 dt = QDateTime::fromString(value, Qt::RFC2822Date);
             }
-            return dt.isValid() ? QVariant(dt) : QVariant(value);
+            convertedValue = dt.isValid() ? QVariant(dt) : QVariant(value);
+            break;
         }
         case DataType::String:
         default:
-            return QVariant(value);
+            convertedValue = QVariant(value);
+            break;
     }
+
+    // Check if this value matches one of the possible values for its field
+    if (column > 0 && column <= m_fields.size()) {
+        const RegexFieldInfo& field = m_fields[column - 1];
+        if (!field.possibleValues.isEmpty()) {
+            bool valueFound = false;
+            for (const QVariant& possibleValue : field.possibleValues) {
+                if (convertedValue == possibleValue) {
+                    valueFound = true;
+                    break;
+                }
+            }
+            if (!valueFound) {
+                // Value doesn't match any possible values, return empty
+                return QVariant();
+            }
+        }
+    }
+
+    return convertedValue;
 }
