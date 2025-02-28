@@ -1,4 +1,5 @@
 #include "regexsettingsdialog.h"
+#include "valuecolordialog.h"
 #include <QHeaderView>
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -193,29 +194,24 @@ void RegexSettingsDialog::onTypeChanged(int row, int column)
 
 void RegexSettingsDialog::onCellDoubleClicked(int row, int column)
 {
-    if (column == 3) { // Possible values column
-        updateValueColors(row);
+    if (column != 3) { // Possible values column
+        return;
     }
-}
 
-void RegexSettingsDialog::updateValueColors(int row)
-{
     QTableWidgetItem* item = m_columnsTable->item(row, 3);
     if (!item) return;
 
-    QMap<QString, QColor> valueColors = parseValueColors(item->text());
-    
-    for (auto it = valueColors.begin(); it != valueColors.end(); ++it) {
-        QColor newColor = QColorDialog::getColor(it.value(), this, 
-            tr("Choose color for value: %1").arg(it.key()));
-        
-        if (newColor.isValid()) {
-            it.value() = newColor;
-            onValueColorChanged(row, it.key(), newColor);
-        }
-    }
+    QComboBox* typeCombo = qobject_cast<QComboBox*>(m_columnsTable->cellWidget(row, 1));
+    if (!typeCombo) return;
 
-    item->setText(formatValueColors(valueColors));
+    DataType type = static_cast<DataType>(typeCombo->currentIndex());
+    QMap<QString, QColor> valueColors = parseValueColors(item->text());
+
+    ValueColorDialog dialog(type, valueColors, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        valueColors = dialog.getValueColors();
+        item->setText(formatValueColors(valueColors));
+    }
 }
 
 QMap<QString, QColor> RegexSettingsDialog::parseValueColors(const QString& text) const

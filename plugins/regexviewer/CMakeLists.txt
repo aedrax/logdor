@@ -11,6 +11,8 @@ target_sources(regexviewer
         regextablemodel.h
         regexsettingsdialog.cpp
         regexsettingsdialog.h
+        valuecolordialog.cpp
+        valuecolordialog.h
     PUBLIC
         regexviewer.h
 )

@@ -41,6 +41,16 @@ RegexViewer::RegexViewer(QObject* parent)
         field.name = settings.value("name").toString();
         field.type = static_cast<DataType>(settings.value("type").toInt());
         field.groupNumber = i;  // Group number is the index
+
+        // Load value-color pairs
+        QVariantList valueColors = settings.value("valueColors").toList();
+        for (const QVariant& pair : valueColors) {
+            QVariantMap map = pair.toMap();
+            QVariant value = map["value"];
+            QColor color = map["color"].value<QColor>();
+            field.addValueWithColor(value, color);
+        }
+        
         m_fields.append(field);
     }
     settings.endArray();
@@ -73,6 +83,16 @@ RegexViewer::~RegexViewer()
         settings.setArrayIndex(i);
         settings.setValue("name", m_fields[i].name);
         settings.setValue("type", static_cast<int>(m_fields[i].type));
+        
+        // Save value-color pairs
+        QVariantList valueColors;
+        for (const ValueWithColor& vc : m_fields[i].coloredValues) {
+            QVariantMap pair;
+            pair["value"] = vc.value;
+            pair["color"] = vc.color;
+            valueColors.append(pair);
+        }
+        settings.setValue("valueColors", valueColors);
     }
     settings.endArray();
     settings.endGroup();
