@@ -26,6 +26,7 @@ RegexViewer::RegexViewer(QObject* parent)
     m_tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_tableView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_layout->addWidget(m_tableView);
+    m_tableView->setAlternatingRowColors(true);
 
     // Load settings
     QSettings settings;
