@@ -20,6 +20,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_pluginManager(new PluginManager(this))
     , m_filterInput(new QLineEdit(this))
     , m_caseSensitiveCheckBox(new QCheckBox(tr("Case Sensitive"), this))
+    , m_invertFilterCheckBox(new QCheckBox(tr("Invert Filter"), this))
     , m_beforeSpinBox(new QSpinBox(this))
     , m_afterSpinBox(new QSpinBox(this))
     , m_filterTimer(new QTimer(this))
@@ -43,6 +44,9 @@ MainWindow::MainWindow(QWidget* parent)
     
     m_caseSensitiveCheckBox->setToolTip(tr("Toggle case sensitive filtering"));
     filterToolBar->addWidget(m_caseSensitiveCheckBox);
+    
+    m_invertFilterCheckBox->setToolTip(tr("Show lines that don't match the filter"));
+    filterToolBar->addWidget(m_invertFilterCheckBox);
     
     // Add context line controls
     filterToolBar->addSeparator();
@@ -75,6 +79,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_beforeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
     connect(m_afterSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
     connect(m_caseSensitiveCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
+    connect(m_invertFilterCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
 
     // Setup Ctrl+L shortcut to focus filter input
     QShortcut* filterShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_L), this);
@@ -303,7 +308,8 @@ void MainWindow::onFilterChanged()
     FilterOptions options(m_filterInput->text(),
                          m_beforeSpinBox->value(),
                          m_afterSpinBox->value(),
-                         m_caseSensitiveCheckBox->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive);
+                         m_caseSensitiveCheckBox->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive,
+                         m_invertFilterCheckBox->isChecked());
 
     // Apply filter to all active plugins with context lines
     for (PluginInterface* plugin : m_activePlugins) {

@@ -97,7 +97,10 @@ void RegexTableModel::setFilter(const FilterOptions& options)
     if (!options.query.isEmpty()) {
         for (int i = 0; i < m_entries.size(); i++) {
             bool matched = m_entries[i].getMessage().contains(options.query, options.caseSensitivity);
-            if (!matched) {
+            // Add to filtered lines if:
+            // - Not inverted and doesn't match, OR
+            // - Inverted and does match
+            if (matched == options.invertFilter) {
                 m_filteredLines.insert(i);
             }
         }

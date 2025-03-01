@@ -81,12 +81,15 @@ void PlainTextTableModel::setFilter(const FilterOptions& options)
         m_visibleRows.resize(m_entries.size());
         std::iota(m_visibleRows.begin(), m_visibleRows.end(), 0);
     } else {
-        // Collect matching indices
+        // First, determine which lines match the filter
+        QVector<bool> lineMatches(m_entries.size(), false);
         QList<int> matchIndices;
+        
         for (int i = 0; i < m_entries.size(); i++) {
             bool matched = m_entries[i].getMessage().contains(options.query, options.caseSensitivity);
-            if (matched) {
-                matchIndices.emplace_back(i);
+            lineMatches[i] = matched;
+            if (matched != options.invertFilter) { // XOR with invertFilter
+                matchIndices.append(i);
             }
         }
 

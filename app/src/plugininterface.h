@@ -26,12 +26,14 @@ struct FilterOptions {
     int contextLinesBefore = 0;
     int contextLinesAfter = 0;
     Qt::CaseSensitivity caseSensitivity = Qt::CaseInsensitive;
+    bool invertFilter = false;
 
-    FilterOptions(const QString& q = QString(), int before = 0, int after = 0, Qt::CaseSensitivity cs = Qt::CaseInsensitive)
+    FilterOptions(const QString& q = QString(), int before = 0, int after = 0, Qt::CaseSensitivity cs = Qt::CaseInsensitive, bool invert = false)
         : query(q)
         , contextLinesBefore(before)
         , contextLinesAfter(after)
         , caseSensitivity(cs)
+        , invertFilter(invert)
     {
     }
 };

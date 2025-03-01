@@ -353,8 +353,11 @@ bool LogcatViewer::matchesFilter(const LogcatEntry& entry) const
     }
 
     // Check text filter
-    if (!m_filterOptions.query.isEmpty() && !entry.message.contains(m_filterOptions.query, m_filterOptions.caseSensitivity)) {
-        return false;
+    if (!m_filterOptions.query.isEmpty()) {
+        bool matches = entry.message.contains(m_filterOptions.query, m_filterOptions.caseSensitivity);
+        if (matches == m_filterOptions.invertFilter) {
+            return false;
+        }
     }
 
     return true;

@@ -51,6 +51,7 @@ private:
     // Filter controls
     QLineEdit* m_filterInput;
     QCheckBox* m_caseSensitiveCheckBox;
+    QCheckBox* m_invertFilterCheckBox;
     QSpinBox* m_beforeSpinBox;
     QSpinBox* m_afterSpinBox;
     QTimer* m_filterTimer;

@@ -95,8 +95,13 @@ void PgnTableModel::setFilter(const FilterOptions& options)
         // Filter moves based on the query
         for (int i = 0; i < m_moves.size(); ++i) {
             const auto& move = m_moves[i];
-            if (move.white.toLower().contains(query) || 
-                move.black.toLower().contains(query)) {
+            bool matches = move.white.toLower().contains(query) || 
+                         move.black.toLower().contains(query);
+            
+            // Add the move if:
+            // - Not inverted and it matches, OR
+            // - Inverted and it doesn't match
+            if (matches != options.invertFilter) {
                 m_visibleRows.append(i);
             }
         }
