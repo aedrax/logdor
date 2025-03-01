@@ -41,6 +41,11 @@ Logdor is a tool to simplify looking at log files by enabling filtering, color c
 - Real-time pattern updates
 - Color-coded matches for better visibility
 
+### PGN Viewer
+- Interactive chess game viewer for PGN files
+- Step-by-step move navigation (white/black separately)
+- Unicode chess pieces with Chess.com-style board colors
+
 ## Building from Source
 
 ### Requirements
