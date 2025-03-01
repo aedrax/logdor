@@ -12,25 +12,34 @@ Logdor is a tool to simplify looking at log files by enabling filtering, color c
 ## Features
 
 ### Plain Text Viewer
+- Basic log file viewer with essential features
 - Line numbers
 - Text filtering
 - Line highlighting
+- Clean, simple interface for any text file
 
 ### Logcat Viewer
 - Specialized viewer for Android logcat files
 - Color-coded log levels (Verbose, Debug, Info, Warning, Error, Fatal)
-- Structured columns:
-  - Line numbers
-  - Timestamp
-  - Process ID (PID)
-  - Log Level
-  - Tag
-  - Message
 - Quick filtering by log level with toolbar buttons
 - Text filtering across tags and messages
 - Sortable columns
 - Row-based selection
 - Clean, grid-less display with alternating row colors
+
+### Bookmark Viewer
+- Save important lines with checkboxes
+- Add notes to bookmarked lines
+- Quick navigation between bookmarks
+- Auto-saves bookmarks when notes are added
+- Syncs with other viewers to highlight selected lines
+
+### Regex Viewer
+- Advanced pattern matching with regular expressions
+- Customizable value highlighting
+- Extract and display matched groups
+- Real-time pattern updates
+- Color-coded matches for better visibility
 
 ## Building from Source
 
