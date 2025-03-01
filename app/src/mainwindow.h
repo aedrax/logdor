@@ -45,6 +45,7 @@ private:
     QMap<QString, QAction*> m_pluginActions;
     QMenu* m_pluginsMenu;
     QFile m_currentFile;
+    const char* m_mappedFile;  // Track the mapped memory
     QList<LogEntry> m_logEntries;
     
     // Filter controls

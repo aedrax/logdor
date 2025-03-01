@@ -86,6 +86,10 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow()
 {
+    if (m_mappedFile) {
+        m_currentFile.unmap(const_cast<uchar*>(reinterpret_cast<const uchar*>(m_mappedFile)));
+        m_currentFile.close();
+    }
     delete ui;
 }
 
@@ -185,6 +189,19 @@ QList<QPair<const char*, qsizetype>> processChunk(const FileChunk& chunk) {
 
 bool MainWindow::openFile(const QString& fileName)
 {
+    // Clear plugins' data before unmapping the current file
+    m_logEntries.clear();
+    for (PluginInterface* plugin : m_activePlugins) {
+        plugin->setLogs(m_logEntries);
+    }
+
+    // Clean up previous file if any
+    if (m_mappedFile) {
+        m_currentFile.unmap(const_cast<uchar*>(reinterpret_cast<const uchar*>(m_mappedFile)));
+        m_currentFile.close();
+        m_mappedFile = nullptr;
+    }
+
     m_currentFile.setFileName(fileName);
     
     if (!m_currentFile.open(QIODevice::ReadOnly)) {
@@ -194,8 +211,8 @@ bool MainWindow::openFile(const QString& fileName)
     }
 
     // Map the entire file into memory
-    auto *data = reinterpret_cast<const char*>(m_currentFile.map(0, m_currentFile.size()));
-    if (!data) {
+    m_mappedFile = reinterpret_cast<const char*>(m_currentFile.map(0, m_currentFile.size()));
+    if (!m_mappedFile) {
         qWarning() << tr("Failed to map file:") << m_currentFile.errorString();
         return false;
     }
@@ -209,9 +226,9 @@ bool MainWindow::openFile(const QString& fileName)
     
     // Create chunks to process
     QList<FileChunk> chunks;
-    const char* chunkStart = data;
-    const char* chunkEnd = data + chunkSize;
-    const char* fileEnd = data + fileSize;
+    const char* chunkStart = m_mappedFile;
+    const char* chunkEnd = m_mappedFile + chunkSize;
+    const char* fileEnd = m_mappedFile + fileSize;
     for (int i = 0; i < numThreads; ++i) {
         auto next = reinterpret_cast<const char*>(memchr(chunkEnd, '\n', fileEnd - chunkEnd));
         if (next) {
