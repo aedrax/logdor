@@ -132,7 +132,7 @@ private:
     }
 
     bool parseThreadTime(const QString& text) {
-        static QRegularExpression re(R"((\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:\s]+):\s*(.*))");
+        static QRegularExpression re(R"((\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s*(.*))");
         auto match = re.match(text);
         if (match.hasMatch()) {
             timestamp = match.captured(1);
