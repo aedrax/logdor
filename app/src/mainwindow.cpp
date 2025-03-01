@@ -110,6 +110,7 @@ void MainWindow::loadPlugins()
         action->setCheckable(true);
         action->setChecked(true); // Default to visible
         connect(action, &QAction::toggled, dock, &QWidget::setVisible);
+        connect(dock, &QDockWidget::visibilityChanged, action, &QAction::setChecked);
         m_pluginsMenu->addAction(action);
         m_pluginActions[pluginName] = action;
     }
