@@ -2,6 +2,7 @@
 #include <QHeaderView>
 #include <QIcon>
 #include <QLineEdit>
+#include <QPainter>
 #include <QRegularExpression>
 #include <QStyle>
 #include <QTextStream>
@@ -45,15 +46,28 @@ void LogcatViewer::setupUi()
     m_layout->addWidget(m_toolbar);
 
     // Setup toolbar with level filter buttons
-    auto addLevelAction = [this](LogcatEntry::Level level) {
+    auto createLevelIcon = [](const QColor& color, bool filtered) {
+        QPixmap pixmap(16, 16);
+        pixmap.fill(color);
+        
+        if (filtered) {
+            QPainter painter(&pixmap);
+            painter.setPen(QPen(Qt::white, 2));
+            painter.drawLine(4, 4, 12, 12);
+            painter.drawLine(12, 4, 4, 12);
+        }
+        
+        return QIcon(pixmap);
+    };
+
+    auto addLevelAction = [this, createLevelIcon](LogcatEntry::Level level) {
         QAction* action = new QAction(LogcatEntry::levelToString(level), this);
         action->setCheckable(true);
         action->setChecked(true);
         QColor color = LogcatEntry::levelColor(level);
-        QPixmap pixmap(16, 16);
-        pixmap.fill(color);
-        action->setIcon(QIcon(pixmap));
-        connect(action, &QAction::toggled, this, [this, level](bool checked) {
+        action->setIcon(createLevelIcon(color, false));
+        connect(action, &QAction::toggled, this, [this, level, action, color, createLevelIcon](bool checked) {
+            action->setIcon(createLevelIcon(color, !checked));
             toggleLevel(level, checked);
         });
         m_toolbar->addAction(action);
