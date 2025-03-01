@@ -34,6 +34,7 @@ public:
     void setLogEntries(const QList<LogEntry>& entries);
     void setVisibleRows(const QList<int>& linesToShow);
     int mapToSourceRow(int visibleRow) const { return m_visibleRows[visibleRow]; }
+    int mapFromSourceRow(int sourceRow) const { return m_visibleRows.indexOf(sourceRow); }
 
 private:
     bool matchesFilter(const LogcatEntry& entry, const QString& query, Qt::CaseSensitivity caseSensitivity,

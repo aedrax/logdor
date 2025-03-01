@@ -76,6 +76,23 @@ void PlainTextViewer::onSelectionChanged(const QItemSelection& selected, const Q
 
 void PlainTextViewer::onPluginEvent(PluginEvent event, const QVariant& data)
 {
-    Q_UNUSED(event);
-    Q_UNUSED(data);
+    if (event == PluginEvent::LinesSelected) {
+        QList<int> selectedLines = data.value<QList<int>>();
+        if (selectedLines.isEmpty()) {
+            return;
+        }
+
+        // For all selected lines, select them in the table view
+        QItemSelection selection;
+        for (int line : selectedLines) {
+            const int row = m_model->mapFromSourceRow(line);
+            selection.select(m_model->index(row, PlainTextColumn::No), m_model->index(row, PlainTextColumn::Log));
+        }
+        m_tableView->selectionModel()->select(selection, QItemSelectionModel::ClearAndSelect);
+
+        // Scroll to the first selected line
+        if (!selectedLines.isEmpty()) {
+            m_tableView->scrollTo(m_model->index(m_model->mapFromSourceRow(selectedLines.first()), 0));
+        }
+    }
 }

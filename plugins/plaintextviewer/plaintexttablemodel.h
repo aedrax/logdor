@@ -26,6 +26,7 @@ public:
     void setLogEntries(const QList<LogEntry>& entries);
     void setFilter(const FilterOptions& options);
     int mapToSourceRow(int visibleRow) const { return m_visibleRows[visibleRow]; }
+    int mapFromSourceRow(int sourceRow) const { return m_visibleRows.indexOf(sourceRow); }
 
 private:
     QList<LogEntry> m_entries;
