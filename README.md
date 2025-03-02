@@ -46,6 +46,10 @@ Logdor is a tool to simplify looking at log files by enabling filtering, color c
 - Step-by-step move navigation (white/black separately)
 - Unicode chess pieces with Chess.com-style board colors
 
+### Common Log Format Viewer
+- Specialized viewer for Apache and NGINX access logs
+- Parses standard CLF fields (IP, identity, user ID, timestamp, request, status, bytes)
+
 ## Building from Source
 
 ### Requirements
