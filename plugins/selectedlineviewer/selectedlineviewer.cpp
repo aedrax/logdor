@@ -21,6 +21,7 @@ SelectedLineViewer::~SelectedLineViewer()
 
 bool SelectedLineViewer::setLogs(const QList<LogEntry>& logs)
 {
+    qDebug() << "SelectedLineViewer::setLogs called with" << logs.size() << "entries";
     m_entries = logs;
     return true;
 }

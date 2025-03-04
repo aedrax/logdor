@@ -118,8 +118,21 @@ void MainWindow::loadPlugins()
         QAction* action = new QAction(pluginName, this);
         action->setCheckable(true);
         action->setChecked(true); // Default to visible
-        connect(action, &QAction::toggled, dock, &QWidget::setVisible);
+        
+        // Connect action toggle to plugin state and visibility
+        connect(action, &QAction::toggled, [this, dock, plugin](bool checked) {
+            dock->setVisible(checked);
+            plugin->setEnabled(checked);
+            // Process existing logs when plugin is enabled
+            if (checked && !m_logEntries.isEmpty()) {
+                plugin->setLogs(m_logEntries);
+                plugin->setFilter(m_filterOptions);
+            }
+        });
+        
+        // Connect dock visibility to just update action state
         connect(dock, &QDockWidget::visibilityChanged, action, &QAction::setChecked);
+        
         m_pluginsMenu->addAction(action);
         m_pluginActions[pluginName] = action;
     }
@@ -269,14 +282,8 @@ bool MainWindow::openFile(const QString& fileName)
     
     qDebug() << tr("File parsed successfully");
     
-    bool success = false;
-
-    // Try to load the content with each plugin
-    for (PluginInterface* plugin : m_activePlugins) {
-        if (plugin->setLogs(m_logEntries)) {
-            success = true;
-        }
-    }
+    // Try to load the content with each enabled plugin
+    bool success = m_pluginManager->setLogs(m_logEntries);
 
     if (!success) {
         QMessageBox::warning(this, tr("Error"),
@@ -311,8 +318,8 @@ void MainWindow::onFilterChanged()
                          m_caseSensitiveCheckBox->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive,
                          m_invertFilterCheckBox->isChecked());
 
-    // Apply filter to all active plugins with context lines
-    for (PluginInterface* plugin : m_activePlugins) {
-        plugin->setFilter(options);
-    }
+    m_filterOptions = options;
+
+    // Apply filter to all enabled plugins with context lines
+    m_pluginManager->setFilter(m_filterOptions);
 }

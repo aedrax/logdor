@@ -47,6 +47,7 @@ private:
     QFile m_currentFile;
     const char* m_mappedFile;  // Track the mapped memory
     QList<LogEntry> m_logEntries;
+    FilterOptions m_filterOptions;
     
     // Filter controls
     QLineEdit* m_filterInput;

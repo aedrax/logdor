@@ -64,7 +64,7 @@ class Q_DECL_EXPORT PluginInterface : public QObject {
     Q_OBJECT
 public:
     // Constructor
-    explicit PluginInterface(QObject* parent = nullptr) : QObject(parent) {}
+    explicit PluginInterface(QObject* parent = nullptr) : QObject(parent), m_enabled(true) {}
 
     // Virtual destructor for proper cleanup
     virtual ~PluginInterface() = default;
@@ -80,6 +80,17 @@ public:
 
     // Get the widget provided by the plugin
     virtual QWidget* widget() = 0;
+
+    // Enable/disable the plugin
+    virtual void setEnabled(bool enabled) { 
+        if (m_enabled != enabled) {
+            m_enabled = enabled;
+            emit enabledChanged(enabled);
+        }
+    }
+
+    // Check if plugin is enabled
+    virtual bool isEnabled() const { return m_enabled; }
 
     // Load logs into the plugin's widget
     virtual bool setLogs(const QList<LogEntry>& logs) = 0;
@@ -102,6 +113,13 @@ signals:
     // Signal to notify about plugin events
     // this is virtual because for some reason it won't export the signal otherwise
     virtual void pluginEvent(PluginEvent event, const QVariant& data);
+    
+    // Signal emitted when plugin enabled state changes
+    // this is virtual because for some reason it won't export the signal otherwise
+    virtual void enabledChanged(bool enabled);
+
+protected:
+    bool m_enabled;
 };
 
 // Define the plugin interface ID

@@ -156,3 +156,37 @@ QList<PluginInterface*> PluginManager::plugins() const
     }
     return result;
 }
+
+QList<PluginInterface*> PluginManager::enabledPlugins() const
+{
+    QList<PluginInterface*> result;
+    for (QPluginLoader* loader : m_pluginLoaders) {
+        if (QObject* instance = loader->instance()) {
+            if (PluginInterface* interface = qobject_cast<PluginInterface*>(instance)) {
+                if (interface->isEnabled()) {
+                    result.append(interface);
+                }
+            }
+        }
+    }
+    return result;
+}
+
+bool PluginManager::setLogs(const QList<LogEntry>& logs)
+{
+    bool success = true;
+    for (PluginInterface* plugin : enabledPlugins()) {
+        if (!plugin->setLogs(logs)) {
+            qWarning() << "Failed to set logs for plugin:" << plugin->name();
+            success = false;
+        }
+    }
+    return success;
+}
+
+void PluginManager::setFilter(const FilterOptions& options)
+{
+    for (PluginInterface* plugin : enabledPlugins()) {
+        plugin->setFilter(options);
+    }
+}

@@ -182,6 +182,7 @@ void PgnViewer::lastMove()
 
 bool PgnViewer::setLogs(const QList<LogEntry>& content)
 {
+    qDebug() << "PgnViewer::setLogs called with" << content.size() << "entries";
     m_model->setLogEntries(content);
     m_board->resetBoard();  // Reset to starting position
     

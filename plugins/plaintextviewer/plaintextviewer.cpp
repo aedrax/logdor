@@ -30,6 +30,7 @@ PlainTextViewer::~PlainTextViewer()
 
 bool PlainTextViewer::setLogs(const QList<LogEntry>& content)
 {
+    qDebug() << "PlainTextViewer::setLogs called with" << content.size() << "entries";
     m_model->setLogEntries(content);
     return true;
 }
