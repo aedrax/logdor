@@ -4,7 +4,7 @@
 #include <QFile>
 #include <QMainWindow>
 #include <QTimer>
-#include <QCheckBox>
+#include <QPushButton>
 #include <QSettings>
 #include "pluginmanager.h"
 
@@ -51,10 +51,10 @@ private:
     
     // Filter controls
     QLineEdit* m_filterInput;
-    QCheckBox* m_caseSensitiveCheckBox;
-    QCheckBox* m_invertFilterCheckBox;
-    QCheckBox* m_queryModeCheckBox;
-    QCheckBox* m_regexModeCheckBox;
+    QPushButton* m_caseSensitiveButton;
+    QPushButton* m_invertFilterButton;
+    QPushButton* m_queryModeButton;
+    QPushButton* m_regexModeButton;
     QSpinBox* m_beforeSpinBox;
     QSpinBox* m_afterSpinBox;
     QTimer* m_filterTimer;

@@ -20,10 +20,10 @@ MainWindow::MainWindow(QWidget* parent)
     , ui(new Ui::MainWindow)
     , m_pluginManager(new PluginManager(this))
     , m_filterInput(new QLineEdit(this))
-    , m_caseSensitiveCheckBox(new QCheckBox(tr("Case Sensitive"), this))
-    , m_invertFilterCheckBox(new QCheckBox(tr("Invert Filter"), this))
-    , m_queryModeCheckBox(new QCheckBox(tr("Query Mode"), this))
-    , m_regexModeCheckBox(new QCheckBox(tr("Regex Mode"), this))
+    , m_caseSensitiveButton(new QPushButton(tr("Aa"), this))
+    , m_invertFilterButton(new QPushButton(tr("!"), this))
+    , m_queryModeButton(new QPushButton(tr("Q"), this))
+    , m_regexModeButton(new QPushButton(tr(".*"), this))
     , m_beforeSpinBox(new QSpinBox(this))
     , m_afterSpinBox(new QSpinBox(this))
     , m_filterTimer(new QTimer(this))
@@ -45,18 +45,42 @@ MainWindow::MainWindow(QWidget* parent)
     m_filterInput->setPlaceholderText(tr("Enter filter text..."));
     filterToolBar->addWidget(m_filterInput);
     
-    m_caseSensitiveCheckBox->setToolTip(tr("Toggle case sensitive filtering"));
-    filterToolBar->addWidget(m_caseSensitiveCheckBox);
+    // Configure toggle buttons
+    auto setupToggleButton = [](QPushButton* button, const QString& tooltip) {
+        button->setCheckable(true);
+        button->setFlat(false);  // Make buttons non-flat for more obvious appearance
+        button->setFixedSize(32, 24);  // Slightly larger
+        button->setToolTip(tooltip);
+        button->setStyleSheet(
+            "QPushButton {"
+            "  border: 1px solid #777777;"  // Visible border
+            "  padding: 2px;"
+            "  border-radius: 3px;"
+            "}"
+            "QPushButton:checked {"
+            "  background-color: #0e639c;"   // VSCode blue when checked
+            "  border: 1px solid #1177bb;"   // Brighter border when checked
+            "  font-weight: bold;"           // Bold text when checked
+            "}"
+            "QPushButton:hover:!checked {"
+            "  background-color: #3e3e3e;"   // Lighter background on hover
+            "  border: 1px solid #999999;"   // Lighter border on hover
+            "}"
+        );
+    };
     
-    m_invertFilterCheckBox->setToolTip(tr("Show lines that don't match the filter"));
-    filterToolBar->addWidget(m_invertFilterCheckBox);
+    setupToggleButton(m_caseSensitiveButton, tr("Toggle case sensitive filtering"));
+    filterToolBar->addWidget(m_caseSensitiveButton);
     
-    m_regexModeCheckBox->setToolTip(tr("Treat filter as a regular expression"));
-    filterToolBar->addWidget(m_regexModeCheckBox);
+    setupToggleButton(m_invertFilterButton, tr("Show lines that don't match the filter"));
+    filterToolBar->addWidget(m_invertFilterButton);
     
-    m_queryModeCheckBox->setToolTip(tr("Enable query mode for advanced filtering"));
+    setupToggleButton(m_regexModeButton, tr("Treat filter as a regular expression"));
+    filterToolBar->addWidget(m_regexModeButton);
+    
+    setupToggleButton(m_queryModeButton, tr("Enable query mode for advanced filtering"));
     // Hide for now until query mode is implemented
-    // filterToolBar->addWidget(m_queryModeCheckBox);
+    // filterToolBar->addWidget(m_queryModeButton);
     
     // Add context line controls
     filterToolBar->addSeparator();
@@ -88,10 +112,10 @@ MainWindow::MainWindow(QWidget* parent)
     // Connect spin boxes directly since they don't need debouncing
     connect(m_beforeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
     connect(m_afterSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
-    connect(m_caseSensitiveCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
-    connect(m_invertFilterCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
-    connect(m_regexModeCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
-    connect(m_queryModeCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
+    connect(m_caseSensitiveButton, &QPushButton::toggled, this, &MainWindow::onFilterChanged);
+    connect(m_invertFilterButton, &QPushButton::toggled, this, &MainWindow::onFilterChanged);
+    connect(m_regexModeButton, &QPushButton::toggled, this, &MainWindow::onFilterChanged);
+    connect(m_queryModeButton, &QPushButton::toggled, this, &MainWindow::onFilterChanged);
 
     // Setup Ctrl+L shortcut to focus filter input
     QShortcut* filterShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_L), this);
@@ -336,7 +360,7 @@ void MainWindow::onFocusFilterInput()
 void MainWindow::onFilterChanged()
 {
     // Reset background color to default if regex mode is disabled
-    if (!m_regexModeCheckBox->isChecked()) {
+    if (!m_regexModeButton->isChecked()) {
         m_filterInput->setStyleSheet("");
     } else {
         // Validate regex pattern when regex mode is enabled
@@ -351,10 +375,10 @@ void MainWindow::onFilterChanged()
     FilterOptions options(m_filterInput->text(),
                          m_beforeSpinBox->value(),
                          m_afterSpinBox->value(),
-                         m_caseSensitiveCheckBox->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive,
-                         m_invertFilterCheckBox->isChecked(),
-                         m_queryModeCheckBox->isChecked(),
-                         m_regexModeCheckBox->isChecked());
+                         m_caseSensitiveButton->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive,
+                         m_invertFilterButton->isChecked(),
+                         m_queryModeButton->isChecked(),
+                         m_regexModeButton->isChecked());
 
     m_filterOptions = options;
 
