@@ -21,6 +21,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_filterInput(new QLineEdit(this))
     , m_caseSensitiveCheckBox(new QCheckBox(tr("Case Sensitive"), this))
     , m_invertFilterCheckBox(new QCheckBox(tr("Invert Filter"), this))
+    , m_queryModeCheckBox(new QCheckBox(tr("Query Mode"), this))
     , m_beforeSpinBox(new QSpinBox(this))
     , m_afterSpinBox(new QSpinBox(this))
     , m_filterTimer(new QTimer(this))
@@ -47,6 +48,9 @@ MainWindow::MainWindow(QWidget* parent)
     
     m_invertFilterCheckBox->setToolTip(tr("Show lines that don't match the filter"));
     filterToolBar->addWidget(m_invertFilterCheckBox);
+    
+    m_queryModeCheckBox->setToolTip(tr("Enable query mode for advanced filtering"));
+    filterToolBar->addWidget(m_queryModeCheckBox);
     
     // Add context line controls
     filterToolBar->addSeparator();
@@ -80,6 +84,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_afterSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
     connect(m_caseSensitiveCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
     connect(m_invertFilterCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
+    connect(m_queryModeCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
 
     // Setup Ctrl+L shortcut to focus filter input
     QShortcut* filterShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_L), this);
@@ -284,6 +289,7 @@ bool MainWindow::openFile(const QString& fileName)
     
     // Try to load the content with each enabled plugin
     bool success = m_pluginManager->setLogs(m_logEntries);
+    m_pluginManager->setFilter(m_filterOptions);
 
     if (!success) {
         QMessageBox::warning(this, tr("Error"),
@@ -316,7 +322,8 @@ void MainWindow::onFilterChanged()
                          m_beforeSpinBox->value(),
                          m_afterSpinBox->value(),
                          m_caseSensitiveCheckBox->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive,
-                         m_invertFilterCheckBox->isChecked());
+                         m_invertFilterCheckBox->isChecked(),
+                         m_queryModeCheckBox->isChecked());
 
     m_filterOptions = options;
 
