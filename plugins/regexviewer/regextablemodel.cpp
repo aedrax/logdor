@@ -95,13 +95,33 @@ void RegexTableModel::setFilter(const FilterOptions& options)
     m_filteredLines.clear();
     
     if (!options.query.isEmpty()) {
-        for (int i = 0; i < m_entries.size(); i++) {
-            bool matched = m_entries[i].getMessage().contains(options.query, options.caseSensitivity);
-            // Add to filtered lines if:
-            // - Not inverted and doesn't match, OR
-            // - Inverted and does match
-            if (matched == options.invertFilter) {
-                m_filteredLines.insert(i);
+        if (options.inRegexMode) {
+            // Regex mode
+            QRegularExpression::PatternOptions patternOptions = QRegularExpression::NoPatternOption;
+            if (options.caseSensitivity == Qt::CaseInsensitive) {
+                patternOptions |= QRegularExpression::CaseInsensitiveOption;
+            }
+            QRegularExpression filterRegex(options.query, patternOptions);
+            
+            for (int i = 0; i < m_entries.size(); i++) {
+                bool matched = filterRegex.match(m_entries[i].getMessage()).hasMatch();
+                // Add to filtered lines if:
+                // - Not inverted and doesn't match, OR
+                // - Inverted and does match
+                if (matched == options.invertFilter) {
+                    m_filteredLines.insert(i);
+                }
+            }
+        } else {
+            // Normal text search mode
+            for (int i = 0; i < m_entries.size(); i++) {
+                bool matched = m_entries[i].getMessage().contains(options.query, options.caseSensitivity);
+                // Add to filtered lines if:
+                // - Not inverted and doesn't match, OR
+                // - Inverted and does match
+                if (matched == options.invertFilter) {
+                    m_filteredLines.insert(i);
+                }
             }
         }
     }

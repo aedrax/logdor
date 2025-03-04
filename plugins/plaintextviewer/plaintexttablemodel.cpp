@@ -1,5 +1,6 @@
 #include "plaintexttablemodel.h"
 #include <QtConcurrent/QtConcurrent>
+#include <QRegularExpression>
 
 PlainTextTableModel::PlainTextTableModel(QObject* parent)
     : QAbstractTableModel(parent)
@@ -85,11 +86,29 @@ void PlainTextTableModel::setFilter(const FilterOptions& options)
         QVector<bool> lineMatches(m_entries.size(), false);
         QList<int> matchIndices;
         
-        for (int i = 0; i < m_entries.size(); i++) {
-            bool matched = m_entries[i].getMessage().contains(options.query, options.caseSensitivity);
-            lineMatches[i] = matched;
-            if (matched != options.invertFilter) { // XOR with invertFilter
-                matchIndices.append(i);
+        if (options.inRegexMode) {
+            // Regex mode
+            QRegularExpression::PatternOptions patternOptions = QRegularExpression::NoPatternOption;
+            if (options.caseSensitivity == Qt::CaseInsensitive) {
+                patternOptions |= QRegularExpression::CaseInsensitiveOption;
+            }
+            QRegularExpression regex(options.query, patternOptions);
+            
+            for (int i = 0; i < m_entries.size(); i++) {
+                bool matched = regex.match(m_entries[i].getMessage()).hasMatch();
+                lineMatches[i] = matched;
+                if (matched != options.invertFilter) { // XOR with invertFilter
+                    matchIndices.append(i);
+                }
+            }
+        } else {
+            // Normal text search mode
+            for (int i = 0; i < m_entries.size(); i++) {
+                bool matched = m_entries[i].getMessage().contains(options.query, options.caseSensitivity);
+                lineMatches[i] = matched;
+                if (matched != options.invertFilter) { // XOR with invertFilter
+                    matchIndices.append(i);
+                }
             }
         }
 

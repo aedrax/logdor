@@ -355,7 +355,21 @@ bool LogcatViewer::matchesFilter(const LogcatEntry& entry) const
 
     // Check text filter
     if (!m_filterOptions.query.isEmpty()) {
-        bool matches = entry.message.contains(m_filterOptions.query, m_filterOptions.caseSensitivity);
+        bool matches;
+        
+        if (m_filterOptions.inRegexMode) {
+            // Regex mode
+            QRegularExpression::PatternOptions patternOptions = QRegularExpression::NoPatternOption;
+            if (m_filterOptions.caseSensitivity == Qt::CaseInsensitive) {
+                patternOptions |= QRegularExpression::CaseInsensitiveOption;
+            }
+            QRegularExpression regex(m_filterOptions.query, patternOptions);
+            matches = regex.match(entry.message).hasMatch();
+        } else {
+            // Normal text search mode
+            matches = entry.message.contains(m_filterOptions.query, m_filterOptions.caseSensitivity);
+        }
+        
         if (matches == m_filterOptions.invertFilter) {
             return false;
         }

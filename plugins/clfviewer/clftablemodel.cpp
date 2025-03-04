@@ -1,4 +1,5 @@
 #include "clftablemodel.h"
+#include <QRegularExpression>
 
 CLFTableModel::CLFTableModel(QObject* parent)
     : QAbstractTableModel(parent)
@@ -134,7 +135,21 @@ bool CLFTableModel::matchesFilter(const CLFEntry& entry, const FilterOptions& op
                         QString::number(entry.statusCode) + " " +
                         QString::number(entry.bytesSent);
 
-    bool matches = searchText.contains(options.query, options.caseSensitivity);
+    bool matches;
+    
+    if (options.inRegexMode) {
+        // Regex mode
+        QRegularExpression::PatternOptions patternOptions = QRegularExpression::NoPatternOption;
+        if (options.caseSensitivity == Qt::CaseInsensitive) {
+            patternOptions |= QRegularExpression::CaseInsensitiveOption;
+        }
+        QRegularExpression regex(options.query, patternOptions);
+        matches = regex.match(searchText).hasMatch();
+    } else {
+        // Normal text search mode
+        matches = searchText.contains(options.query, options.caseSensitivity);
+    }
+    
     return options.invertFilter ? !matches : matches;
 }
 

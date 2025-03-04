@@ -12,6 +12,7 @@
 #include <QSpinBox>
 #include <QShortcut>
 #include <QtConcurrent/QtConcurrent>
+#include <QRegularExpression>
 #include <vector>
 
 MainWindow::MainWindow(QWidget* parent)
@@ -22,6 +23,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_caseSensitiveCheckBox(new QCheckBox(tr("Case Sensitive"), this))
     , m_invertFilterCheckBox(new QCheckBox(tr("Invert Filter"), this))
     , m_queryModeCheckBox(new QCheckBox(tr("Query Mode"), this))
+    , m_regexModeCheckBox(new QCheckBox(tr("Regex Mode"), this))
     , m_beforeSpinBox(new QSpinBox(this))
     , m_afterSpinBox(new QSpinBox(this))
     , m_filterTimer(new QTimer(this))
@@ -48,6 +50,9 @@ MainWindow::MainWindow(QWidget* parent)
     
     m_invertFilterCheckBox->setToolTip(tr("Show lines that don't match the filter"));
     filterToolBar->addWidget(m_invertFilterCheckBox);
+    
+    m_regexModeCheckBox->setToolTip(tr("Treat filter as a regular expression"));
+    filterToolBar->addWidget(m_regexModeCheckBox);
     
     m_queryModeCheckBox->setToolTip(tr("Enable query mode for advanced filtering"));
     // Hide for now until query mode is implemented
@@ -85,6 +90,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_afterSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
     connect(m_caseSensitiveCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
     connect(m_invertFilterCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
+    connect(m_regexModeCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
     connect(m_queryModeCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onFilterChanged);
 
     // Setup Ctrl+L shortcut to focus filter input
@@ -329,12 +335,26 @@ void MainWindow::onFocusFilterInput()
 
 void MainWindow::onFilterChanged()
 {
+    // Reset background color to default if regex mode is disabled
+    if (!m_regexModeCheckBox->isChecked()) {
+        m_filterInput->setStyleSheet("");
+    } else {
+        // Validate regex pattern when regex mode is enabled
+        QRegularExpression regex(m_filterInput->text());
+        if (regex.isValid() || m_filterInput->text().isEmpty()) {
+            m_filterInput->setStyleSheet("QLineEdit { background-color: #90EE90; color: black; }"); // Light green
+        } else {
+            m_filterInput->setStyleSheet("QLineEdit { background-color: #FFB6C1; color: black; }"); // Light red
+        }
+    }
+
     FilterOptions options(m_filterInput->text(),
                          m_beforeSpinBox->value(),
                          m_afterSpinBox->value(),
                          m_caseSensitiveCheckBox->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive,
                          m_invertFilterCheckBox->isChecked(),
-                         m_queryModeCheckBox->isChecked());
+                         m_queryModeCheckBox->isChecked(),
+                         m_regexModeCheckBox->isChecked());
 
     m_filterOptions = options;
 
