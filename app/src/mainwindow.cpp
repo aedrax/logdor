@@ -172,11 +172,21 @@ void MainWindow::loadSettings()
         restoreState(settings.value("windowState").toByteArray());
     }
     
-    // Restore plugin visibility
+    // Check if any plugin settings exist
     settings.beginGroup("Plugins");
+    bool hasPluginSettings = !settings.childGroups().isEmpty() || !settings.childKeys().isEmpty();
+    
+    // Restore plugin visibility
     for (auto it = m_pluginActions.begin(); it != m_pluginActions.end(); ++it) {
-        bool visible = settings.value(it.key() + "/visible", true).toBool();
-        it.value()->setChecked(visible);
+        if (hasPluginSettings) {
+            // Use saved settings if they exist
+            bool visible = settings.value(it.key() + "/visible", false).toBool();
+            it.value()->setChecked(visible);
+        } else {
+            // If no settings exist, only enable plaintextviewer and selectedlineviewer by default
+            bool isDefaultEnabled = (it.key() == "Plain Text Viewer" || it.key() == "Selected Line Viewer");
+            it.value()->setChecked(isDefaultEnabled);
+        }
     }
     settings.endGroup();
 }
