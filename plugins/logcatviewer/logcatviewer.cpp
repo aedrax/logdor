@@ -173,6 +173,7 @@ void LogcatViewer::addTagLabel(const QString& tag)
 
 bool LogcatViewer::setLogs(const QList<LogEntry>& content)
 {
+    qDebug() << "LogcatViewer::setLogs called with" << content.size() << "entries";
     m_entries = content;
     m_model->setLogEntries(content);
 

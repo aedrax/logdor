@@ -25,6 +25,15 @@ public:
     // Get all loaded plugins
     QList<PluginInterface*> plugins() const;
 
+    // Get only enabled plugins
+    QList<PluginInterface*> enabledPlugins() const;
+
+    // Set logs for all enabled plugins
+    bool setLogs(const QList<LogEntry>& logs);
+
+    // Set filter for all enabled plugins
+    void setFilter(const FilterOptions& options);
+
 private:
     // Map of plugin name to loader
     QMap<QString, QPluginLoader*> m_pluginLoaders;
