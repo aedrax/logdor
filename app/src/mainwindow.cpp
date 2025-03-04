@@ -50,7 +50,8 @@ MainWindow::MainWindow(QWidget* parent)
     filterToolBar->addWidget(m_invertFilterCheckBox);
     
     m_queryModeCheckBox->setToolTip(tr("Enable query mode for advanced filtering"));
-    filterToolBar->addWidget(m_queryModeCheckBox);
+    // Hide for now until query mode is implemented
+    // filterToolBar->addWidget(m_queryModeCheckBox);
     
     // Add context line controls
     filterToolBar->addSeparator();
