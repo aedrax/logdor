@@ -9,46 +9,22 @@ Logdor is a tool to simplify looking at log files by enabling filtering, color c
 
 ![image](https://github.com/user-attachments/assets/679a40ce-82b1-4c57-af61-1d43c7ad2985)
 
+## Plugins
+
+Logdor provides functionality through a plugin-based architecture. Each plugin specializes in a specific type of log format or viewing capability:
+
+- [Bookmark Viewer](plugins/bookmarkviewer/README.md) - Save and annotate important log lines for future reference
+- [CLF Viewer](plugins/clfviewer/README.md) - Specialized parser for Apache and NGINX access logs
+- [Hexdump Viewer](plugins/hexdumpviewer/README.md) - View binary files in hexadecimal format
+- [Logcat Viewer](plugins/logcatviewer/README.md) - Android logcat format viewer with color-coded log levels
+- [PGN Viewer](plugins/pgnviewer/README.md) - Interactive chess game viewer for PGN files
+- [Plain Text Viewer](plugins/plaintextviewer/README.md) - Basic text file viewer with essential features
+- [Regex Viewer](plugins/regexviewer/README.md) - Pattern matching with regular expressions and highlighting
+- [Selected Line Viewer](plugins/selectedlineviewer/README.md) - Focused view of lines selected from other viewers
+
 ## Features
 
-### Plain Text Viewer
-- Basic log file viewer with essential features
-- Line numbers
-- Text filtering
-- Line highlighting
-- Clean, simple interface for any text file
-
-### Logcat Viewer
-- Specialized viewer for Android logcat files
-- Color-coded log levels (Verbose, Debug, Info, Warning, Error, Fatal)
-- Quick filtering by log level with toolbar buttons
-- Text filtering across tags and messages
-- Sortable columns
-- Row-based selection
-- Clean, grid-less display with alternating row colors
-
-### Bookmark Viewer
-- Save important lines with checkboxes
-- Add notes to bookmarked lines
-- Quick navigation between bookmarks
-- Auto-saves bookmarks when notes are added
-- Syncs with other viewers to highlight selected lines
-
-### Regex Viewer
-- Advanced pattern matching with regular expressions
-- Customizable value highlighting
-- Extract and display matched groups
-- Real-time pattern updates
-- Color-coded matches for better visibility
-
-### PGN Viewer
-- Interactive chess game viewer for PGN files
-- Step-by-step move navigation (white/black separately)
-- Unicode chess pieces with Chess.com-style board colors
-
-### Common Log Format Viewer
-- Specialized viewer for Apache and NGINX access logs
-- Parses standard CLF fields (IP, identity, user ID, timestamp, request, status, bytes)
+For detailed information about each plugin's features, please visit the individual plugin README files linked above.
 
 ## Building from Source
 
@@ -64,20 +40,17 @@ Logdor is a tool to simplify looking at log files by enabling filtering, color c
 
 ### Build Instructions
 
-1. Create a build directory:
+1. Configure with CMake:
 ```bash
-mkdir build
-cd build
+cmake -B build
+# if the system Qt6 is not the one you want to use, you can specify the path to the Qt6 you want to use
+# e.g.:
+# /path/to/Qt/6.8.0/gcc_64/bin/qt-cmake -B build
 ```
 
-2. Configure with CMake:
+1. Build the project:
 ```bash
-cmake ..
-```
-
-3. Build the project:
-```bash
-cmake --build .
+cmake --build build/
 ```
 
 The built executable and plugins will be in the `build` directory. Logdor will be in `build/app`
