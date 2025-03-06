@@ -1,0 +1,18 @@
+{
+    "files.associations": {
+        "qtconcurrent": "cpp",
+        "qregularexpression": "cpp",
+        "algorithm": "cpp",
+        "qlabel": "cpp",
+        "qpushbutton": "cpp",
+        "qvboxlayout": "cpp",
+        "qtimer": "cpp",
+        "qdockwidget": "cpp",
+        "qtextstream": "cpp",
+        "qtoolbar": "cpp",
+        "vector": "cpp",
+        "qicon": "cpp",
+        "qhboxlayout": "cpp",
+        "qsplitter": "cpp"
+    }
+}
