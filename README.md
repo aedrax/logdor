@@ -15,6 +15,7 @@ Logdor provides functionality through a plugin-based architecture. Each plugin s
 
 - [Bookmark Viewer](plugins/bookmarkviewer/README.md) - Save and annotate important log lines for future reference
 - [CLF Viewer](plugins/clfviewer/README.md) - Specialized parser for Apache and NGINX access logs
+- [CSV Viewer](plugins/csvviewer/README.md) - Table view for CSV files with automatic header detection
 - [Hexdump Viewer](plugins/hexdumpviewer/README.md) - View binary files in hexadecimal format
 - [Logcat Viewer](plugins/logcatviewer/README.md) - Android logcat format viewer with color-coded log levels
 - [PGN Viewer](plugins/pgnviewer/README.md) - Interactive chess game viewer for PGN files
