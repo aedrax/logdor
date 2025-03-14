@@ -23,6 +23,7 @@ Logdor provides functionality through a plugin-based architecture. Each plugin s
 - [Plain Text Viewer](plugins/plaintextviewer/README.md) - Basic text file viewer with essential features
 - [Regex Viewer](plugins/regexviewer/README.md) - Pattern matching with regular expressions and highlighting
 - [Selected Line Viewer](plugins/selectedlineviewer/README.md) - Focused view of lines selected from other viewers
+- [Syslog Viewer](plugins/syslogviewer/README.md) - Parser for system log files with facility and severity highlighting
 
 ## Features
 
