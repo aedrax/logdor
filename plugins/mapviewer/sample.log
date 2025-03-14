@@ -1,0 +1,13 @@
+[2025-03-14 10:00:00] System initialized at location: 40.7128°N, 74.0060°W (New York City)
+[2025-03-14 10:15:00] Drone takeoff from coordinates 51.5074, -0.1278 (London)
+[2025-03-14 10:30:00] Weather station report from 48° 51' 24"N, 2° 21' 03"E (Paris)
+[2025-03-14 10:45:00] Satellite position: latitude: 35.6762, longitude: 139.6503 (Tokyo)
+[2025-03-14 11:00:00] Ground team located at 33°51'22"S, 151°12'49"E (Sydney)
+[2025-03-14 11:15:00] Emergency signal received from 37.7749°N, 122.4194°W (San Francisco)
+[2025-03-14 11:30:00] Base station coordinates: 52.5200N, 13.4050E (Berlin)
+[2025-03-14 11:45:00] Monitoring station at lat: -33.9249, long: 18.4241 (Cape Town)
+[2025-03-14 12:00:00] Research vessel position: 41°53'31"N 12°29'07"E (Rome)
+[2025-03-14 12:15:00] Field team reporting from 55.7558, 37.6173 (Moscow)
+[2025-03-14 12:30:00] No coordinates in this log line
+[2025-03-14 12:45:00] Invalid coordinates: 999.9999, 999.9999
+[2025-03-14 13:00:00] Sensor array deployed at 1°17'48"N 103°51'23"E (Singapore)

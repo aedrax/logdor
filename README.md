@@ -18,6 +18,7 @@ Logdor provides functionality through a plugin-based architecture. Each plugin s
 - [CSV Viewer](plugins/csvviewer/README.md) - Table view for CSV files with automatic header detection
 - [Hexdump Viewer](plugins/hexdumpviewer/README.md) - View binary files in hexadecimal format
 - [Logcat Viewer](plugins/logcatviewer/README.md) - Android logcat format viewer with color-coded log levels
+- [Map Viewer](plugins/mapviewer/README.md) - Interactive map display for log entries containing coordinates
 - [PGN Viewer](plugins/pgnviewer/README.md) - Interactive chess game viewer for PGN files
 - [Plain Text Viewer](plugins/plaintextviewer/README.md) - Basic text file viewer with essential features
 - [Regex Viewer](plugins/regexviewer/README.md) - Pattern matching with regular expressions and highlighting
