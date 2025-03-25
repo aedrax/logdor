@@ -27,7 +27,7 @@ env:
   UNIXNAME: "logdor"
   PUBLISHER: "Paul Sorensen"
   DESCRIPTION: "Multi-purpose log file visualization & processing program"
-  QT_MODULES: qt3d qtgraphs qtquick3d qtlocation qtdatavis3d qtserialport qtshadertools qtpositioning qtconnectivity
+  QT_MODULES: qt3d qtgraphs qtquick3d qtlocation qtdatavis3d qtserialport qtshadertools qtpositioning qtconnectivity qtwebengine
     
 #-------------------------------------------------------------------------------
 # Workflow jobs (GNU/Linux, macOS & Windows)
