@@ -98,8 +98,8 @@ jobs:
         chmod +x linuxdeploy-x86_64.AppImage
         chmod +x linuxdeploy-plugin-qt-x86_64.AppImage
         
-        export QMAKE=/home/runner/work/${{env.EXECUTABLE}}/Qt/${{env.QT_VERSION_LINUX}}/gcc_64/bin/qmake
-        export PATH=/home/runner/work/${{env.EXECUTABLE}}/Qt/${{env.QT_VERSION_LINUX}}/gcc_64/libexec:$PATH
+        export QMAKE=/home/runner/work/${{env.UNIXNAME}}/Qt/${{env.QT_VERSION_LINUX}}/gcc_64/bin/qmake
+        export PATH=/home/runner/work/${{env.UNIXNAME}}/Qt/${{env.QT_VERSION_LINUX}}/gcc_64/libexec:$PATH
         
         ./linuxdeploy-x86_64.AppImage --appdir AppDir -e ${{env.UNIXNAME}} -i ../../app/resources/icons/${{env.UNIXNAME}}.png -d ../../app/resources/${{env.UNIXNAME}}.desktop --plugin qt --output appimage
         
