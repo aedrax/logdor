@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Logdor
+Exec=logdor
+Icon=logdor.png
+Type=Application
+Categories=Utility;Application;
+
