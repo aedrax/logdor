@@ -27,7 +27,7 @@ env:
   UNIXNAME: "logdor"
   PUBLISHER: "Paul Sorensen"
   DESCRIPTION: "Multi-purpose log file visualization & processing program"
-  QT_MODULES: qtwebchannel qtwebengine
+  QT_MODULES: qtwebchannel qtwebengine qtwebview qtwaylandcompositor
     
 #-------------------------------------------------------------------------------
 # Workflow jobs (GNU/Linux, macOS & Windows)
