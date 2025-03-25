@@ -108,22 +108,22 @@ jobs:
         
         mv *.AppImage ../../${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.AppImage
 
-    - name: '📦 Create Native Packages'
-      run: |
-        cd "build/app"
+    # - name: '📦 Create Native Packages'
+    #   run: |
+    #     cd "build/app"
 
-        export LDNP_DESCRIPTION="${{env.DESCRIPTION}}"
-        wget https://github.com/linuxdeploy/linuxdeploy-plugin-native_packages/releases/download/continuous/linuxdeploy-plugin-native_packages-x86_64.AppImage
-        chmod +x linuxdeploy-plugin-native_packages-x86_64.AppImage
+    #     export LDNP_DESCRIPTION="${{env.DESCRIPTION}}"
+    #     wget https://github.com/linuxdeploy/linuxdeploy-plugin-native_packages/releases/download/continuous/linuxdeploy-plugin-native_packages-x86_64.AppImage
+    #     chmod +x linuxdeploy-plugin-native_packages-x86_64.AppImage
         
-        fakeroot ./linuxdeploy-plugin-native_packages-x86_64.AppImage --appdir AppDir --build deb
-        fakeroot ./linuxdeploy-plugin-native_packages-x86_64.AppImage --appdir AppDir --build rpm
+    #     fakeroot ./linuxdeploy-plugin-native_packages-x86_64.AppImage --appdir AppDir --build deb
+    #     fakeroot ./linuxdeploy-plugin-native_packages-x86_64.AppImage --appdir AppDir --build rpm
         
-        rm -rf AppDir
-        rm linuxdeploy-plugin-native_packages-x86_64.AppImage
+    #     rm -rf AppDir
+    #     rm linuxdeploy-plugin-native_packages-x86_64.AppImage
         
-        mv *.deb ../../${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.deb
-        mv *.rpm ../../${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.rpm
+    #     mv *.deb ../../${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.deb
+    #     mv *.rpm ../../${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.rpm
           
     - name: '📤 Upload artifact: AppImage'
       uses: actions/upload-artifact@v4
@@ -131,17 +131,17 @@ jobs:
         name: ${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.AppImage
         path: ${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.AppImage
 
-    - name: '📤 Upload artifact: Debian Package'
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.deb
-        path: ${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.deb
+    # - name: '📤 Upload artifact: Debian Package'
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: ${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.deb
+    #     path: ${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.deb
 
-    - name: '📤 Upload artifact: RPM Package'
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.rpm
-        path: ${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.rpm
+    # - name: '📤 Upload artifact: RPM Package'
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: ${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.rpm
+    #     path: ${{env.EXECUTABLE}}-${{env.VERSION}}-Linux-x86_64.rpm
 
   #
   # macOS build
