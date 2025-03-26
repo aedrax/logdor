@@ -1,0 +1,20 @@
+2024-03-14 12:00:00,123 [main] DEBUG (AppConfig.java:42) - Loading application configuration
+2024-03-14 12:00:00,234 [main] INFO  (Application.java:89) - Application starting up with profile: production
+2024-03-14 12:00:01,345 [pool-1-thread-1] DEBUG (DatabaseService.java:156) - Establishing database connection
+2024-03-14 12:00:01,456 [pool-1-thread-1] INFO  (DatabaseService.java:158) - Database connection established successfully
+2024-03-14 12:00:02,567 [http-worker-1] WARN  (SecurityFilter.java:78) - Suspicious request pattern detected from IP: 192.168.1.100
+2024-03-14 12:00:03,678 [http-worker-2] ERROR (UserController.java:245) - Failed to authenticate user
+java.lang.SecurityException: Invalid authentication token
+    at com.example.security.TokenValidator.validate(TokenValidator.java:89)
+    at com.example.controller.UserController.authenticate(UserController.java:243)
+    at com.example.controller.UserController.handleRequest(UserController.java:198)
+2024-03-14 12:00:04,789 [scheduler-1] TRACE (CacheManager.java:312) - Cache cleanup started
+2024-03-14 12:00:05,890 [scheduler-1] DEBUG (CacheManager.java:315) - Removed 150 expired cache entries
+2024-03-14 12:00:06,901 [main] FATAL (Application.java:523) - Critical system error occurred
+java.lang.OutOfMemoryError: Java heap space
+    at com.example.cache.DataCache.allocate(DataCache.java:231)
+    at com.example.service.DataService.processRequest(DataService.java:445)
+    at com.example.Application.main(Application.java:521)
+2024-03-14 12:00:07,012 [shutdown-hook-1] INFO  (Application.java:245) - Application shutdown initiated
+2024-03-14 12:00:07,123 [shutdown-hook-1] DEBUG (DatabaseService.java:298) - Closing database connections
+2024-03-14 12:00:07,234 [shutdown-hook-1] INFO  (Application.java:289) - Application shutdown complete
