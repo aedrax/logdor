@@ -95,22 +95,9 @@ bool PluginManager::loadPlugin(const QString& fileName)
     
     m_pluginLoaders[interface->name()] = loader;
     
-    // Connect the new plugin's signals to all existing plugins' slots
-    for (QPluginLoader* existingLoader : m_pluginLoaders) {
-        if (existingLoader != loader) {
-            if (QObject* existingInstance = existingLoader->instance()) {
-                if (PluginInterface* existingInterface = qobject_cast<PluginInterface*>(existingInstance)) {
-                    // Connect new plugin's signals to existing plugin's slots
-                    connect(interface, &PluginInterface::pluginEvent,
-                            existingInterface, &PluginInterface::onPluginEvent);
-                    
-                    // Connect existing plugin's signals to new plugin's slots
-                    connect(existingInterface, &PluginInterface::pluginEvent,
-                            interface, &PluginInterface::onPluginEvent);
-                }
-            }
-        }
-    }
+    // Connect the new plugin's signals to the plugin manager
+    connect(interface, &PluginInterface::pluginEvent,
+            this, &PluginManager::onPluginEvent);
     
     return true;
 }
@@ -188,5 +175,28 @@ void PluginManager::setFilter(const FilterOptions& options)
 {
     for (PluginInterface* plugin : enabledPlugins()) {
         plugin->setFilter(options);
+    }
+}
+
+void PluginManager::onPluginEvent(PluginEvent event, const QVariant& data)
+{
+    // Get the sender plugin
+    PluginInterface* sender = qobject_cast<PluginInterface*>(QObject::sender());
+    if (!sender) {
+        qWarning() << "Received plugin event from unknown sender";
+        return;
+    }
+
+    // Forward the event to other enabled plugins
+    forwardEventToPlugins(event, data, sender);
+}
+
+void PluginManager::forwardEventToPlugins(PluginEvent event, const QVariant& data, PluginInterface* sender)
+{
+    for (PluginInterface* plugin : enabledPlugins()) {
+        // Don't forward event back to sender
+        if (plugin != sender) {
+            plugin->onPluginEvent(event, data);
+        }
     }
 }

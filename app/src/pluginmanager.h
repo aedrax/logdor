@@ -34,6 +34,10 @@ public:
     // Set filter for all enabled plugins
     void setFilter(const FilterOptions& options);
 
+private slots:
+    // Handle and forward plugin events
+    void onPluginEvent(PluginEvent event, const QVariant& data);
+
 private:
     // Map of plugin name to loader
     QMap<QString, QPluginLoader*> m_pluginLoaders;
@@ -46,6 +50,9 @@ private:
     
     // Unload all plugins
     void unloadPlugins();
+    
+    // Forward event to all enabled plugins except the sender
+    void forwardEventToPlugins(PluginEvent event, const QVariant& data, PluginInterface* sender);
 };
 
 #endif // PLUGINMANAGER_H
