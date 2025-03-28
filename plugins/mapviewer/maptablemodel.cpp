@@ -210,10 +210,36 @@ bool MapTableModel::tryParseDecimalDegrees(const QString& text, double& latitude
     );
 
     static const QRegularExpression labeledRegex(
-        R"((?:lat(?:itude)?:?\s*)?([-+]?\d+\.?\d*)\s*°?\s*([NSns])?\s*[,\s]+\s*(?:lon(?:g(?:itude)?)?:?\s*)?([-+]?\d+\.?\d*)\s*°?\s*([EWew])?)",
+        R"((?:lat(?:itude)?[=:]\s*)?([-+]?\d+\.?\d*)\s*°?\s*([NSns])?\s*[,\s]+\s*(?:lon(?:g(?:itude)?)?[=:]\s*)?([-+]?\d+\.?\d*)\s*°?\s*([EWew])?)",
         QRegularExpression::CaseInsensitiveOption
     );
 
+    // Additional pattern for key-value pairs
+    static const QRegularExpression keyValueRegex(
+        R"(latitude[=:]\s*([-+]?\d+\.?\d*)\s*°.*longitude[=:]\s*([-+]?\d+\.?\d*)\s*°)",
+        QRegularExpression::CaseInsensitiveOption
+    );
+
+    // Try key-value pair pattern first
+    QRegularExpressionMatch kvMatch = keyValueRegex.match(text);
+    if (kvMatch.hasMatch()) {
+        bool ok1 = false, ok2 = false;
+        double lat = kvMatch.captured(1).toDouble(&ok1);
+        double lon = kvMatch.captured(2).toDouble(&ok2);
+
+        if (!ok1 || !ok2)
+            return false;
+
+        // Check if coordinates are within valid ranges
+        if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+            return false;
+
+        latitude = lat;
+        longitude = lon;
+        return true;
+    }
+
+    // Try other patterns if key-value pair doesn't match
     QRegularExpressionMatch match = simpleRegex.match(text);
     if (!match.hasMatch()) {
         match = labeledRegex.match(text);
