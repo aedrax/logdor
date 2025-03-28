@@ -1,10 +1,4 @@
-#include <QtConcurrent/QtConcurrent>
-#include <QHBoxLayout>
-#include <QLabel>
-#include <QPushButton>
-
 #include "logcattablemodel.h"
-#include "taglabel.h"
 
 LogcatTableModel::LogcatTableModel(QObject* parent)
     : QAbstractTableModel(parent)
@@ -30,12 +24,16 @@ QVariant LogcatTableModel::data(const QModelIndex& index, int role) const
     if (!index.isValid() || index.row() >= m_visibleRows.size())
         return QVariant();
 
-    const LogcatEntry& entry(m_entries[m_visibleRows[index.row()]]);
+    int sourceRow = mapToSourceRow(index.row());
+    if (sourceRow >= m_entries.size())
+        return QVariant();
+
+    const LogcatEntry& entry(m_entries[sourceRow]);
 
     if (role == Qt::DisplayRole) {
         switch (index.column()) {
         case LogcatColumn::No:
-            return m_visibleRows[index.row()] + 1; // Line number (1-based)
+            return sourceRow + 1; // Line number (1-based)
         case LogcatColumn::Time:
             return entry.timestamp;
         case LogcatColumn::Pid:
@@ -101,32 +99,69 @@ void LogcatTableModel::sort(int column, Qt::SortOrder order)
             
             bool lessThan;
             switch (column) {
-            case 0: // Line number
+            case LogcatColumn::No: // Line number
                 lessThan = left < right;
                 break;
-            case 1: // Time
+            case LogcatColumn::Time:
                 lessThan = leftEntry.timestamp < rightEntry.timestamp;
                 break;
-            case 2: // PID
-                lessThan = leftEntry.pid.toLongLong() < rightEntry.pid.toLongLong();
+            case LogcatColumn::Pid:
+                {
+                    bool leftOk = false, rightOk = false;
+                    qint64 leftPid = 0, rightPid = 0;
+                    
+                    if (!leftEntry.pid.isEmpty()) {
+                        leftPid = leftEntry.pid.toLongLong(&leftOk);
+                    }
+                    if (!rightEntry.pid.isEmpty()) {
+                        rightPid = rightEntry.pid.toLongLong(&rightOk);
+                    }
+                    
+                    if (leftOk == rightOk) {
+                        lessThan = leftOk ? leftPid < rightPid : leftEntry.pid < rightEntry.pid;
+                    } else {
+                        lessThan = leftOk < rightOk; // Invalid values sort before valid ones
+                    }
+                }
                 break;
-            case 3: // TID
-                lessThan = leftEntry.tid.toLongLong() < rightEntry.tid.toLongLong();
+            case LogcatColumn::Tid:
+                {
+                    bool leftOk = false, rightOk = false;
+                    qint64 leftTid = 0, rightTid = 0;
+                    
+                    if (!leftEntry.tid.isEmpty()) {
+                        leftTid = leftEntry.tid.toLongLong(&leftOk);
+                    }
+                    if (!rightEntry.tid.isEmpty()) {
+                        rightTid = rightEntry.tid.toLongLong(&rightOk);
+                    }
+                    
+                    if (leftOk == rightOk) {
+                        lessThan = leftOk ? leftTid < rightTid : leftEntry.tid < rightEntry.tid;
+                    } else {
+                        lessThan = leftOk < rightOk; // Invalid values sort before valid ones
+                    }
+                }
                 break;
-            case 4: // Level
+            case LogcatColumn::Level:
                 lessThan = leftEntry.level < rightEntry.level;
                 break;
-            case 5: // Tag
+            case LogcatColumn::Tag:
                 lessThan = leftEntry.tag < rightEntry.tag;
                 break;
-            case 6: // Message
+            case LogcatColumn::Message:
                 lessThan = leftEntry.message < rightEntry.message;
                 break;
             default:
                 lessThan = false;
             }
-            return order == Qt::AscendingOrder ? lessThan : !lessThan;
+            return lessThan;
         });
+    
+    // Apply sort order
+    if (order == Qt::DescendingOrder) {
+        std::reverse(m_visibleRows.begin(), m_visibleRows.end());
+    }
     
     endResetModel();
 }
