@@ -37,6 +37,6 @@ target_link_libraries(syslogviewer
 
 # Install plugin to plugins directory
 install(TARGETS syslogviewer
-    LIBRARY DESTINATION plugins
-    RUNTIME DESTINATION plugins
+    LIBRARY DESTINATION plugins COMPONENT Runtime
+    RUNTIME DESTINATION plugins COMPONENT Runtime
 )

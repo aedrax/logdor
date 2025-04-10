@@ -36,6 +36,6 @@ target_link_libraries(commonlogformatviewer
 
 # Install plugin to plugins directory
 install(TARGETS commonlogformatviewer
-    LIBRARY DESTINATION plugins
-    RUNTIME DESTINATION plugins
+    LIBRARY DESTINATION plugins COMPONENT Runtime
+    RUNTIME DESTINATION plugins COMPONENT Runtime
 )

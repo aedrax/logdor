@@ -39,6 +39,6 @@ target_link_libraries(logcatviewer
 
 # Install plugin to plugins directory
 install(TARGETS logcatviewer
-    LIBRARY DESTINATION plugins
-    RUNTIME DESTINATION plugins
+    LIBRARY DESTINATION plugins COMPONENT Runtime
+    RUNTIME DESTINATION plugins COMPONENT Runtime
 )

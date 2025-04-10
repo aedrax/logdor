@@ -40,6 +40,6 @@ target_link_libraries(regexviewer
 
 # Install plugin to plugins directory
 install(TARGETS regexviewer
-    LIBRARY DESTINATION plugins
-    RUNTIME DESTINATION plugins
+    LIBRARY DESTINATION plugins COMPONENT Runtime
+    RUNTIME DESTINATION plugins COMPONENT Runtime
 )

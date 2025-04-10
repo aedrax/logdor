@@ -11,6 +11,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Concurrent)
 
+set(QT_RESOURCES_DIR "${QT_ARCH_DIR}/resources")
+message(STATUS "Determined Qt Resources Directory: ${QT_RESOURCES_DIR}") # Optional: for debugging
+
 # Create plugin interface library
 add_library(logdor_interface SHARED
     src/plugininterface.h
@@ -20,6 +23,14 @@ target_link_libraries(logdor_interface PUBLIC
     Qt6::Core
     Qt6::Widgets
     Qt6::Concurrent
+)
+
+# Install the interface library
+include(GNUInstallDirs)
+install(TARGETS logdor_interface
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} # For .so/.dylib
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} # For .dll
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} # For .lib (Windows)
 )
 
 # Main executable
@@ -58,6 +69,28 @@ install(TARGETS logdor
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    COMPONENT Runtime # Assign to a component for finer control
 )
+
+# Install Qt's platform themes
+set(QT_THEMES_DIR "${QT_ARCH_DIR}/plugins/platformthemes")
+if(EXISTS ${QT_THEMES_DIR})
+    install(DIRECTORY ${QT_THEMES_DIR}
+        DESTINATION plugins/
+        COMPONENT Runtime
+    )
+else()
+    message(WARNING "Qt themes directory not found at ${QT_THEMES_DIR}. Skipping installation.")
+endif()
+
+# Generate a deployment script that CPack will execute
+qt_generate_deploy_app_script(
+    TARGET logdor
+    OUTPUT_SCRIPT deploy_script
+    NO_UNSUPPORTED_PLATFORM_ERROR # Don't error if run on unsupported platform
+)
+
+# Install the deployment script
+install(SCRIPT ${deploy_script})
 
 qt_finalize_executable(logdor)
