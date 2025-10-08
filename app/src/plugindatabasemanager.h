@@ -9,6 +9,8 @@
 #include <QVariantList>
 #include <QSet>
 #include <QMutex>
+#include <QStringList>
+#include <QDateTime>
 
 enum class PluginDatabaseStatus {
     NotInitialized,
@@ -49,6 +51,54 @@ struct PluginDataRecord {
     QVariantMap data; // Plugin-specific data
 };
 
+class PluginQueryBuilder {
+public:
+    PluginQueryBuilder();
+    
+    // Query building methods
+    PluginQueryBuilder& where(const QString& field, const QVariant& value);
+    PluginQueryBuilder& whereLike(const QString& field, const QString& pattern, Qt::CaseSensitivity caseSensitivity = Qt::CaseInsensitive);
+    PluginQueryBuilder& whereRegex(const QString& field, const QString& pattern, Qt::CaseSensitivity caseSensitivity = Qt::CaseInsensitive);
+    PluginQueryBuilder& whereNot(const QString& field, const QVariant& value);
+    PluginQueryBuilder& andCondition();
+    PluginQueryBuilder& orCondition();
+    PluginQueryBuilder& openGroup();
+    PluginQueryBuilder& closeGroup();
+    PluginQueryBuilder& orderBy(const QString& field, Qt::SortOrder order = Qt::AscendingOrder);
+    PluginQueryBuilder& limit(int count);
+    PluginQueryBuilder& offset(int count);
+    
+    // Build final query
+    QString buildQuery(const QString& tableName, const QStringList& selectFields = QStringList()) const;
+    QString buildCountQuery(const QString& tableName) const;
+    QVariantList getParameters() const;
+    
+    // Reset builder
+    void reset();
+    
+    // Static helper for FilterOptions conversion
+    static PluginQueryBuilder fromFilterOptions(const FilterOptions& filter, const QList<FieldInfo>& schema);
+
+private:
+    struct QueryCondition {
+        enum Type { Where, WhereLike, WhereRegex, WhereNot, And, Or, OpenGroup, CloseGroup };
+        Type type;
+        QString field;
+        QVariant value;
+        Qt::CaseSensitivity caseSensitivity;
+    };
+    
+    QList<QueryCondition> m_conditions;
+    QString m_orderByField;
+    Qt::SortOrder m_orderDirection;
+    int m_limitCount;
+    int m_offsetCount;
+    QVariantList m_parameters;
+    
+    QString buildWhereClause() const;
+    void addParameter(const QVariant& param);
+};
+
 class PluginDatabaseManager : public QObject
 {
     Q_OBJECT
@@ -74,7 +124,18 @@ public:
     
     // Query operations
     QList<QVariantList> queryData(const QString& pluginName, const FilterOptions& filter);
+    QList<QVariantList> queryDataWithPagination(const QString& pluginName, const FilterOptions& filter, int limit, int offset = 0);
     QSet<int> getFilteredLineNumbers(const QString& pluginName, const FilterOptions& filter);
+    int getFilteredRowCount(const QString& pluginName, const FilterOptions& filter);
+    
+    // Result metadata
+    struct QueryResult {
+        QList<QVariantList> data;
+        QSet<int> lineNumbers;
+        int totalCount;
+        bool hasMore;
+    };
+    QueryResult queryDataWithMetadata(const QString& pluginName, const FilterOptions& filter, int limit = -1, int offset = 0);
     
     // Schema management
     bool updatePluginSchema(const QString& pluginName, const QList<FieldInfo>& newSchema);
@@ -86,6 +147,11 @@ public:
     // Database information
     QString getDatabasePath() const { return m_databasePath; }
     QStringList getPluginTables() const;
+    
+    // Query optimization
+    bool createIndexForField(const QString& pluginName, const QString& fieldName);
+    bool dropIndexForField(const QString& pluginName, const QString& fieldName);
+    QStringList getIndexesForPlugin(const QString& pluginName);
 
 signals:
     void statusChanged(PluginDatabaseStatus status);

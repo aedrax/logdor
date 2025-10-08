@@ -25,6 +25,298 @@ QString DatabaseFieldInfo::generateSqlType() const
     }
 }
 
+// PluginQueryBuilder implementation
+PluginQueryBuilder::PluginQueryBuilder()
+    : m_orderDirection(Qt::AscendingOrder)
+    , m_limitCount(-1)
+    , m_offsetCount(-1)
+{
+}
+
+PluginQueryBuilder& PluginQueryBuilder::where(const QString& field, const QVariant& value)
+{
+    QueryCondition condition;
+    condition.type = QueryCondition::Where;
+    condition.field = field;
+    condition.value = value;
+    m_conditions.append(condition);
+    addParameter(value);
+    return *this;
+}
+
+PluginQueryBuilder& PluginQueryBuilder::whereLike(const QString& field, const QString& pattern, Qt::CaseSensitivity caseSensitivity)
+{
+    QueryCondition condition;
+    condition.type = QueryCondition::WhereLike;
+    condition.field = field;
+    condition.value = pattern;
+    condition.caseSensitivity = caseSensitivity;
+    m_conditions.append(condition);
+    addParameter(pattern);
+    return *this;
+}
+
+PluginQueryBuilder& PluginQueryBuilder::whereRegex(const QString& field, const QString& pattern, Qt::CaseSensitivity caseSensitivity)
+{
+    QueryCondition condition;
+    condition.type = QueryCondition::WhereRegex;
+    condition.field = field;
+    condition.value = pattern;
+    condition.caseSensitivity = caseSensitivity;
+    m_conditions.append(condition);
+    addParameter(pattern);
+    return *this;
+}
+
+PluginQueryBuilder& PluginQueryBuilder::whereNot(const QString& field, const QVariant& value)
+{
+    QueryCondition condition;
+    condition.type = QueryCondition::WhereNot;
+    condition.field = field;
+    condition.value = value;
+    m_conditions.append(condition);
+    addParameter(value);
+    return *this;
+}
+
+PluginQueryBuilder& PluginQueryBuilder::andCondition()
+{
+    QueryCondition condition;
+    condition.type = QueryCondition::And;
+    m_conditions.append(condition);
+    return *this;
+}
+
+PluginQueryBuilder& PluginQueryBuilder::orCondition()
+{
+    QueryCondition condition;
+    condition.type = QueryCondition::Or;
+    m_conditions.append(condition);
+    return *this;
+}
+
+PluginQueryBuilder& PluginQueryBuilder::openGroup()
+{
+    QueryCondition condition;
+    condition.type = QueryCondition::OpenGroup;
+    m_conditions.append(condition);
+    return *this;
+}
+
+PluginQueryBuilder& PluginQueryBuilder::closeGroup()
+{
+    QueryCondition condition;
+    condition.type = QueryCondition::CloseGroup;
+    m_conditions.append(condition);
+    return *this;
+}
+
+PluginQueryBuilder& PluginQueryBuilder::orderBy(const QString& field, Qt::SortOrder order)
+{
+    m_orderByField = field;
+    m_orderDirection = order;
+    return *this;
+}
+
+PluginQueryBuilder& PluginQueryBuilder::limit(int count)
+{
+    m_limitCount = count;
+    return *this;
+}
+
+PluginQueryBuilder& PluginQueryBuilder::offset(int count)
+{
+    m_offsetCount = count;
+    return *this;
+}
+
+QString PluginQueryBuilder::buildQuery(const QString& tableName, const QStringList& selectFields) const
+{
+    QString sql;
+    
+    // SELECT clause
+    if (selectFields.isEmpty()) {
+        sql = QString("SELECT * FROM %1").arg(tableName);
+    } else {
+        sql = QString("SELECT %1 FROM %2").arg(selectFields.join(", "), tableName);
+    }
+    
+    // WHERE clause
+    QString whereClause = buildWhereClause();
+    if (!whereClause.isEmpty()) {
+        sql += " WHERE " + whereClause;
+    }
+    
+    // ORDER BY clause
+    if (!m_orderByField.isEmpty()) {
+        sql += QString(" ORDER BY %1 %2")
+               .arg(m_orderByField)
+               .arg(m_orderDirection == Qt::AscendingOrder ? "ASC" : "DESC");
+    }
+    
+    // LIMIT clause
+    if (m_limitCount > 0) {
+        sql += QString(" LIMIT %1").arg(m_limitCount);
+    }
+    
+    // OFFSET clause
+    if (m_offsetCount > 0) {
+        sql += QString(" OFFSET %1").arg(m_offsetCount);
+    }
+    
+    return sql;
+}
+
+QString PluginQueryBuilder::buildCountQuery(const QString& tableName) const
+{
+    QString sql = QString("SELECT COUNT(*) FROM %1").arg(tableName);
+    
+    QString whereClause = buildWhereClause();
+    if (!whereClause.isEmpty()) {
+        sql += " WHERE " + whereClause;
+    }
+    
+    return sql;
+}
+
+QVariantList PluginQueryBuilder::getParameters() const
+{
+    return m_parameters;
+}
+
+void PluginQueryBuilder::reset()
+{
+    m_conditions.clear();
+    m_parameters.clear();
+    m_orderByField.clear();
+    m_orderDirection = Qt::AscendingOrder;
+    m_limitCount = -1;
+    m_offsetCount = -1;
+}
+
+PluginQueryBuilder PluginQueryBuilder::fromFilterOptions(const FilterOptions& filter, const QList<FieldInfo>& schema)
+{
+    PluginQueryBuilder builder;
+    
+    if (filter.query.isEmpty()) {
+        return builder;
+    }
+    
+    // Find all string fields for text search
+    QStringList textFields;
+    for (const FieldInfo& field : schema) {
+        if (field.type == DataType::String) {
+            textFields.append(field.name);
+        }
+    }
+    
+    if (textFields.isEmpty()) {
+        return builder;
+    }
+    
+    // Build query based on filter mode
+    if (filter.inRegexMode) {
+        // Regex mode - search across all text fields
+        builder.openGroup();
+        for (int i = 0; i < textFields.size(); ++i) {
+            if (i > 0) {
+                builder.orCondition();
+            }
+            if (filter.invertFilter) {
+                // For inverted regex, we need to use NOT REGEXP
+                // SQLite doesn't have built-in REGEXP, so we'll use a workaround
+                builder.whereNot(textFields[i], filter.query);
+            } else {
+                builder.whereRegex(textFields[i], filter.query, filter.caseSensitivity);
+            }
+        }
+        builder.closeGroup();
+    } else {
+        // Text search mode - use LIKE
+        builder.openGroup();
+        for (int i = 0; i < textFields.size(); ++i) {
+            if (i > 0) {
+                builder.orCondition();
+            }
+            QString pattern = QString("%%1%").arg(filter.query);
+            if (filter.invertFilter) {
+                // For inverted filter, we need to exclude matches
+                builder.whereNot(textFields[i], pattern);
+            } else {
+                builder.whereLike(textFields[i], pattern, filter.caseSensitivity);
+            }
+        }
+        builder.closeGroup();
+    }
+    
+    // Always order by original line number for consistent results
+    builder.orderBy("original_line_number", Qt::AscendingOrder);
+    
+    return builder;
+}
+
+QString PluginQueryBuilder::buildWhereClause() const
+{
+    if (m_conditions.isEmpty()) {
+        return QString();
+    }
+    
+    QStringList parts;
+    
+    for (const QueryCondition& condition : m_conditions) {
+        switch (condition.type) {
+            case QueryCondition::Where:
+                parts.append(QString("%1 = ?").arg(condition.field));
+                break;
+                
+            case QueryCondition::WhereLike:
+                if (condition.caseSensitivity == Qt::CaseInsensitive) {
+                    parts.append(QString("LOWER(%1) LIKE LOWER(?)").arg(condition.field));
+                } else {
+                    parts.append(QString("%1 LIKE ?").arg(condition.field));
+                }
+                break;
+                
+            case QueryCondition::WhereRegex:
+                // SQLite doesn't have built-in REGEX, so we'll use GLOB for basic pattern matching
+                // For more complex regex, we'd need to enable REGEXP extension
+                if (condition.caseSensitivity == Qt::CaseInsensitive) {
+                    parts.append(QString("LOWER(%1) GLOB LOWER(?)").arg(condition.field));
+                } else {
+                    parts.append(QString("%1 GLOB ?").arg(condition.field));
+                }
+                break;
+                
+            case QueryCondition::WhereNot:
+                parts.append(QString("%1 != ?").arg(condition.field));
+                break;
+                
+            case QueryCondition::And:
+                parts.append("AND");
+                break;
+                
+            case QueryCondition::Or:
+                parts.append("OR");
+                break;
+                
+            case QueryCondition::OpenGroup:
+                parts.append("(");
+                break;
+                
+            case QueryCondition::CloseGroup:
+                parts.append(")");
+                break;
+        }
+    }
+    
+    return parts.join(" ");
+}
+
+void PluginQueryBuilder::addParameter(const QVariant& param)
+{
+    m_parameters.append(param);
+}
+
 PluginDatabaseManager::PluginDatabaseManager(QObject* parent)
     : QObject(parent)
     , m_status(PluginDatabaseStatus::NotInitialized)
@@ -454,37 +746,17 @@ QList<QVariantList> PluginDatabaseManager::queryData(const QString& pluginName, 
         return results;
     }
     
-    // Build query based on filter options
-    QString sql = QString("SELECT * FROM %1").arg(tableName);
-    QVariantList params;
-    
-    if (!filter.query.isEmpty()) {
-        // For now, implement basic text search across all text fields
-        // This is a simplified implementation - more sophisticated filtering
-        // would be implemented in task 3
-        sql += " WHERE 1=1"; // Placeholder for more complex filtering
-        
-        // Add basic text search if query is provided
-        QList<FieldInfo> schema = getPluginSchema(pluginName);
-        QStringList textConditions;
-        
-        for (const FieldInfo& field : schema) {
-            if (field.type == DataType::String) {
-                if (filter.caseSensitivity == Qt::CaseInsensitive) {
-                    textConditions.append(QString("LOWER(%1) LIKE LOWER(?)").arg(field.name));
-                } else {
-                    textConditions.append(QString("%1 LIKE ?").arg(field.name));
-                }
-                params.append(QString("%%1%").arg(filter.query));
-            }
-        }
-        
-        if (!textConditions.isEmpty()) {
-            sql += " AND (" + textConditions.join(" OR ") + ")";
-        }
+    // Get plugin schema for query building
+    QList<FieldInfo> schema = getPluginSchema(pluginName);
+    if (schema.isEmpty()) {
+        setError(QString("No schema found for plugin: %1").arg(pluginName));
+        return results;
     }
     
-    sql += " ORDER BY original_line_number";
+    // Build query using PluginQueryBuilder
+    PluginQueryBuilder builder = PluginQueryBuilder::fromFilterOptions(filter, schema);
+    QString sql = builder.buildQuery(tableName);
+    QVariantList params = builder.getParameters();
     
     auto query = m_dbManager->executeQuery(sql, params);
     if (query.lastError().isValid()) {
@@ -521,31 +793,18 @@ QSet<int> PluginDatabaseManager::getFilteredLineNumbers(const QString& pluginNam
         return lineNumbers;
     }
     
-    // Build query to get only line numbers
-    QString sql = QString("SELECT DISTINCT original_line_number FROM %1").arg(tableName);
-    QVariantList params;
-    
-    if (!filter.query.isEmpty()) {
-        sql += " WHERE 1=1";
-        
-        QList<FieldInfo> schema = getPluginSchema(pluginName);
-        QStringList textConditions;
-        
-        for (const FieldInfo& field : schema) {
-            if (field.type == DataType::String) {
-                if (filter.caseSensitivity == Qt::CaseInsensitive) {
-                    textConditions.append(QString("LOWER(%1) LIKE LOWER(?)").arg(field.name));
-                } else {
-                    textConditions.append(QString("%1 LIKE ?").arg(field.name));
-                }
-                params.append(QString("%%1%").arg(filter.query));
-            }
-        }
-        
-        if (!textConditions.isEmpty()) {
-            sql += " AND (" + textConditions.join(" OR ") + ")";
-        }
+    // Get plugin schema for query building
+    QList<FieldInfo> schema = getPluginSchema(pluginName);
+    if (schema.isEmpty()) {
+        setError(QString("No schema found for plugin: %1").arg(pluginName));
+        return lineNumbers;
     }
+    
+    // Build query using PluginQueryBuilder for line numbers only
+    PluginQueryBuilder builder = PluginQueryBuilder::fromFilterOptions(filter, schema);
+    QStringList selectFields = QStringList() << "DISTINCT original_line_number";
+    QString sql = builder.buildQuery(tableName, selectFields);
+    QVariantList params = builder.getParameters();
     
     auto query = m_dbManager->executeQuery(sql, params);
     if (query.lastError().isValid()) {
@@ -558,6 +817,177 @@ QSet<int> PluginDatabaseManager::getFilteredLineNumbers(const QString& pluginNam
     }
     
     return lineNumbers;
+}
+
+QList<QVariantList> PluginDatabaseManager::queryDataWithPagination(const QString& pluginName, const FilterOptions& filter, int limit, int offset)
+{
+    QMutexLocker locker(&m_mutex);
+    
+    QList<QVariantList> results;
+    
+    if (!isReady()) {
+        setError("Database not initialized");
+        return results;
+    }
+    
+    QString tableName = getPluginTableName(pluginName);
+    
+    if (!m_dbManager->tableExists(tableName)) {
+        setError(QString("Plugin table does not exist: %1").arg(tableName));
+        return results;
+    }
+    
+    // Get plugin schema for query building
+    QList<FieldInfo> schema = getPluginSchema(pluginName);
+    if (schema.isEmpty()) {
+        setError(QString("No schema found for plugin: %1").arg(pluginName));
+        return results;
+    }
+    
+    // Build query using PluginQueryBuilder with pagination
+    PluginQueryBuilder builder = PluginQueryBuilder::fromFilterOptions(filter, schema);
+    if (limit > 0) {
+        builder.limit(limit);
+    }
+    if (offset > 0) {
+        builder.offset(offset);
+    }
+    
+    QString sql = builder.buildQuery(tableName);
+    QVariantList params = builder.getParameters();
+    
+    auto query = m_dbManager->executeQuery(sql, params);
+    if (query.lastError().isValid()) {
+        setError(QString("Query failed: %1").arg(query.lastError().text()));
+        return results;
+    }
+    
+    while (query.next()) {
+        QVariantList row;
+        for (int i = 0; i < query.record().count(); ++i) {
+            row.append(query.value(i));
+        }
+        results.append(row);
+    }
+    
+    return results;
+}
+
+int PluginDatabaseManager::getFilteredRowCount(const QString& pluginName, const FilterOptions& filter)
+{
+    QMutexLocker locker(&m_mutex);
+    
+    if (!isReady()) {
+        setError("Database not initialized");
+        return 0;
+    }
+    
+    QString tableName = getPluginTableName(pluginName);
+    
+    if (!m_dbManager->tableExists(tableName)) {
+        setError(QString("Plugin table does not exist: %1").arg(tableName));
+        return 0;
+    }
+    
+    // Get plugin schema for query building
+    QList<FieldInfo> schema = getPluginSchema(pluginName);
+    if (schema.isEmpty()) {
+        setError(QString("No schema found for plugin: %1").arg(pluginName));
+        return 0;
+    }
+    
+    // Build count query using PluginQueryBuilder
+    PluginQueryBuilder builder = PluginQueryBuilder::fromFilterOptions(filter, schema);
+    QString sql = builder.buildCountQuery(tableName);
+    QVariantList params = builder.getParameters();
+    
+    auto query = m_dbManager->executeQuery(sql, params);
+    if (query.lastError().isValid()) {
+        setError(QString("Count query failed: %1").arg(query.lastError().text()));
+        return 0;
+    }
+    
+    if (query.next()) {
+        return query.value(0).toInt();
+    }
+    
+    return 0;
+}
+
+PluginDatabaseManager::QueryResult PluginDatabaseManager::queryDataWithMetadata(const QString& pluginName, const FilterOptions& filter, int limit, int offset)
+{
+    QMutexLocker locker(&m_mutex);
+    
+    QueryResult result;
+    result.totalCount = 0;
+    result.hasMore = false;
+    
+    if (!isReady()) {
+        setError("Database not initialized");
+        return result;
+    }
+    
+    QString tableName = getPluginTableName(pluginName);
+    
+    if (!m_dbManager->tableExists(tableName)) {
+        setError(QString("Plugin table does not exist: %1").arg(tableName));
+        return result;
+    }
+    
+    // Get plugin schema for query building
+    QList<FieldInfo> schema = getPluginSchema(pluginName);
+    if (schema.isEmpty()) {
+        setError(QString("No schema found for plugin: %1").arg(pluginName));
+        return result;
+    }
+    
+    // Get total count first
+    result.totalCount = getFilteredRowCount(pluginName, filter);
+    
+    // Build main query with pagination
+    PluginQueryBuilder builder = PluginQueryBuilder::fromFilterOptions(filter, schema);
+    if (limit > 0) {
+        builder.limit(limit);
+    }
+    if (offset > 0) {
+        builder.offset(offset);
+    }
+    
+    QString sql = builder.buildQuery(tableName);
+    QVariantList params = builder.getParameters();
+    
+    auto query = m_dbManager->executeQuery(sql, params);
+    if (query.lastError().isValid()) {
+        setError(QString("Query failed: %1").arg(query.lastError().text()));
+        return result;
+    }
+    
+    while (query.next()) {
+        QVariantList row;
+        int lineNumber = 0;
+        
+        for (int i = 0; i < query.record().count(); ++i) {
+            QVariant value = query.value(i);
+            row.append(value);
+            
+            // Extract line number for mapping (assuming it's in column named 'original_line_number')
+            if (query.record().fieldName(i) == "original_line_number") {
+                lineNumber = value.toInt();
+            }
+        }
+        
+        result.data.append(row);
+        if (lineNumber > 0) {
+            result.lineNumbers.insert(lineNumber);
+        }
+    }
+    
+    // Check if there are more results
+    if (limit > 0 && result.data.size() == limit) {
+        result.hasMore = (offset + limit) < result.totalCount;
+    }
+    
+    return result;
 }
 
 bool PluginDatabaseManager::updatePluginSchema(const QString& pluginName, const QList<FieldInfo>& newSchema)
@@ -657,6 +1087,84 @@ QStringList PluginDatabaseManager::getPluginTables() const
         result.append(variant.toString());
     }
     return result;
+}
+
+bool PluginDatabaseManager::createIndexForField(const QString& pluginName, const QString& fieldName)
+{
+    QMutexLocker locker(&m_mutex);
+    
+    if (!isReady()) {
+        setError("Database not initialized");
+        return false;
+    }
+    
+    QString tableName = getPluginTableName(pluginName);
+    
+    if (!m_dbManager->tableExists(tableName)) {
+        setError(QString("Plugin table does not exist: %1").arg(tableName));
+        return false;
+    }
+    
+    QString indexName = QString("idx_%1_%2").arg(pluginName, fieldName);
+    QString sql = QString("CREATE INDEX IF NOT EXISTS %1 ON %2(%3)")
+                  .arg(indexName, tableName, fieldName);
+    
+    auto query = m_dbManager->executeQuery(sql);
+    if (query.lastError().isValid()) {
+        setError(QString("Failed to create index: %1").arg(query.lastError().text()));
+        return false;
+    }
+    
+    return true;
+}
+
+bool PluginDatabaseManager::dropIndexForField(const QString& pluginName, const QString& fieldName)
+{
+    QMutexLocker locker(&m_mutex);
+    
+    if (!isReady()) {
+        setError("Database not initialized");
+        return false;
+    }
+    
+    QString indexName = QString("idx_%1_%2").arg(pluginName, fieldName);
+    QString sql = QString("DROP INDEX IF EXISTS %1").arg(indexName);
+    
+    auto query = m_dbManager->executeQuery(sql);
+    if (query.lastError().isValid()) {
+        setError(QString("Failed to drop index: %1").arg(query.lastError().text()));
+        return false;
+    }
+    
+    return true;
+}
+
+QStringList PluginDatabaseManager::getIndexesForPlugin(const QString& pluginName)
+{
+    QMutexLocker locker(&m_mutex);
+    
+    QStringList indexes;
+    
+    if (!isReady()) {
+        setError("Database not initialized");
+        return indexes;
+    }
+    
+    QString tableName = getPluginTableName(pluginName);
+    QString sql = QString("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='%1'")
+                  .arg(tableName);
+    
+    auto query = m_dbManager->executeQuery(sql);
+    if (query.lastError().isValid()) {
+        setError(QString("Failed to get indexes: %1").arg(query.lastError().text()));
+        return indexes;
+    }
+    
+    while (query.next()) {
+        indexes.append(query.value(0).toString());
+    }
+    
+    return indexes;
 }
 
 void PluginDatabaseManager::handleDatabaseError(const QString& error)
