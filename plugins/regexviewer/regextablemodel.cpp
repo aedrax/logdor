@@ -3,19 +3,19 @@
 #include <QDateTime>
 #include <QBrush>
 
-RegexTableModel::RegexTableModel(QObject* parent)
+RegexViewerTableModel::RegexViewerTableModel(QObject* parent)
     : QAbstractTableModel(parent)
 {
 }
 
-int RegexTableModel::rowCount(const QModelIndex& parent) const
+int RegexViewerTableModel::rowCount(const QModelIndex& parent) const
 {
     if (parent.isValid())
         return 0;
     return m_matches.size();
 }
 
-int RegexTableModel::columnCount(const QModelIndex& parent) const
+int RegexViewerTableModel::columnCount(const QModelIndex& parent) const
 {
     if (parent.isValid())
         return 0;
@@ -23,7 +23,7 @@ int RegexTableModel::columnCount(const QModelIndex& parent) const
     return 1 + m_fields.size();
 }
 
-QVariant RegexTableModel::data(const QModelIndex& index, int role) const
+QVariant RegexViewerTableModel::data(const QModelIndex& index, int role) const
 {
     if (!index.isValid() || index.row() >= m_matches.size())
         return QVariant();
@@ -64,7 +64,7 @@ QVariant RegexTableModel::data(const QModelIndex& index, int role) const
     return QVariant();
 }
 
-QVariant RegexTableModel::headerData(int section, Qt::Orientation orientation, int role) const
+QVariant RegexViewerTableModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
     if (role != Qt::DisplayRole)
         return QVariant();
@@ -80,7 +80,7 @@ QVariant RegexTableModel::headerData(int section, Qt::Orientation orientation, i
     return QVariant();
 }
 
-void RegexTableModel::setLogEntries(const QList<LogEntry>& entries)
+void RegexViewerTableModel::setLogEntries(const QList<LogEntry>& entries)
 {
     beginResetModel();
     m_entries = entries;
@@ -88,7 +88,7 @@ void RegexTableModel::setLogEntries(const QList<LogEntry>& entries)
     endResetModel();
 }
 
-void RegexTableModel::setFilter(const FilterOptions& options)
+void RegexViewerTableModel::setFilter(const FilterOptions& options)
 {
     beginResetModel();
     // Clear filtered lines
@@ -130,7 +130,7 @@ void RegexTableModel::setFilter(const FilterOptions& options)
     endResetModel();
 }
 
-void RegexTableModel::setPattern(const QString& pattern)
+void RegexViewerTableModel::setPattern(const QString& pattern)
 {
     if (m_pattern != pattern) {
         beginResetModel();
@@ -141,14 +141,14 @@ void RegexTableModel::setPattern(const QString& pattern)
     }
 }
 
-void RegexTableModel::setFieldInfo(const QList<RegexFieldInfo>& fields)
+void RegexViewerTableModel::setFieldInfo(const QList<RegexFieldInfo>& fields)
 {
     beginResetModel();
     m_fields = fields;
     endResetModel();
 }
 
-void RegexTableModel::updateMatches()
+void RegexViewerTableModel::updateMatches()
 {
     m_matches.clear();
     
@@ -179,7 +179,7 @@ void RegexTableModel::updateMatches()
     }
 }
 
-QVariant RegexTableModel::convertToType(const QString& value, DataType type, int column) const
+QVariant RegexViewerTableModel::convertToType(const QString& value, DataType type, int column) const
 {
     if (value.isEmpty()) {
         return QVariant();

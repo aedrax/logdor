@@ -115,12 +115,10 @@ public slots:
     
 signals:
     // Signal to notify about plugin events
-    // this is virtual because for some reason it won't export the signal otherwise
-    virtual void pluginEvent(PluginEvent event, const QVariant& data);
+    void pluginEvent(PluginEvent event, const QVariant& data);
     
     // Signal emitted when plugin enabled state changes
-    // this is virtual because for some reason it won't export the signal otherwise
-    virtual void enabledChanged(bool enabled);
+    void enabledChanged(bool enabled);
 
 protected:
     bool m_enabled;

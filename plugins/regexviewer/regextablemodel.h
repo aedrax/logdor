@@ -52,10 +52,10 @@ struct RegexMatch {
     int sourceRow;
 };
 
-class RegexTableModel : public QAbstractTableModel {
+class RegexViewerTableModel : public QAbstractTableModel {
     Q_OBJECT
 public:
-    explicit RegexTableModel(QObject* parent = nullptr);
+    explicit RegexViewerTableModel(QObject* parent = nullptr);
     
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     int columnCount(const QModelIndex& parent = QModelIndex()) const override;

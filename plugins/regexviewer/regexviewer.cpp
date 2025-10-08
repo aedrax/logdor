@@ -10,7 +10,7 @@ RegexViewer::RegexViewer(QObject* parent)
     , m_patternEdit(new QLineEdit)
     , m_settingsButton(new QPushButton(tr("Configure Columns")))
     , m_tableView(new QTableView)
-    , m_model(new RegexTableModel(this))
+    , m_model(new RegexViewerTableModel(this))
 {
     // Setup pattern input
     QHBoxLayout* patternLayout = new QHBoxLayout;

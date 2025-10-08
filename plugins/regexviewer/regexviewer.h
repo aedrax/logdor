@@ -44,7 +44,7 @@ private:
     QLineEdit* m_patternEdit;
     QPushButton* m_settingsButton;
     QTableView* m_tableView;
-    RegexTableModel* m_model;
+    RegexViewerTableModel* m_model;
     QList<RegexFieldInfo> m_fields;
 };
 
