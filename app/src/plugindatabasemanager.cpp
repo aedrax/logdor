@@ -191,6 +191,16 @@ bool PluginDatabaseManager::insertParsedData(const QString& pluginName, const QV
         return false;
     }
     
+    if (pluginName.isEmpty()) {
+        setError("Plugin name cannot be empty");
+        return false;
+    }
+    
+    if (originalLineNumber < 0) {
+        setError("Original line number must be non-negative");
+        return false;
+    }
+    
     QString tableName = getPluginTableName(pluginName);
     
     if (!m_dbManager->tableExists(tableName)) {
@@ -198,20 +208,43 @@ bool PluginDatabaseManager::insertParsedData(const QString& pluginName, const QV
         return false;
     }
     
-    // Get schema to build proper insert
+    // Get schema to build proper insert and validate data
     QList<FieldInfo> schema = getPluginSchema(pluginName);
     if (schema.isEmpty()) {
         setError(QString("No schema found for plugin: %1").arg(pluginName));
         return false;
     }
     
+    // Validate data count matches schema
+    if (data.size() != schema.size()) {
+        setError(QString("Data field count (%1) does not match schema field count (%2)")
+                .arg(data.size()).arg(schema.size()));
+        return false;
+    }
+    
+    // Validate and convert data types
+    QVariantList validatedData;
+    for (int i = 0; i < schema.size(); ++i) {
+        const FieldInfo& field = schema[i];
+        QVariant value = data[i];
+        
+        // Convert and validate data type
+        QVariant convertedValue = convertToSqlType(value, field.type, field.name);
+        if (!convertedValue.isValid() && !value.isNull()) {
+            setError(QString("Failed to convert field '%1' to required type").arg(field.name));
+            return false;
+        }
+        
+        validatedData.append(convertedValue);
+    }
+    
     QList<DatabaseFieldInfo> dbFields = convertToDbFieldInfo(schema);
     QString insertSql = generateInsertSql(tableName, dbFields);
     
-    // Prepare parameters: original_line_number + data
+    // Prepare parameters: original_line_number + validated data
     QVariantList params;
     params.append(originalLineNumber);
-    params.append(data);
+    params.append(validatedData);
     
     if (!m_dbManager->executeNonQuery(insertSql, params)) {
         setError(QString("Failed to insert data: %1").arg(m_dbManager->lastError()));
@@ -230,8 +263,19 @@ bool PluginDatabaseManager::insertBatchData(const QString& pluginName, const QLi
         return false;
     }
     
+    if (pluginName.isEmpty()) {
+        setError("Plugin name cannot be empty");
+        return false;
+    }
+    
+    if (batchData.isEmpty()) {
+        // Empty batch is valid, just return success
+        return true;
+    }
+    
     if (batchData.size() != lineNumbers.size()) {
-        setError("Batch data and line numbers size mismatch");
+        setError(QString("Batch data size (%1) does not match line numbers size (%2)")
+                .arg(batchData.size()).arg(lineNumbers.size()));
         return false;
     }
     
@@ -242,11 +286,50 @@ bool PluginDatabaseManager::insertBatchData(const QString& pluginName, const QLi
         return false;
     }
     
-    // Get schema
+    // Get schema for validation
     QList<FieldInfo> schema = getPluginSchema(pluginName);
     if (schema.isEmpty()) {
         setError(QString("No schema found for plugin: %1").arg(pluginName));
         return false;
+    }
+    
+    // Validate all records before starting transaction
+    QList<QVariantList> validatedBatchData;
+    for (int i = 0; i < batchData.size(); ++i) {
+        const QVariantList& data = batchData[i];
+        int lineNumber = lineNumbers[i];
+        
+        // Validate line number
+        if (lineNumber < 0) {
+            setError(QString("Invalid line number %1 at batch index %2").arg(lineNumber).arg(i));
+            return false;
+        }
+        
+        // Validate data count matches schema
+        if (data.size() != schema.size()) {
+            setError(QString("Data field count (%1) does not match schema field count (%2) at batch index %3")
+                    .arg(data.size()).arg(schema.size()).arg(i));
+            return false;
+        }
+        
+        // Validate and convert data types
+        QVariantList validatedData;
+        for (int j = 0; j < schema.size(); ++j) {
+            const FieldInfo& field = schema[j];
+            QVariant value = data[j];
+            
+            // Convert and validate data type
+            QVariant convertedValue = convertToSqlType(value, field.type, field.name);
+            if (!convertedValue.isValid() && !value.isNull()) {
+                setError(QString("Failed to convert field '%1' to required type at batch index %2")
+                        .arg(field.name).arg(i));
+                return false;
+            }
+            
+            validatedData.append(convertedValue);
+        }
+        
+        validatedBatchData.append(validatedData);
     }
     
     QList<DatabaseFieldInfo> dbFields = convertToDbFieldInfo(schema);
@@ -269,14 +352,15 @@ bool PluginDatabaseManager::insertBatchData(const QString& pluginName, const QLi
         return false;
     }
     
-    // Insert each record
-    for (int i = 0; i < batchData.size(); ++i) {
+    // Insert each validated record
+    for (int i = 0; i < validatedBatchData.size(); ++i) {
         QVariantList params;
         params.append(lineNumbers[i]);
-        params.append(batchData[i]);
+        params.append(validatedBatchData[i]);
         
         if (!m_dbManager->executeBulkInsert(params)) {
-            setError(QString("Failed to execute bulk insert: %1").arg(m_dbManager->lastError()));
+            setError(QString("Failed to execute bulk insert at batch index %1: %2")
+                    .arg(i).arg(m_dbManager->lastError()));
             m_dbManager->rollbackTransaction();
             m_dbManager->finalizeBulkInsert();
             return false;
@@ -290,6 +374,65 @@ bool PluginDatabaseManager::insertBatchData(const QString& pluginName, const QLi
     }
     
     m_dbManager->finalizeBulkInsert();
+    return true;
+}
+
+bool PluginDatabaseManager::insertLargeBatchData(const QString& pluginName, const QList<QVariantList>& batchData, const QList<int>& lineNumbers, int chunkSize)
+{
+    if (!isReady()) {
+        setError("Database not initialized");
+        return false;
+    }
+    
+    if (pluginName.isEmpty()) {
+        setError("Plugin name cannot be empty");
+        return false;
+    }
+    
+    if (batchData.isEmpty()) {
+        return true; // Empty batch is valid
+    }
+    
+    if (batchData.size() != lineNumbers.size()) {
+        setError(QString("Batch data size (%1) does not match line numbers size (%2)")
+                .arg(batchData.size()).arg(lineNumbers.size()));
+        return false;
+    }
+    
+    if (chunkSize <= 0) {
+        chunkSize = 1000; // Default chunk size
+    }
+    
+    // Process data in chunks to optimize memory usage and transaction size
+    int totalRecords = batchData.size();
+    int processedRecords = 0;
+    
+    while (processedRecords < totalRecords) {
+        int chunkEnd = qMin(processedRecords + chunkSize, totalRecords);
+        int currentChunkSize = chunkEnd - processedRecords;
+        
+        // Extract chunk
+        QList<QVariantList> chunkData;
+        QList<int> chunkLineNumbers;
+        
+        for (int i = processedRecords; i < chunkEnd; ++i) {
+            chunkData.append(batchData[i]);
+            chunkLineNumbers.append(lineNumbers[i]);
+        }
+        
+        // Insert chunk using regular batch insert
+        if (!insertBatchData(pluginName, chunkData, chunkLineNumbers)) {
+            setError(QString("Failed to insert chunk starting at record %1: %2")
+                    .arg(processedRecords).arg(m_lastError));
+            return false;
+        }
+        
+        processedRecords += currentChunkSize;
+        
+        // Emit progress signal if needed (could be added later)
+        // emit insertProgress(processedRecords, totalRecords);
+    }
+    
     return true;
 }
 
@@ -856,4 +999,63 @@ QStringList PluginDatabaseManager::generateMigrationCommands(const QString& tabl
     }
     
     return commands;
+}
+
+QVariant PluginDatabaseManager::convertToSqlType(const QVariant& value, DataType targetType, const QString& fieldName)
+{
+    // Handle null values
+    if (value.isNull()) {
+        return QVariant();
+    }
+    
+    switch (targetType) {
+        case DataType::String: {
+            // Convert to string
+            QString stringValue = value.toString();
+            return stringValue;
+        }
+        
+        case DataType::Integer: {
+            // Convert to integer
+            bool ok = false;
+            int intValue = value.toInt(&ok);
+            if (!ok) {
+                qDebug() << "Warning: Failed to convert field" << fieldName 
+                         << "value" << value << "to integer, using 0";
+                return 0;
+            }
+            return intValue;
+        }
+        
+        case DataType::DateTime: {
+            // Convert to datetime
+            if (value.metaType() == QMetaType::fromType<QDateTime>()) {
+                return value;
+            } else if (value.metaType() == QMetaType::fromType<QString>()) {
+                QDateTime dateTime = QDateTime::fromString(value.toString(), Qt::ISODate);
+                if (!dateTime.isValid()) {
+                    // Try other common formats
+                    dateTime = QDateTime::fromString(value.toString(), "yyyy-MM-dd hh:mm:ss");
+                    if (!dateTime.isValid()) {
+                        dateTime = QDateTime::fromString(value.toString(), "yyyy-MM-dd");
+                        if (!dateTime.isValid()) {
+                            qDebug() << "Warning: Failed to convert field" << fieldName 
+                                     << "value" << value << "to datetime, using current time";
+                            return QDateTime::currentDateTime();
+                        }
+                    }
+                }
+                return dateTime;
+            } else {
+                qDebug() << "Warning: Unsupported type for datetime conversion in field" << fieldName
+                         << ", using current time";
+                return QDateTime::currentDateTime();
+            }
+        }
+        
+        default:
+            // Unknown type, return as string
+            qDebug() << "Warning: Unknown data type for field" << fieldName << ", treating as string";
+            return value.toString();
+    }
 }

@@ -70,6 +70,7 @@ public:
     // Data operations
     bool insertParsedData(const QString& pluginName, const QVariantList& data, int originalLineNumber);
     bool insertBatchData(const QString& pluginName, const QList<QVariantList>& batchData, const QList<int>& lineNumbers);
+    bool insertLargeBatchData(const QString& pluginName, const QList<QVariantList>& batchData, const QList<int>& lineNumbers, int chunkSize = 1000);
     
     // Query operations
     QList<QVariantList> queryData(const QString& pluginName, const FilterOptions& filter);
@@ -109,6 +110,7 @@ private:
     bool performSchemaBackup(const QString& pluginName);
     bool restoreSchemaBackup(const QString& pluginName);
     QStringList generateMigrationCommands(const QString& tableName, const QList<DatabaseFieldInfo>& oldFields, const QList<DatabaseFieldInfo>& newFields);
+    QVariant convertToSqlType(const QVariant& value, DataType targetType, const QString& fieldName);
     
     // Member variables
     QString m_databasePath;

@@ -93,7 +93,7 @@ private:
     QString buildQuery(int offset = 0, int limit = -1) const;
     QString buildFilterCondition() const;
     QString buildSortCondition() const;
-    void cacheRowData(int startRow, const QSqlQuery& query);
+    void cacheRowData(int startRow, QSqlQuery query);
     void clearCache();
 
     // Query building helpers

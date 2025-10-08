@@ -4,6 +4,7 @@
 #include <QTimer>
 #include <QRegularExpression>
 #include <QDateTime>
+#include <utility>
 
 RegexTableModel::RegexTableModel(DatabaseManager* database, QObject* parent)
     : QAbstractTableModel(parent)
@@ -398,7 +399,7 @@ bool RegexTableModel::loadData(int offset, int limit)
         return false;
     }
     
-    cacheRowData(offset, sqlQuery);
+    cacheRowData(offset, std::move(sqlQuery));
     return true;
 }
 
@@ -431,7 +432,7 @@ bool RegexTableModel::loadSearchResults()
         
         QSqlQuery sqlQuery = m_database->executeQuery(query);
         if (!sqlQuery.lastError().isValid()) {
-            cacheRowData(0, sqlQuery);
+            cacheRowData(0, std::move(sqlQuery));
             m_loadedRowCount = m_searchResults.size();
             m_totalRowCount = m_searchResults.size();
         }
@@ -532,9 +533,10 @@ QString RegexTableModel::buildSortCondition() const
     return sortParts.join(", ");
 }
 
-void RegexTableModel::cacheRowData(int startRow, const QSqlQuery& query)
+void RegexTableModel::cacheRowData(int startRow, QSqlQuery query)
 {
-    QSqlQuery q = query; // Make a copy to modify
+    // Query is now passed by value, so we can modify it directly
+    QSqlQuery& q = query;
     int row = startRow;
     
     while (q.next()) {
