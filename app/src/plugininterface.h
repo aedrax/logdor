@@ -6,6 +6,9 @@
 #include <QWidget>
 #include <QtPlugin>
 
+// Forward declaration to avoid circular dependency
+class PluginDatabaseManager;
+
 struct LogEntry {
     const char* message;
     size_t length;
@@ -109,6 +112,51 @@ public:
     virtual QSet<int> filteredLines() const = 0; // Returns indices of filtered out lines
     virtual void synchronizeFilteredLines(const QSet<int>& lines) = 0; // Synchronize with other plugins    
 
+    // Database-aware methods (optional, for backward compatibility)
+    // Plugins can override these to support database storage
+    
+    // Check if plugin supports database storage
+    virtual bool supportsDatabaseStorage() const { return false; }
+    
+    // Get database schema definition for this plugin
+    // Returns empty list if plugin doesn't support database storage
+    virtual QList<FieldInfo> getDatabaseSchema() const { return QList<FieldInfo>(); }
+    
+    // Parse a log entry into a database record
+    // Returns empty list if plugin doesn't support database storage
+    virtual QVariantList parseToDatabaseRecord(const LogEntry& entry, int lineNumber) const { 
+        Q_UNUSED(entry)
+        Q_UNUSED(lineNumber)
+        return QVariantList(); 
+    }
+    
+    // Database manager integration (dependency injection)
+    // Set the database manager for this plugin instance
+    // Returns true if successfully set, false if plugin doesn't support database storage
+    virtual bool setDatabaseManager(PluginDatabaseManager* manager) { 
+        if (supportsDatabaseStorage()) {
+            m_databaseManager = manager;
+            return true;
+        }
+        return false; 
+    }
+    
+    // Plugin lifecycle methods for database operations
+    // Called when database is ready for this plugin
+    virtual bool initializeDatabase() { return true; }
+    
+    // Called when plugin should clean up database resources
+    virtual void cleanupDatabase() { }
+    
+    // Error handling for database operations
+    // Called when a database operation fails
+    virtual void onDatabaseError(const QString& error) { 
+        Q_UNUSED(error)
+        // Default implementation: emit a generic plugin event
+        emit const_cast<PluginInterface*>(this)->pluginEvent(PluginEvent::Custom, 
+            QVariantMap{{"type", "database_error"}, {"message", error}});
+    }
+
 public slots:
     // Handle plugin events
     virtual void onPluginEvent(PluginEvent event, const QVariant& data) = 0;
@@ -122,6 +170,10 @@ signals:
 
 protected:
     bool m_enabled;
+    PluginDatabaseManager* m_databaseManager = nullptr;
+    
+    // Protected getter for database manager (for derived classes)
+    PluginDatabaseManager* databaseManager() const { return m_databaseManager; }
 };
 
 // Define the plugin interface ID
