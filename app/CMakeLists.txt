@@ -48,6 +48,14 @@ set(PROJECT_SOURCES
     src/mainwindow.ui
     src/pluginmanager.cpp
     src/pluginmanager.h
+    src/backgroundtaskmanager.cpp
+    src/backgroundtaskmanager.h
+    src/progresstracker.cpp
+    src/progresstracker.h
+    src/progressdialog.cpp
+    src/progressdialog.h
+    src/pluginprocessingtask.cpp
+    src/pluginprocessingtask.h
     resources/resources.qrc
 )
 

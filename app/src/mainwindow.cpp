@@ -1,5 +1,8 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
+#include "backgroundtaskmanager.h"
+#include "progressdialog.h"
+#include "pluginprocessingtask.h"
 #include <QDockWidget>
 #include <QFile>
 #include <QFileDialog>
@@ -123,10 +126,16 @@ MainWindow::MainWindow(QWidget* parent)
 
     loadPlugins();
     loadSettings();
+    initializeBackgroundProcessing();
 }
+
+// Background processing threshold: 5MB
+const qint64 MainWindow::BACKGROUND_PROCESSING_THRESHOLD = 5 * 1024 * 1024;
 
 MainWindow::~MainWindow()
 {
+    shutdownBackgroundProcessing();
+    
     if (m_mappedFile) {
         m_currentFile.unmap(const_cast<uchar*>(reinterpret_cast<const uchar*>(m_mappedFile)));
         m_currentFile.close();
@@ -328,19 +337,28 @@ bool MainWindow::openFile(const QString& fileName)
     
     qDebug() << tr("File parsed successfully");
     
-    // Try to load the content with each enabled plugin
-    bool success = m_pluginManager->setLogs(m_logEntries);
-    m_pluginManager->setFilter(m_filterOptions);
-
-    if (!success) {
-        QMessageBox::warning(this, tr("Error"),
-            tr("No plugin was able to load the file: %1").arg(fileName));
+    // Check if we should use background processing for plugin data loading
+    if (shouldUseBackgroundProcessing(fileName)) {
+        processFileInBackground(fileName, m_logEntries);
+        
+        // Update window title immediately
+        setWindowTitle(tr("Logdor - %1 (Loading...)").arg(QFileInfo(fileName).fileName()));
+        return true;
     } else {
-        // Update window title with the current file name
-        setWindowTitle(tr("Logdor - %1").arg(QFileInfo(fileName).fileName()));
-    }
+        // Process synchronously for small files
+        bool success = m_pluginManager->setLogs(m_logEntries, fileName);
+        m_pluginManager->setFilter(m_filterOptions);
 
-    return success;
+        if (!success) {
+            QMessageBox::warning(this, tr("Error"),
+                tr("No plugin was able to load the file: %1").arg(fileName));
+        } else {
+            // Update window title with the current file name
+            setWindowTitle(tr("Logdor - %1").arg(QFileInfo(fileName).fileName()));
+        }
+        
+        return success;
+    }
 }
 
 void MainWindow::onActionOpenTriggered()
@@ -384,4 +402,323 @@ void MainWindow::onFilterChanged()
 
     // Apply filter to all enabled plugins with context lines
     m_pluginManager->setFilter(m_filterOptions);
+}
+// Background processing methods
+void MainWindow::initializeBackgroundProcessing()
+{
+    // Initialize background task manager
+    m_backgroundTaskManager = std::make_unique<BackgroundTaskManager>(this);
+    
+    // Connect background task manager signals
+    connect(m_backgroundTaskManager.get(), &BackgroundTaskManager::taskStarted,
+            this, &MainWindow::onBackgroundTaskStarted);
+    connect(m_backgroundTaskManager.get(), &BackgroundTaskManager::taskCompleted,
+            this, &MainWindow::onBackgroundTaskCompleted);
+    connect(m_backgroundTaskManager.get(), &BackgroundTaskManager::taskCancelled,
+            this, &MainWindow::onBackgroundTaskCancelled);
+    connect(m_backgroundTaskManager.get(), &BackgroundTaskManager::taskFailed,
+            this, &MainWindow::onBackgroundTaskFailed);
+    connect(m_backgroundTaskManager.get(), &BackgroundTaskManager::taskProgressChanged,
+            this, &MainWindow::onBackgroundTaskProgressChanged);
+    
+    // Initialize progress dialog
+    m_progressDialog = std::make_unique<ProgressDialog>(this);
+    connect(m_progressDialog.get(), &ProgressDialog::cancelled,
+            this, &MainWindow::onProgressDialogCancelled);
+    
+    // Initialize status bar progress
+    m_statusBarProgress = std::make_unique<StatusBarProgress>(this);
+    connect(m_statusBarProgress.get(), &StatusBarProgress::clicked,
+            this, &MainWindow::onStatusBarProgressClicked);
+    
+    // Add status bar progress to status bar
+    ui->statusbar->addPermanentWidget(m_statusBarProgress.get());
+    m_statusBarProgress->hide(); // Initially hidden
+    
+    qDebug() << "Background processing initialized";
+}
+
+void MainWindow::shutdownBackgroundProcessing()
+{
+    if (m_backgroundTaskManager) {
+        qDebug() << "Shutting down background processing";
+        
+        // Cancel any running tasks
+        if (!m_currentBackgroundTaskId.isEmpty()) {
+            m_backgroundTaskManager->cancelTask(m_currentBackgroundTaskId);
+        }
+        
+        // Shutdown the task manager
+        m_backgroundTaskManager->shutdown();
+        m_backgroundTaskManager.reset();
+    }
+    
+    // Clean up UI components
+    if (m_progressDialog) {
+        m_progressDialog->hide();
+        m_progressDialog.reset();
+    }
+    
+    if (m_statusBarProgress) {
+        m_statusBarProgress->hide();
+        m_statusBarProgress.reset();
+    }
+    
+    m_currentBackgroundTaskId.clear();
+}
+
+void MainWindow::processFileInBackground(const QString& fileName, const QList<LogEntry>& logEntries)
+{
+    if (!m_backgroundTaskManager) {
+        qWarning() << "Background task manager not initialized";
+        return;
+    }
+    
+    // Cancel any existing background task
+    if (!m_currentBackgroundTaskId.isEmpty()) {
+        m_backgroundTaskManager->cancelTask(m_currentBackgroundTaskId);
+        m_currentBackgroundTaskId.clear();
+    }
+    
+    // Create plugin processing task
+    auto task = PluginProcessingTaskFactory::createTask(fileName, logEntries, m_pluginManager, TaskPriority::High);
+    if (!task) {
+        qWarning() << "Failed to create plugin processing task";
+        return;
+    }
+    
+    // Submit task to background manager
+    QString taskId = m_backgroundTaskManager->submitTask(task);
+    if (taskId.isEmpty()) {
+        qWarning() << "Failed to submit plugin processing task";
+        return;
+    }
+    
+    m_currentBackgroundTaskId = taskId;
+    
+    // Show progress indication
+    showProgressDialog(taskId, QString("Loading %1").arg(QFileInfo(fileName).fileName()));
+    updateStatusBarProgress(taskId);
+    
+    qDebug() << "Started background processing for file:" << fileName << "with task ID:" << taskId;
+}
+
+void MainWindow::showProgressDialog(const QString& taskId, const QString& title)
+{
+    if (!m_progressDialog || taskId.isEmpty()) {
+        return;
+    }
+    
+    m_progressDialog->setTitle(title);
+    m_progressDialog->setDescription("Processing log file with plugins...");
+    m_progressDialog->setCancelable(true);
+    m_progressDialog->setAutoClose(false);
+    m_progressDialog->setMinimumDuration(1000); // Show after 1 second
+    
+    // The progress dialog will be connected to the task's progress tracker
+    // This happens in the background task manager when progress callbacks are set
+    
+    m_progressDialog->showProgress();
+}
+
+void MainWindow::hideProgressDialog()
+{
+    if (m_progressDialog) {
+        m_progressDialog->hideProgress();
+    }
+}
+
+void MainWindow::updateStatusBarProgress(const QString& taskId)
+{
+    if (!m_statusBarProgress || taskId.isEmpty()) {
+        return;
+    }
+    
+    // The status bar progress will be updated through the task progress callbacks
+    m_statusBarProgress->startProgress();
+    m_statusBarProgress->show();
+}
+
+bool MainWindow::shouldUseBackgroundProcessing(const QString& fileName) const
+{
+    QFileInfo fileInfo(fileName);
+    if (!fileInfo.exists()) {
+        return false;
+    }
+    
+    // Use background processing for files larger than the threshold
+    return fileInfo.size() > BACKGROUND_PROCESSING_THRESHOLD;
+}
+
+// Background processing event handlers
+void MainWindow::onBackgroundTaskStarted(const QString& taskId)
+{
+    if (taskId == m_currentBackgroundTaskId) {
+        qDebug() << "Background task started:" << taskId;
+        
+        // Set up progress callbacks for the task
+        if (m_backgroundTaskManager) {
+            // Connect progress dialog to task progress
+            if (m_progressDialog) {
+                m_backgroundTaskManager->setProgressCallback(taskId, 
+                    [this](const ProgressInfo& progress) {
+                        if (m_progressDialog) {
+                            m_progressDialog->updateProgress(progress);
+                        }
+                    });
+                
+                m_backgroundTaskManager->setStatusCallback(taskId,
+                    [this](const QString& status) {
+                        if (m_progressDialog) {
+                            m_progressDialog->updateStatus(status);
+                        }
+                    });
+            }
+            
+            // Connect status bar progress to task progress
+            if (m_statusBarProgress) {
+                m_backgroundTaskManager->setProgressCallback(taskId,
+                    [this](const ProgressInfo& progress) {
+                        if (m_statusBarProgress) {
+                            m_statusBarProgress->updateProgress(progress);
+                        }
+                    });
+                
+                m_backgroundTaskManager->setStatusCallback(taskId,
+                    [this](const QString& status) {
+                        if (m_statusBarProgress) {
+                            m_statusBarProgress->updateStatus(status);
+                        }
+                    });
+            }
+        }
+    }
+}
+
+void MainWindow::onBackgroundTaskCompleted(const QString& taskId, const TaskResult& result)
+{
+    if (taskId == m_currentBackgroundTaskId) {
+        qDebug() << "Background task completed:" << taskId;
+        
+        m_currentBackgroundTaskId.clear();
+        
+        // Hide progress indicators
+        hideProgressDialog();
+        if (m_statusBarProgress) {
+            m_statusBarProgress->stopProgress();
+        }
+        
+        // Check if the task was successful
+        if (result.isSuccess()) {
+            // Apply filters to the loaded data
+            m_pluginManager->setFilter(m_filterOptions);
+            
+            // Update window title to remove "Loading..." indicator
+            QString currentTitle = windowTitle();
+            if (currentTitle.contains(" (Loading...)")) {
+                setWindowTitle(currentTitle.replace(" (Loading...)", ""));
+            }
+            
+            // Show completion message in status bar
+            ui->statusbar->showMessage("File loaded successfully", 3000);
+            
+            qDebug() << "Plugin processing completed successfully";
+        } else {
+            // Handle processing failure
+            QString errorMsg = result.errorMessage.isEmpty() ? 
+                "Unknown error occurred during processing" : result.errorMessage;
+            
+            QMessageBox::warning(this, tr("Processing Error"),
+                tr("Failed to process file with plugins:\n%1").arg(errorMsg));
+            
+            qWarning() << "Plugin processing failed:" << errorMsg;
+        }
+    }
+}
+
+void MainWindow::onBackgroundTaskCancelled(const QString& taskId)
+{
+    if (taskId == m_currentBackgroundTaskId) {
+        qDebug() << "Background task cancelled:" << taskId;
+        
+        m_currentBackgroundTaskId.clear();
+        
+        // Hide progress indicators
+        hideProgressDialog();
+        if (m_statusBarProgress) {
+            m_statusBarProgress->stopProgress();
+        }
+        
+        // Update window title to remove "Loading..." indicator
+        QString currentTitle = windowTitle();
+        if (currentTitle.contains(" (Loading...)")) {
+            setWindowTitle(currentTitle.replace(" (Loading...)", " (Cancelled)"));
+        }
+        
+        // Show cancellation message in status bar
+        ui->statusbar->showMessage("File loading cancelled", 3000);
+    }
+}
+
+void MainWindow::onBackgroundTaskFailed(const QString& taskId, const QString& error)
+{
+    if (taskId == m_currentBackgroundTaskId) {
+        qDebug() << "Background task failed:" << taskId << "Error:" << error;
+        
+        m_currentBackgroundTaskId.clear();
+        
+        // Hide progress indicators
+        hideProgressDialog();
+        if (m_statusBarProgress) {
+            m_statusBarProgress->stopProgress();
+        }
+        
+        // Update window title to remove "Loading..." indicator
+        QString currentTitle = windowTitle();
+        if (currentTitle.contains(" (Loading...)")) {
+            setWindowTitle(currentTitle.replace(" (Loading...)", " (Failed)"));
+        }
+        
+        // Show error message
+        QMessageBox::critical(this, tr("Processing Error"),
+            tr("Failed to process file with plugins:\n%1").arg(error));
+        
+        // Show error message in status bar
+        ui->statusbar->showMessage("File loading failed", 5000);
+    }
+}
+
+void MainWindow::onBackgroundTaskProgressChanged(const QString& taskId, const ProgressInfo& progress)
+{
+    if (taskId == m_currentBackgroundTaskId) {
+        // Progress updates are handled through the callbacks set in onBackgroundTaskStarted
+        // This slot can be used for additional progress-related UI updates if needed
+        
+        // Update status bar with progress information
+        if (!progress.statusMessage.isEmpty()) {
+            QString statusText = QString("%1 (%2%)").arg(progress.statusMessage).arg(progress.percentage);
+            ui->statusbar->showMessage(statusText);
+        }
+    }
+}
+
+void MainWindow::onProgressDialogCancelled()
+{
+    if (!m_currentBackgroundTaskId.isEmpty() && m_backgroundTaskManager) {
+        qDebug() << "User cancelled progress dialog, cancelling background task:" << m_currentBackgroundTaskId;
+        m_backgroundTaskManager->cancelTask(m_currentBackgroundTaskId);
+    }
+}
+
+void MainWindow::onStatusBarProgressClicked()
+{
+    // Show detailed progress dialog when status bar progress is clicked
+    if (!m_currentBackgroundTaskId.isEmpty() && m_progressDialog) {
+        if (!m_progressDialog->isVisible()) {
+            m_progressDialog->show();
+        } else {
+            m_progressDialog->raise();
+            m_progressDialog->activateWindow();
+        }
+    }
 }
