@@ -10,6 +10,7 @@
 #include <QtConcurrent/QtConcurrent>
 
 #include "taglabel.h"
+#include "../../app/src/plugindatabasemanager.h"
 
 LogcatViewer::LogcatViewer(QObject* parent)
     : PluginInterface(parent)
@@ -175,7 +176,39 @@ bool LogcatViewer::setLogs(const QList<LogEntry>& content)
 {
     qDebug() << "LogcatViewer::setLogs called with" << content.size() << "entries";
     m_entries = content;
-    m_model->setLogEntries(content);
+    
+    // Configure table model for database or in-memory mode
+    if (databaseManager() && databaseManager()->isReady()) {
+        // Set up database mode
+        m_model->setDatabaseManager(databaseManager());
+        m_model->setDatabaseMode(true);
+        
+        // Parse and insert data into database
+        QList<QVariantList> batchData;
+        QList<int> lineNumbers;
+        
+        for (int i = 0; i < content.size(); ++i) {
+            QVariantList record = parseToDatabaseRecord(content[i], i);
+            batchData.append(record);
+            lineNumbers.append(i);
+        }
+        
+        // Insert batch data into database
+        if (!databaseManager()->insertBatchData("logcatviewer", batchData, lineNumbers)) {
+            qWarning() << "Failed to insert logcat data into database, falling back to in-memory storage";
+            // Fall back to in-memory storage
+            m_model->setDatabaseMode(false);
+            m_model->setLogEntries(content);
+        } else {
+            qDebug() << "Successfully inserted" << content.size() << "logcat entries into database";
+            // Refresh model from database
+            m_model->setDatabaseFilter(m_filterOptions);
+        }
+    } else {
+        // Use in-memory storage
+        m_model->setDatabaseMode(false);
+        m_model->setLogEntries(content);
+    }
 
     // Clear selected tags
     while (m_tagsLayout->count() > 1) { // Keep the stretch
@@ -218,25 +251,33 @@ void LogcatViewer::toggleLevel(LogcatEntry::Level level, bool enabled)
 
 void LogcatViewer::updateVisibleRows()
 {
-    QSet<int> linesToShow;
-    for (int i = 0; i < m_entries.size(); ++i) {
-        LogcatEntry entry(m_entries[i]);
-        if (matchesFilter(entry)) {
-            // Add context lines before
-            for (int j = std::max(0, i - m_filterOptions.contextLinesBefore); j < i; ++j) {
-                linesToShow.insert(j);
-            }
-            
-            // Add the matching line
-            linesToShow.insert(i);
-            
-            // Add context lines after
-            for (int j = i + 1; j <= std::min<int>(m_entries.size() - 1, i + m_filterOptions.contextLinesAfter); ++j) {
-                linesToShow.insert(j);
+    // Use database queries if available, otherwise fall back to in-memory filtering
+    if (databaseManager() && databaseManager()->isReady()) {
+        // In database mode, update the filter in the model
+        // The model will handle querying and filtering
+        m_model->setDatabaseFilter(m_filterOptions);
+    } else {
+        // Fall back to in-memory filtering
+        QSet<int> linesToShow;
+        for (int i = 0; i < m_entries.size(); ++i) {
+            LogcatEntry entry(m_entries[i]);
+            if (matchesFilter(entry)) {
+                // Add context lines before
+                for (int j = std::max(0, i - m_filterOptions.contextLinesBefore); j < i; ++j) {
+                    linesToShow.insert(j);
+                }
+                
+                // Add the matching line
+                linesToShow.insert(i);
+                
+                // Add context lines after
+                for (int j = i + 1; j <= std::min<int>(m_entries.size() - 1, i + m_filterOptions.contextLinesAfter); ++j) {
+                    linesToShow.insert(j);
+                }
             }
         }
+        m_model->setVisibleRows(linesToShow.values().toVector());
     }
-    m_model->setVisibleRows(linesToShow.values().toVector());
 }
 
 void LogcatViewer::setFilter(const FilterOptions& options)
@@ -376,4 +417,100 @@ bool LogcatViewer::matchesFilter(const LogcatEntry& entry) const
     }
 
     return true;
+}
+
+QList<FieldInfo> LogcatViewer::getDatabaseSchema() const
+{
+    return QList<FieldInfo>({
+        {"timestamp", DataType::String},      // Logcat timestamp as string
+        {"pid", DataType::String},            // Process ID as string (can be empty)
+        {"tid", DataType::String},            // Thread ID as string (can be empty)
+        {"level", DataType::String, QList<QVariant>({
+            "Verbose", "Debug", "Info", "Warning", "Error", "Fatal", "Unknown"
+        })},                                  // Log level
+        {"tag", DataType::String},            // Tag/package name
+        {"message", DataType::String}         // Log message content
+    });
+}
+
+QVariantList LogcatViewer::parseToDatabaseRecord(const LogEntry& entry, int lineNumber) const
+{
+    Q_UNUSED(lineNumber); // Line number is handled by PluginDatabaseManager
+    
+    LogcatEntry logcatEntry(entry);
+    
+    QVariantList record;
+    record.append(logcatEntry.timestamp);                           // timestamp
+    record.append(logcatEntry.pid);                                 // pid
+    record.append(logcatEntry.tid);                                 // tid
+    record.append(LogcatEntry::levelToString(logcatEntry.level));   // level
+    record.append(logcatEntry.tag);                                 // tag
+    record.append(logcatEntry.message);                             // message
+    
+    return record;
+}
+
+bool LogcatViewer::setDatabaseManager(PluginDatabaseManager* manager)
+{
+    if (PluginInterface::setDatabaseManager(manager)) {
+        // Database manager successfully set
+        return true;
+    }
+    return false;
+}
+
+bool LogcatViewer::initializeDatabase()
+{
+    if (!databaseManager() || !databaseManager()->isReady()) {
+        return false;
+    }
+    
+    // Create plugin table with our schema
+    QList<FieldInfo> schema = getDatabaseSchema();
+    return databaseManager()->createPluginTable("logcatviewer", schema);
+}
+
+void LogcatViewer::cleanupDatabase()
+{
+    // No specific cleanup needed for LogcatViewer
+    // Base class handles database manager cleanup
+}
+
+void LogcatViewer::onDatabaseError(const QString& error)
+{
+    qWarning() << "LogcatViewer database error:" << error;
+    
+    // Call base implementation to emit plugin event
+    PluginInterface::onDatabaseError(error);
+    
+    // Could add specific error handling here if needed
+    // For now, we'll rely on fallback to in-memory storage
+}
+
+bool LogcatViewer::matchesLevelAndTagFilters(const LogcatEntry& entry) const
+{
+    // Check level filter
+    if (!m_levelFilters.value(entry.level, true)) {
+        return false;
+    }
+
+    // Check tag filters
+    if (!m_selectedTags.isEmpty() && !m_selectedTags.contains(entry.tag)) {
+        return false;
+    }
+
+    return true;
+}
+
+bool LogcatViewer::hasLevelOrTagFilters() const
+{
+    // Check if any level is disabled
+    for (auto it = m_levelFilters.begin(); it != m_levelFilters.end(); ++it) {
+        if (!it.value()) {
+            return true;
+        }
+    }
+    
+    // Check if any tags are selected
+    return !m_selectedTags.isEmpty();
 }

@@ -21,6 +21,9 @@
 #include "logcatentry.h"
 #include "logcattablemodel.h"
 
+// Forward declaration for database manager
+class PluginDatabaseManager;
+
 class LogcatViewer : public PluginInterface {
     Q_OBJECT
     Q_INTERFACES(PluginInterface)
@@ -41,6 +44,15 @@ public:
     void synchronizeFilteredLines(const QSet<int>& lines) override;
     QSet<QString> getUniqueTags() const;
 
+    // Database-aware methods (PluginInterface overrides)
+    bool supportsDatabaseStorage() const override { return true; }
+    QList<FieldInfo> getDatabaseSchema() const override;
+    QVariantList parseToDatabaseRecord(const LogEntry& entry, int lineNumber) const override;
+    bool setDatabaseManager(PluginDatabaseManager* manager) override;
+    bool initializeDatabase() override;
+    void cleanupDatabase() override;
+    void onDatabaseError(const QString& error) override;
+
 public slots:
     void onPluginEvent(PluginEvent event, const QVariant& data) override;
 
@@ -54,6 +66,8 @@ private:
     void setupUi();
     void parseLogLine(const QString& line);
     bool matchesFilter(const LogcatEntry& entry) const;
+    bool matchesLevelAndTagFilters(const LogcatEntry& entry) const;
+    bool hasLevelOrTagFilters() const;
     void addTagLabel(const QString& tag);
 
     QWidget* m_container;
