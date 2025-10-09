@@ -176,9 +176,10 @@ bool LogcatViewer::setLogs(const QList<LogEntry>& content)
 {
     qDebug() << "LogcatViewer::setLogs called with" << content.size() << "entries";
     m_entries = content;
+    m_logs = content; // Store for potential fallback use
     
     // Configure table model for database or in-memory mode
-    if (databaseManager() && databaseManager()->isReady()) {
+    if (databaseManager() && databaseManager()->isReady() && !databaseManager()->hasFallbackMode()) {
         // Set up database mode
         m_model->setDatabaseManager(databaseManager());
         m_model->setDatabaseMode(true);
@@ -199,13 +200,23 @@ bool LogcatViewer::setLogs(const QList<LogEntry>& content)
             // Fall back to in-memory storage
             m_model->setDatabaseMode(false);
             m_model->setLogEntries(content);
+            
+            // Emit fallback notification
+            emit pluginEvent(PluginEvent::Custom, 
+                QVariantMap{
+                    {"type", "fallback_to_memory"}, 
+                    {"message", "Database insertion failed, using in-memory storage"}
+                });
         } else {
             qDebug() << "Successfully inserted" << content.size() << "logcat entries into database";
             // Refresh model from database
             m_model->setDatabaseFilter(m_filterOptions);
         }
     } else {
-        // Use in-memory storage
+        // Use in-memory storage (either no database manager, not ready, or in fallback mode)
+        if (databaseManager() && databaseManager()->hasFallbackMode()) {
+            qDebug() << "Database manager in fallback mode, using in-memory storage";
+        }
         m_model->setDatabaseMode(false);
         m_model->setLogEntries(content);
     }
@@ -480,11 +491,32 @@ void LogcatViewer::onDatabaseError(const QString& error)
 {
     qWarning() << "LogcatViewer database error:" << error;
     
+    // Check if database manager is in fallback mode
+    if (databaseManager() && databaseManager()->hasFallbackMode()) {
+        qDebug() << "Database manager in fallback mode, switching to in-memory storage";
+        
+        // Switch table model to in-memory mode
+        if (m_model) {
+            m_model->setDatabaseMode(false);
+            
+            // If we have logs loaded, reload them in memory mode
+            if (!m_logs.isEmpty()) {
+                m_model->setLogEntries(m_logs);
+                applyCurrentFilters();
+            }
+        }
+        
+        // Emit plugin event to notify UI
+        emit pluginEvent(PluginEvent::Custom, 
+            QVariantMap{
+                {"type", "fallback_mode_enabled"}, 
+                {"message", "Switched to in-memory storage due to database issues"},
+                {"reason", error}
+            });
+    }
+    
     // Call base implementation to emit plugin event
     PluginInterface::onDatabaseError(error);
-    
-    // Could add specific error handling here if needed
-    // For now, we'll rely on fallback to in-memory storage
 }
 
 bool LogcatViewer::matchesLevelAndTagFilters(const LogcatEntry& entry) const
@@ -513,4 +545,16 @@ bool LogcatViewer::hasLevelOrTagFilters() const
     
     // Check if any tags are selected
     return !m_selectedTags.isEmpty();
+}
+void LogcatViewer::applyCurrentFilters()
+{
+    // Apply current filter options to the model
+    if (m_model) {
+        if (m_model->isDatabaseMode()) {
+            m_model->setDatabaseFilter(m_filterOptions);
+        } else {
+            // For in-memory mode, trigger filter update
+            updateVisibleRows();
+        }
+    }
 }

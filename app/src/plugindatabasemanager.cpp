@@ -321,6 +321,8 @@ PluginDatabaseManager::PluginDatabaseManager(QObject* parent)
     : QObject(parent)
     , m_status(PluginDatabaseStatus::NotInitialized)
     , m_dbManager(nullptr)
+    , m_fallbackMode(false)
+    , m_consecutiveErrors(0)
 {
 }
 
@@ -385,6 +387,23 @@ bool PluginDatabaseManager::initializeForFile(const QString& filePath)
     if (!createMetadataTables()) {
         setError("Failed to create metadata tables");
         return false;
+    }
+    
+    // Record file metadata for tracking
+    recordFileMetadata(filePath);
+    
+    // Check database integrity on initialization
+    if (!checkDatabaseIntegrity()) {
+        qWarning() << "Database integrity check failed during initialization";
+        
+        // Attempt to repair the database
+        if (repairDatabase()) {
+            qDebug() << "Database repair successful";
+        } else {
+            qWarning() << "Database repair failed, will attempt rebuild if needed";
+            // Don't fail initialization here - let plugins handle fallback
+            // The database will be marked as having issues but still usable
+        }
     }
     
     setStatus(PluginDatabaseStatus::Ready);
@@ -478,6 +497,11 @@ bool PluginDatabaseManager::insertParsedData(const QString& pluginName, const QV
 {
     QMutexLocker locker(&m_mutex);
     
+    // If in fallback mode, return false to trigger plugin fallback to in-memory storage
+    if (m_fallbackMode) {
+        return false;
+    }
+    
     if (!isReady()) {
         setError("Database not initialized");
         return false;
@@ -543,12 +567,19 @@ bool PluginDatabaseManager::insertParsedData(const QString& pluginName, const QV
         return false;
     }
     
+    // Reset error counter on successful operation
+    m_consecutiveErrors = 0;
     return true;
 }
 
 bool PluginDatabaseManager::insertBatchData(const QString& pluginName, const QList<QVariantList>& batchData, const QList<int>& lineNumbers)
 {
     QMutexLocker locker(&m_mutex);
+    
+    // If in fallback mode, return false to trigger plugin fallback to in-memory storage
+    if (m_fallbackMode) {
+        return false;
+    }
     
     if (!isReady()) {
         setError("Database not initialized");
@@ -633,8 +664,23 @@ bool PluginDatabaseManager::insertBatchData(const QString& pluginName, const QLi
         columns.append(field.name);
     }
     
+    // Validate database before critical operation
+    if (!validateDatabaseOperation()) {
+        if (!handleDatabaseCorruption("bulk insert preparation")) {
+            setError("Database validation failed before bulk insert");
+            return false;
+        }
+    }
+    
     if (!m_dbManager->prepareBulkInsert(tableName, columns)) {
-        setError(QString("Failed to prepare bulk insert: %1").arg(m_dbManager->lastError()));
+        // Check if this might be due to corruption
+        QString error = m_dbManager->lastError();
+        if (error.contains("database disk image is malformed") || 
+            error.contains("database corruption") ||
+            error.contains("disk I/O error")) {
+            handleDatabaseCorruption("bulk insert preparation");
+        }
+        setError(QString("Failed to prepare bulk insert: %1").arg(error));
         return false;
     }
     
@@ -666,6 +712,9 @@ bool PluginDatabaseManager::insertBatchData(const QString& pluginName, const QLi
     }
     
     m_dbManager->finalizeBulkInsert();
+    
+    // Reset error counter on successful batch operation
+    m_consecutiveErrors = 0;
     return true;
 }
 
@@ -733,6 +782,11 @@ QList<QVariantList> PluginDatabaseManager::queryData(const QString& pluginName, 
     QMutexLocker locker(&m_mutex);
     
     QList<QVariantList> results;
+    
+    // If in fallback mode, return empty results to trigger plugin fallback to in-memory storage
+    if (m_fallbackMode) {
+        return results;
+    }
     
     if (!isReady()) {
         setError("Database not initialized");
@@ -1199,6 +1253,13 @@ void PluginDatabaseManager::setStatus(PluginDatabaseStatus status)
 void PluginDatabaseManager::setError(const QString& error)
 {
     m_lastError = error;
+    m_consecutiveErrors++;
+    
+    // Enable fallback mode if we have too many consecutive errors
+    if (m_consecutiveErrors >= MAX_CONSECUTIVE_ERRORS && !m_fallbackMode) {
+        enableFallbackMode(QString("Too many consecutive database errors (%1)").arg(m_consecutiveErrors));
+    }
+    
     setStatus(PluginDatabaseStatus::Error);
     emit errorOccurred(error);
     qDebug() << "PluginDatabaseManager error:" << error;
@@ -1566,4 +1627,295 @@ QVariant PluginDatabaseManager::convertToSqlType(const QVariant& value, DataType
             qDebug() << "Warning: Unknown data type for field" << fieldName << ", treating as string";
             return value.toString();
     }
+}
+
+// Error handling and fallback methods
+void PluginDatabaseManager::enableFallbackMode(const QString& reason)
+{
+    if (!m_fallbackMode) {
+        m_fallbackMode = true;
+        m_fallbackReason = reason;
+        qWarning() << "PluginDatabaseManager: Enabling fallback mode -" << reason;
+        emit fallbackModeEnabled(reason);
+    }
+}
+
+void PluginDatabaseManager::disableFallbackMode()
+{
+    if (m_fallbackMode) {
+        m_fallbackMode = false;
+        m_fallbackReason.clear();
+        m_consecutiveErrors = 0;
+        qDebug() << "PluginDatabaseManager: Fallback mode disabled";
+        emit fallbackModeDisabled();
+    }
+}
+
+bool PluginDatabaseManager::checkDatabaseIntegrity()
+{
+    if (!m_dbManager || !isReady()) {
+        setError("Database not ready for integrity check");
+        return false;
+    }
+    
+    // Use SQLite PRAGMA integrity_check
+    auto query = m_dbManager->executeQuery("PRAGMA integrity_check");
+    if (query.lastError().isValid()) {
+        setError(QString("Failed to run integrity check: %1").arg(query.lastError().text()));
+        return false;
+    }
+    
+    bool isIntact = true;
+    while (query.next()) {
+        QString result = query.value(0).toString();
+        if (result != "ok") {
+            qWarning() << "Database integrity issue:" << result;
+            isIntact = false;
+        }
+    }
+    
+    if (!isIntact) {
+        setError("Database integrity check failed - corruption detected");
+        return false;
+    }
+    
+    qDebug() << "Database integrity check passed";
+    return true;
+}
+
+bool PluginDatabaseManager::repairDatabase()
+{
+    if (!m_dbManager || !isReady()) {
+        setError("Database not ready for repair");
+        return false;
+    }
+    
+    qDebug() << "Attempting database repair...";
+    
+    // Try to repair using SQLite REINDEX
+    if (!m_dbManager->executeNonQuery("REINDEX")) {
+        setError(QString("Failed to reindex database: %1").arg(m_dbManager->lastError()));
+        return false;
+    }
+    
+    // Run integrity check after repair
+    if (!checkDatabaseIntegrity()) {
+        setError("Database repair failed - integrity check still fails");
+        return false;
+    }
+    
+    // Reset error counter on successful repair
+    m_consecutiveErrors = 0;
+    qDebug() << "Database repair completed successfully";
+    emit databaseRepaired();
+    return true;
+}
+
+bool PluginDatabaseManager::rebuildDatabaseFromFile(const QString& filePath)
+{
+    if (filePath.isEmpty()) {
+        setError("Cannot rebuild database - no source file specified");
+        return false;
+    }
+    
+    qDebug() << "Rebuilding database from file:" << filePath;
+    
+    // Close current database
+    closeDatabase();
+    
+    // Remove corrupted database file
+    QFile::remove(m_databasePath);
+    
+    // Reinitialize database
+    if (!initializeForFile(filePath)) {
+        setError("Failed to reinitialize database during rebuild");
+        return false;
+    }
+    
+    // Reset error counter and disable fallback mode
+    m_consecutiveErrors = 0;
+    disableFallbackMode();
+    
+    qDebug() << "Database rebuild completed successfully";
+    emit databaseRebuilt();
+    return true;
+}
+
+bool PluginDatabaseManager::optimizeDatabase()
+{
+    if (!m_dbManager || !isReady()) {
+        setError("Database not ready for optimization");
+        return false;
+    }
+    
+    qDebug() << "Optimizing database...";
+    
+    // Run ANALYZE to update query planner statistics
+    if (!m_dbManager->executeNonQuery("ANALYZE")) {
+        qWarning() << "Failed to analyze database:" << m_dbManager->lastError();
+        // Don't fail completely, continue with other optimizations
+    }
+    
+    // Run VACUUM to reclaim space and defragment
+    if (!m_dbManager->executeNonQuery("VACUUM")) {
+        qWarning() << "Failed to vacuum database:" << m_dbManager->lastError();
+        return false;
+    }
+    
+    qDebug() << "Database optimization completed";
+    return true;
+}
+
+bool PluginDatabaseManager::vacuumDatabase()
+{
+    if (!m_dbManager || !isReady()) {
+        setError("Database not ready for vacuum");
+        return false;
+    }
+    
+    qDebug() << "Vacuuming database...";
+    
+    if (!m_dbManager->executeNonQuery("VACUUM")) {
+        setError(QString("Failed to vacuum database: %1").arg(m_dbManager->lastError()));
+        return false;
+    }
+    
+    qDebug() << "Database vacuum completed";
+    return true;
+}
+
+qint64 PluginDatabaseManager::getDatabaseSize() const
+{
+    if (m_databasePath.isEmpty()) {
+        return 0;
+    }
+    
+    QFileInfo fileInfo(m_databasePath);
+    return fileInfo.exists() ? fileInfo.size() : 0;
+}
+
+QString PluginDatabaseManager::getDatabaseVersion() const
+{
+    if (!m_dbManager || !isReady()) {
+        return QString();
+    }
+    
+    auto query = m_dbManager->executeQuery("PRAGMA user_version");
+    if (query.lastError().isValid() || !query.next()) {
+        return QString();
+    }
+    
+    return query.value(0).toString();
+}
+
+// Error handling and recovery helper methods
+bool PluginDatabaseManager::validateDatabaseOperation()
+{
+    if (!m_dbManager || !isReady()) {
+        return false;
+    }
+    
+    // Quick integrity check using a simple query
+    auto query = m_dbManager->executeQuery("SELECT COUNT(*) FROM sqlite_master");
+    if (query.lastError().isValid()) {
+        qWarning() << "Database validation failed:" << query.lastError().text();
+        return false;
+    }
+    
+    return true;
+}
+
+bool PluginDatabaseManager::handleDatabaseCorruption(const QString& operation)
+{
+    qWarning() << "Database corruption detected during operation:" << operation;
+    
+    // Enable fallback mode immediately
+    enableFallbackMode(QString("Database corruption detected during %1").arg(operation));
+    
+    // Attempt repair in background
+    if (repairDatabase()) {
+        qDebug() << "Database repair successful after corruption";
+        return true;
+    }
+    
+    // If repair fails, suggest rebuild
+    qWarning() << "Database repair failed, rebuild required";
+    emit errorOccurred(QString("Database corruption detected during %1. Rebuild required.").arg(operation));
+    
+    return false;
+}
+
+void PluginDatabaseManager::recordFileMetadata(const QString& filePath)
+{
+    if (!m_dbManager || !isReady()) {
+        return;
+    }
+    
+    QFileInfo fileInfo(filePath);
+    if (!fileInfo.exists()) {
+        return;
+    }
+    
+    QString sql = R"(
+        INSERT OR REPLACE INTO file_metadata 
+        (file_path, file_size, file_modified, database_version, created_at) 
+        VALUES (?, ?, ?, ?, ?)
+    )";
+    
+    QVariantList params;
+    params << filePath 
+           << fileInfo.size() 
+           << fileInfo.lastModified() 
+           << 1 // database version
+           << QDateTime::currentDateTime();
+    
+    if (!m_dbManager->executeNonQuery(sql, params)) {
+        qWarning() << "Failed to record file metadata:" << m_dbManager->lastError();
+    }
+}bool 
+PluginDatabaseManager::performMaintenanceCheck()
+{
+    if (!m_dbManager || !isReady()) {
+        return false;
+    }
+    
+    qDebug() << "Performing database maintenance check...";
+    
+    // Check integrity
+    if (!checkDatabaseIntegrity()) {
+        qWarning() << "Maintenance check: integrity check failed";
+        return false;
+    }
+    
+    // Check database size and suggest optimization if needed
+    qint64 size = getDatabaseSize();
+    if (size > 100 * 1024 * 1024) { // 100MB threshold
+        qDebug() << "Database size is" << (size / 1024 / 1024) << "MB, consider optimization";
+        
+        // Auto-optimize if database is very large
+        if (size > 500 * 1024 * 1024) { // 500MB threshold
+            qDebug() << "Auto-optimizing large database...";
+            optimizeDatabase();
+        }
+    }
+    
+    // Check for unused space and vacuum if needed
+    auto query = m_dbManager->executeQuery("PRAGMA freelist_count");
+    if (!query.lastError().isValid() && query.next()) {
+        int freePages = query.value(0).toInt();
+        if (freePages > 1000) { // Significant unused space
+            qDebug() << "Database has" << freePages << "free pages, running vacuum...";
+            vacuumDatabase();
+        }
+    }
+    
+    qDebug() << "Database maintenance check completed";
+    return true;
+}
+
+void PluginDatabaseManager::schedulePeriodicMaintenance()
+{
+    // This could be enhanced with a QTimer for periodic checks
+    // For now, we'll rely on manual calls during operations
+    qDebug() << "Periodic maintenance scheduling not yet implemented";
 }

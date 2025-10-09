@@ -152,10 +152,30 @@ public:
     bool createIndexForField(const QString& pluginName, const QString& fieldName);
     bool dropIndexForField(const QString& pluginName, const QString& fieldName);
     QStringList getIndexesForPlugin(const QString& pluginName);
+    
+    // Error handling and fallback
+    bool hasFallbackMode() const { return m_fallbackMode; }
+    void enableFallbackMode(const QString& reason);
+    void disableFallbackMode();
+    bool checkDatabaseIntegrity();
+    bool repairDatabase();
+    bool rebuildDatabaseFromFile(const QString& filePath);
+    
+    // Database maintenance
+    bool optimizeDatabase();
+    bool vacuumDatabase();
+    qint64 getDatabaseSize() const;
+    QString getDatabaseVersion() const;
+    bool performMaintenanceCheck();
+    void schedulePeriodicMaintenance();
 
 signals:
     void statusChanged(PluginDatabaseStatus status);
     void errorOccurred(const QString& error);
+    void fallbackModeEnabled(const QString& reason);
+    void fallbackModeDisabled();
+    void databaseRepaired();
+    void databaseRebuilt();
 
 private slots:
     void handleDatabaseError(const QString& error);
@@ -178,6 +198,11 @@ private:
     QStringList generateMigrationCommands(const QString& tableName, const QList<DatabaseFieldInfo>& oldFields, const QList<DatabaseFieldInfo>& newFields);
     QVariant convertToSqlType(const QVariant& value, DataType targetType, const QString& fieldName);
     
+    // Error handling and recovery helpers
+    bool validateDatabaseOperation();
+    bool handleDatabaseCorruption(const QString& operation);
+    void recordFileMetadata(const QString& filePath);
+    
     // Member variables
     QString m_databasePath;
     QString m_currentFilePath;
@@ -190,6 +215,12 @@ private:
     
     // Schema cache
     QMap<QString, QList<FieldInfo>> m_schemaCache;
+    
+    // Fallback and error handling
+    bool m_fallbackMode;
+    QString m_fallbackReason;
+    int m_consecutiveErrors;
+    static const int MAX_CONSECUTIVE_ERRORS = 3;
 };
 
 #endif // PLUGINDATABASEMANAGER_H

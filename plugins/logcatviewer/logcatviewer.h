@@ -69,6 +69,7 @@ private:
     bool matchesLevelAndTagFilters(const LogcatEntry& entry) const;
     bool hasLevelOrTagFilters() const;
     void addTagLabel(const QString& tag);
+    void applyCurrentFilters();
 
     QWidget* m_container;
     QVBoxLayout* m_layout;
@@ -84,6 +85,7 @@ private:
     QMap<LogcatEntry::Level, bool> m_levelFilters;
     FilterOptions m_filterOptions;
     QList<LogEntry> m_entries;
+    QList<LogEntry> m_logs; // Store logs for fallback scenarios
 };
 
 #endif // LOGCATVIEWER_H

@@ -39,6 +39,7 @@ public:
     void setVisibleRows(const QList<int>& linesToShow);
     void setDatabaseManager(PluginDatabaseManager* manager);
     void setDatabaseMode(bool enabled);
+    bool isDatabaseMode() const { return m_databaseMode; }
     
     // Row mapping
     int mapToSourceRow(int visibleRow) const { return m_visibleRows[visibleRow]; }
