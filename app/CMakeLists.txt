@@ -23,6 +23,12 @@ add_library(logdor_interface SHARED
     src/databasemanager.cpp
     src/plugindatabasemanager.h
     src/plugindatabasemanager.cpp
+    src/parallellogparser.h
+    src/parallellogparser.cpp
+    src/filechunker.h
+    src/filechunker.cpp
+    src/databaseconnectionpool.h
+    src/databaseconnectionpool.cpp
     src/searchtokenizer.h
     src/searchtokenizer.cpp
 )
