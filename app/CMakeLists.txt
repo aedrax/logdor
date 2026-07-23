@@ -56,6 +56,8 @@ set(PROJECT_SOURCES
     src/progressdialog.h
     src/pluginprocessingtask.cpp
     src/pluginprocessingtask.h
+    src/legacybridge.cpp
+    src/legacybridge.h
     resources/resources.qrc
 )
 
@@ -66,6 +68,7 @@ qt_add_executable(logdor
 
 target_link_libraries(logdor PRIVATE
     logdor_interface
+    Logdor::Core
     Qt6::Core
     Qt6::Widgets
     Qt6::Concurrent

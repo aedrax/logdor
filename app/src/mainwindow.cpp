@@ -1,22 +1,19 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 #include "backgroundtaskmanager.h"
+#include "legacybridge.h"
 #include "progressdialog.h"
 #include "pluginprocessingtask.h"
 #include <QDockWidget>
-#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QMessageBox>
-#include <QTextStream>
 #include <QToolBar>
 #include <QLabel>
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QShortcut>
-#include <QtConcurrent/QtConcurrent>
 #include <QRegularExpression>
-#include <vector>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -124,6 +121,14 @@ MainWindow::MainWindow(QWidget* parent)
     QShortcut* filterShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_L), this);
     connect(filterShortcut, &QShortcut::activated, this, &MainWindow::onFocusFilterInput);
 
+    // Indexing runs on a worker thread; the watcher delivers progress and
+    // completion back on the GUI thread.
+    m_indexWatcher = new QFutureWatcher<logdor::IndexingResult>(this);
+    connect(m_indexWatcher, &QFutureWatcherBase::progressValueChanged,
+            this, &MainWindow::onIndexingProgress);
+    connect(m_indexWatcher, &QFutureWatcherBase::finished,
+            this, &MainWindow::onIndexingFinished);
+
     loadPlugins();
     loadSettings();
     initializeBackgroundProcessing();
@@ -134,12 +139,10 @@ const qint64 MainWindow::BACKGROUND_PROCESSING_THRESHOLD = 5 * 1024 * 1024;
 
 MainWindow::~MainWindow()
 {
+    // The indexing task holds its own shared_ptr to the file source, so it
+    // can finish (or notice the cancel) safely after we're gone.
+    m_indexWatcher->cancel();
     shutdownBackgroundProcessing();
-    
-    if (m_mappedFile) {
-        m_currentFile.unmap(const_cast<uchar*>(reinterpret_cast<const uchar*>(m_mappedFile)));
-        m_currentFile.close();
-    }
     delete ui;
 }
 
@@ -232,132 +235,122 @@ void MainWindow::loadSettings()
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
+    m_indexWatcher->cancel();
     saveSettings();
     QMainWindow::closeEvent(event);
 }
 
-// Structure to hold a chunk of the file to process
-struct FileChunk {
-    const char* start;
-    const char* end;
-    bool isFirstChunk;
-};
-
-// Function to process a single chunk and return its lines
-QList<QPair<const char*, qsizetype>> processChunk(const FileChunk& chunk) {
-    QList<QPair<const char*, qsizetype>> lines;
-    const char* current = chunk.start;
-    
-    while (current < chunk.end) {
-        auto next = reinterpret_cast<const char*>(memchr(current, '\n', chunk.end - current));
-        if (!next) {
-            next = chunk.end;
-        }
-        lines.append({current, next - current});
-        current = next + 1;
-    }
-    
-    return lines;
-}
-
 bool MainWindow::openFile(const QString& fileName)
 {
-    // Clear plugins' data before unmapping the current file
+    // Stop any in-flight indexing. setFuture() below detaches the watcher
+    // from the old future, so no stale finished() arrives; the cancelled
+    // task keeps the old source alive through its own shared_ptr.
+    if (m_indexWatcher->isRunning()) {
+        m_indexWatcher->cancel();
+    }
+
+    // Clear plugins' data before dropping the previous mapping — they hold
+    // pointers into it.
     m_logEntries.clear();
     for (PluginInterface* plugin : m_activePlugins) {
         plugin->setLogs(m_logEntries);
     }
+    m_lineIndex.reset();
+    m_fileSource.reset();
 
-    // Clean up previous file if any
-    if (m_mappedFile) {
-        m_currentFile.unmap(const_cast<uchar*>(reinterpret_cast<const uchar*>(m_mappedFile)));
-        m_currentFile.close();
-        m_mappedFile = nullptr;
-    }
-
-    m_currentFile.setFileName(fileName);
-    
-    if (!m_currentFile.open(QIODevice::ReadOnly)) {
-        QMessageBox::warning(this, tr("Error"),
-            tr("Could not open file: %1").arg(fileName));
+    QString error;
+    auto source = logdor::FileSource::open(fileName, &error);
+    if (!source) {
+        QMessageBox::warning(this, tr("Error"), error);
         return false;
     }
-
-    // Map the entire file into memory
-    m_mappedFile = reinterpret_cast<const char*>(m_currentFile.map(0, m_currentFile.size()));
-    if (!m_mappedFile) {
-        qWarning() << tr("Failed to map file:") << m_currentFile.errorString();
-        return false;
+    if (source->mode() == logdor::FileSource::Mode::Buffered) {
+        qWarning() << "Memory mapping failed for" << fileName
+                   << "- using buffered reads";
     }
 
-    qDebug() << tr("File mapped successfully");
+    m_fileSource = std::move(source);
+    m_pendingFileName = fileName;
+    setWindowTitle(tr("Logdor - %1 (Indexing...)").arg(QFileInfo(fileName).fileName()));
 
-    // Parse the log file into m_logEntries using QtConcurrent
-    const size_t fileSize = m_currentFile.size();
-    const int numThreads = QThread::idealThreadCount();
-    const size_t chunkSize = fileSize / numThreads;
-    
-    // Create chunks to process
-    QList<FileChunk> chunks;
-    const char* chunkStart = m_mappedFile;
-    const char* chunkEnd = m_mappedFile + chunkSize;
-    const char* fileEnd = m_mappedFile + fileSize;
-    for (int i = 0; i < numThreads; ++i) {
-        auto next = reinterpret_cast<const char*>(memchr(chunkEnd, '\n', fileEnd - chunkEnd));
-        if (next) {
-            chunkEnd = next;
-        } else {
-            chunkEnd = fileEnd;
-        }
-        chunks.append({chunkStart, chunkEnd, i == 0});
-        chunkStart = chunkEnd + 1;
-        chunkEnd = chunkStart + chunkSize;
-        if (chunkEnd > fileEnd) {
-            chunkEnd = fileEnd;
-        }
-        if (chunkStart >= fileEnd) {
-            break;
-        }
+    // Reuse the shared progress dialog for the indexing stage; the plugin
+    // processing stage (BackgroundTaskManager) takes it over afterwards.
+    if (m_progressDialog) {
+        m_progressDialog->setTitle(tr("Indexing %1").arg(QFileInfo(fileName).fileName()));
+        m_progressDialog->setDescription(tr("Scanning line boundaries..."));
+        m_progressDialog->setCancelable(true);
+        m_progressDialog->setAutoClose(false);
+        m_progressDialog->setMinimumDuration(1000);
+        m_progressDialog->showProgress();
     }
-    
-    // Process chunks in parallel using QtConcurrent
-    QFuture<QList<QPair<const char*, qsizetype>>> future = 
-        QtConcurrent::mapped(chunks, processChunk);
-    
-    // Wait for all chunks to be processed and combine results
-    future.waitForFinished();
-    
-    m_logEntries.clear();
-    const auto results = future.results();
-    for (const auto& chunkLines : results) {
-        for (const auto& line : chunkLines) {
-            m_logEntries.append(LogEntry(line.first, line.second));
-        }
+
+    m_indexWatcher->setFuture(logdor::buildLineIndex(m_fileSource));
+
+    // true means "open + indexing started"; failures after this point are
+    // reported asynchronously from onIndexingFinished().
+    return true;
+}
+
+void MainWindow::onIndexingProgress(int permille)
+{
+    if (!m_progressDialog || m_pendingFileName.isEmpty()) {
+        return;
     }
-    
-    qDebug() << tr("File parsed successfully");
-    
-    // Check if we should use background processing for plugin data loading
+    ProgressInfo info;
+    info.percentage = permille / 10;
+    info.processedItems = permille;
+    info.totalItems = 1000;
+    info.statusMessage = tr("Scanning line boundaries...");
+    m_progressDialog->updateProgress(info);
+}
+
+void MainWindow::onIndexingFinished()
+{
+    if (m_progressDialog) {
+        m_progressDialog->hideProgress();
+    }
+
+    const QString fileName = m_pendingFileName;
+    m_pendingFileName.clear();
+
+    if (m_indexWatcher->future().isCanceled()) {
+        setWindowTitle(tr("Logdor"));
+        ui->statusbar->showMessage(tr("Indexing cancelled"), 3000);
+        return;
+    }
+
+    const logdor::IndexingResult result = m_indexWatcher->future().result();
+    m_lineIndex = result.index;
+
+    // Legacy plugins consume pointers into one contiguous range. In buffered
+    // mode (mmap failed) that means heap-loading the file once, up front.
+    QString error;
+    if (!m_fileSource->isContiguous() && !m_fileSource->ensureContiguous(&error)) {
+        QMessageBox::warning(this, tr("Error"), error);
+        setWindowTitle(tr("Logdor"));
+        return;
+    }
+
+    m_logEntries = materializeLegacyEntries(*m_fileSource, *m_lineIndex);
+    ui->statusbar->showMessage(tr("Indexed %L1 lines in %2 ms")
+                                   .arg(result.lineCount)
+                                   .arg(result.elapsedMs),
+                               3000);
+
     if (shouldUseBackgroundProcessing(fileName)) {
         processFileInBackground(fileName, m_logEntries);
-        
-        // Update window title immediately
         setWindowTitle(tr("Logdor - %1 (Loading...)").arg(QFileInfo(fileName).fileName()));
-        return true;
     } else {
-        // Process synchronously for small files
-        bool success = m_pluginManager->setLogs(m_logEntries, fileName);
+        const bool success = m_pluginManager->setLogs(m_logEntries, fileName);
         m_pluginManager->setFilter(m_filterOptions);
 
         if (!success) {
             QMessageBox::warning(this, tr("Error"),
                 tr("No plugin was able to load the file: %1").arg(fileName));
+            setWindowTitle(tr("Logdor"));
         } else {
-            // Update window title with the current file name
             setWindowTitle(tr("Logdor - %1").arg(QFileInfo(fileName).fileName()));
         }
-        
-        return success;
     }
 }
 
@@ -704,6 +697,11 @@ void MainWindow::onBackgroundTaskProgressChanged(const QString& taskId, const Pr
 
 void MainWindow::onProgressDialogCancelled()
 {
+    if (m_indexWatcher->isRunning()) {
+        qDebug() << "User cancelled indexing";
+        m_indexWatcher->cancel();
+        return;
+    }
     if (!m_currentBackgroundTaskId.isEmpty() && m_backgroundTaskManager) {
         qDebug() << "User cancelled progress dialog, cancelling background task:" << m_currentBackgroundTaskId;
         m_backgroundTaskManager->cancelTask(m_currentBackgroundTaskId);

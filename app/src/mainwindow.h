@@ -1,12 +1,15 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include <QFile>
+#include <QFutureWatcher>
 #include <QMainWindow>
 #include <QTimer>
 #include <QPushButton>
 #include <QSettings>
 #include "pluginmanager.h"
+#include <logdor/FileSource.h>
+#include <logdor/LineIndex.h>
+#include <logdor/LineIndexer.h>
 #include <memory>
 
 #define FILTER_DEBOUNCE_TIMEOUT_MILLISECONDS 300
@@ -37,6 +40,8 @@ private slots:
     void onActionOpenTriggered();
     void onFilterChanged();
     void onFocusFilterInput();
+    void onIndexingProgress(int permille);
+    void onIndexingFinished();
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -72,8 +77,12 @@ private:
     QMap<QString, QDockWidget*> m_pluginDocks;
     QMap<QString, QAction*> m_pluginActions;
     QMenu* m_pluginsMenu;
-    QFile m_currentFile;
-    const char* m_mappedFile;  // Track the mapped memory
+    // Current file, owned by the core: the source outlives any background
+    // consumer via shared_ptr; entries in m_logEntries point into its bytes.
+    std::shared_ptr<logdor::FileSource> m_fileSource;
+    std::shared_ptr<const logdor::LineIndex> m_lineIndex;
+    QFutureWatcher<logdor::IndexingResult>* m_indexWatcher = nullptr;
+    QString m_pendingFileName;
     QList<LogEntry> m_logEntries;
     FilterOptions m_filterOptions;
     
