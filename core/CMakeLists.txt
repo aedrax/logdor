@@ -5,6 +5,8 @@
 qt_add_library(logdor-core STATIC
     include/logdor/Version.h
     src/Version.cpp
+    include/logdor/LineIndex.h
+    src/LineIndex.cpp
 )
 add_library(Logdor::Core ALIAS logdor-core)
 
