@@ -1,4 +1,4 @@
-add_subdirectory(bookmarkviewer)
+add_subdirectory(annotationviewer)
 add_subdirectory(clfviewer)
 add_subdirectory(csvviewer)
 add_subdirectory(hexdumpviewer)

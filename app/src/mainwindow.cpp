@@ -244,7 +244,12 @@ void MainWindow::loadSettings()
     for (auto it = m_pluginActions.begin(); it != m_pluginActions.end(); ++it) {
         if (hasPluginSettings) {
             // Use saved settings if they exist
-            bool visible = settings.value(it.key() + "/visible", false).toBool();
+            // "Annotations" replaced "Bookmark Viewer"; honor the old key
+            // once so upgrading users keep their panel visibility.
+            const QVariant fallback = it.key() == QLatin1String("Annotations")
+                ? settings.value("Bookmark Viewer/visible", false)
+                : QVariant(false);
+            bool visible = settings.value(it.key() + "/visible", fallback).toBool();
             it.value()->setChecked(visible);
         } else {
             // If no settings exist, only enable plaintextviewer and selectedlineviewer by default
