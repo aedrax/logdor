@@ -39,6 +39,8 @@ add_library(logdor_interface SHARED
     src/formatcatalog.cpp
     src/annotationhub.h
     src/annotationhub.cpp
+    src/annotationdialog.h
+    src/annotationdialog.cpp
 )
 
 target_link_libraries(logdor_interface PUBLIC

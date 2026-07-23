@@ -1,9 +1,13 @@
 #include "logviewerwidget.h"
 
+#include "annotationdialog.h"
+#include "annotationhub.h"
+
 #include <QFontMetrics>
 #include <QHeaderView>
 #include <QItemSelectionModel>
 #include <QLabel>
+#include <QMenu>
 #include <QTableView>
 #include <QVBoxLayout>
 
@@ -40,6 +44,9 @@ LogViewerWidget::LogViewerWidget(QWidget* parent)
     m_view->horizontalHeader()->setSortIndicatorShown(true);
     m_view->horizontalHeader()->setSortIndicator(-1, Qt::AscendingOrder);
 
+    m_view->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_view, &QWidget::customContextMenuRequested,
+            this, &LogViewerWidget::onContextMenuRequested);
     connect(m_view->selectionModel(), &QItemSelectionModel::selectionChanged,
             this, &LogViewerWidget::onSelectionChanged);
     connect(m_view->horizontalHeader(), &QHeaderView::sectionClicked,
@@ -120,6 +127,96 @@ void LogViewerWidget::showStatusStrip(const QString& message)
 void LogViewerWidget::clearSortIndicator()
 {
     m_view->horizontalHeader()->setSortIndicator(-1, Qt::AscendingOrder);
+}
+
+void LogViewerWidget::setAnnotationHub(AnnotationHub* hub)
+{
+    m_annotationHub = hub;
+    m_model->setAnnotationHub(hub);
+}
+
+void LogViewerWidget::onContextMenuRequested(const QPoint& pos)
+{
+    if (!m_annotationHub || !m_annotationHub->hasFile())
+        return;
+
+    QMenu menu(this);
+
+    // Add: one annotation per contiguous run of the selection (annotating a
+    // scattered selection as one min..max range would cover unselected lines).
+    QList<QPair<qint64, qint64>> runs;
+    for (int line : std::as_const(m_lastSelection)) {
+        if (!runs.isEmpty() && runs.last().second + 1 == line)
+            runs.last().second = line;
+        else
+            runs.append({ line, line });
+    }
+    QAction* addAction = menu.addAction(
+        runs.size() > 1 ? tr("Add note to %1 sections...").arg(runs.size())
+                        : tr("Add note..."));
+    addAction->setEnabled(!runs.isEmpty());
+    connect(addAction, &QAction::triggered, this, [this, runs]() {
+        AnnotationDialog dialog(this);
+        if (dialog.exec() != QDialog::Accepted || dialog.note().isEmpty())
+            return;
+        for (const auto& run : runs)
+            m_annotationHub->addAnnotation(run.first, run.second, dialog.note(),
+                                           dialog.color(), dialog.tag());
+    });
+
+    // Edit/Remove for annotations covering the clicked line.
+    const QModelIndex clicked = m_view->indexAt(pos);
+    const qint64 clickedLine =
+        clicked.isValid() ? m_model->sourceLineForRow(clicked.row()) : -1;
+    const auto annotations = clickedLine >= 0
+        ? m_annotationHub->set().annotationsAtLine(clickedLine)
+        : QList<logdor::Annotation>();
+
+    if (!annotations.isEmpty()) {
+        menu.addSeparator();
+        const auto label = [](const logdor::Annotation& annotation) {
+            QString text = annotation.note.left(40).simplified();
+            if (annotation.note.size() > 40)
+                text += QStringLiteral("...");
+            return text;
+        };
+        const auto editAnnotation = [this](logdor::Annotation annotation) {
+            AnnotationDialog dialog(this);
+            dialog.setNote(annotation.note);
+            dialog.setColor(annotation.color);
+            dialog.setTag(annotation.tag);
+            if (dialog.exec() != QDialog::Accepted)
+                return;
+            annotation.note = dialog.note();
+            annotation.color = dialog.color();
+            annotation.tag = dialog.tag();
+            m_annotationHub->updateAnnotation(std::move(annotation));
+        };
+
+        if (annotations.size() == 1) {
+            const logdor::Annotation annotation = annotations.first();
+            connect(menu.addAction(tr("Edit note...")), &QAction::triggered,
+                    this, [editAnnotation, annotation]() { editAnnotation(annotation); });
+            connect(menu.addAction(tr("Remove note")), &QAction::triggered,
+                    this, [this, annotation]() {
+                        m_annotationHub->removeAnnotation(annotation.id);
+                    });
+        } else {
+            QMenu* editMenu = menu.addMenu(tr("Edit note"));
+            QMenu* removeMenu = menu.addMenu(tr("Remove note"));
+            for (const auto& annotation : annotations) {
+                connect(editMenu->addAction(label(annotation)),
+                        &QAction::triggered, this,
+                        [editAnnotation, annotation]() { editAnnotation(annotation); });
+                connect(removeMenu->addAction(label(annotation)),
+                        &QAction::triggered, this, [this, annotation]() {
+                            m_annotationHub->removeAnnotation(annotation.id);
+                        });
+            }
+        }
+    }
+
+    menu.exec(m_view->viewport()->mapToGlobal(pos));
 }
 
 //=== Filtering ===============================================================

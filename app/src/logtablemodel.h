@@ -9,8 +9,11 @@
 #include <QAbstractTableModel>
 #include <QCache>
 #include <QColor>
+#include <QPixmap>
 
 #include <memory>
+
+class AnnotationHub;
 
 /**
  * Schema-driven lazy table model over (FileSource, LineIndex, FormatParser,
@@ -48,6 +51,10 @@ public:
     /// Exact legacy logcat palette; invalid QColor for None (no brush).
     static QColor severityColor(logdor::Severity severity);
 
+    /// Annotated lines get a marker (DecorationRole, No. column) and a
+    /// tooltip (all columns). May be null.
+    void setAnnotationHub(const AnnotationHub* hub);
+
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     int columnCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role) const override;
@@ -65,6 +72,8 @@ private:
     std::vector<qint32> m_order;   // order[viewRow] = rowSetPos; empty = natural
     std::vector<qint32> m_inverse; // inverse[rowSetPos] = viewRow
     mutable QCache<qint64, logdor::ParsedRow> m_cache { 8192 };
+    const AnnotationHub* m_annotationHub = nullptr;
+    mutable QHash<QString, QPixmap> m_markerCache; // per annotation color
 };
 
 #endif // LOGTABLEMODEL_H

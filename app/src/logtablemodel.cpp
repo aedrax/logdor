@@ -1,5 +1,7 @@
 #include "logtablemodel.h"
 
+#include "annotationhub.h"
+
 #include <QFont>
 #include <QFontDatabase>
 
@@ -77,6 +79,23 @@ QColor LogTableModel::severityColor(Severity severity)
     return QColor(); // invalid: no brush
 }
 
+void LogTableModel::setAnnotationHub(const AnnotationHub* hub)
+{
+    if (m_annotationHub)
+        disconnect(m_annotationHub, nullptr, this, nullptr);
+    m_annotationHub = hub;
+    if (m_annotationHub) {
+        connect(m_annotationHub, &AnnotationHub::annotationsChanged, this,
+                [this]() {
+                    if (rowCount() > 0)
+                        emit dataChanged(
+                            index(0, 0),
+                            index(rowCount() - 1, columnCount() - 1),
+                            { Qt::DecorationRole, Qt::ToolTipRole });
+                });
+    }
+}
+
 int LogTableModel::rowCount(const QModelIndex& parent) const
 {
     if (parent.isValid())
@@ -148,6 +167,47 @@ QVariant LogTableModel::data(const QModelIndex& index, int role) const
             && m_schema[column - 1].hint == FieldHint::Message)
             return QFontDatabase::systemFont(QFontDatabase::FixedFont);
         return {};
+
+    case Qt::DecorationRole: {
+        // Marker on the No. column only; one binary-search miss on the
+        // (common) unannotated hot path.
+        if (column != 0 || !m_annotationHub
+            || !m_annotationHub->set().hasAnnotationAtLine(line))
+            return {};
+        const auto annotations = m_annotationHub->set().annotationsAtLine(line);
+        QString color = annotations.first().color;
+        if (color.isEmpty())
+            color = QStringLiteral("#4a90d9"); // default accent
+        QPixmap& marker = m_markerCache[color];
+        if (marker.isNull()) {
+            marker = QPixmap(8, 8);
+            marker.fill(QColor(color));
+        }
+        return marker;
+    }
+
+    case Qt::ToolTipRole: {
+        if (!m_annotationHub
+            || !m_annotationHub->set().hasAnnotationAtLine(line))
+            return {};
+        QStringList parts;
+        for (const auto& annotation :
+             m_annotationHub->set().annotationsAtLine(line)) {
+            QString entry = annotation.note;
+            QStringList meta;
+            if (!annotation.author.isEmpty())
+                meta << annotation.author;
+            if (annotation.modifiedAt.isValid())
+                meta << annotation.modifiedAt.toLocalTime().toString(
+                    QStringLiteral("yyyy-MM-dd hh:mm"));
+            if (!annotation.tag.isEmpty())
+                meta << QStringLiteral("#") + annotation.tag;
+            if (!meta.isEmpty())
+                entry += QStringLiteral("\n— ") + meta.join(QStringLiteral(", "));
+            parts << entry;
+        }
+        return parts.join(QStringLiteral("\n\n"));
+    }
 
     default:
         return {};

@@ -26,6 +26,11 @@ public:
     void setCoreSource(std::shared_ptr<logdor::FileSource> source,
                        std::shared_ptr<const logdor::LineIndex> index) override;
 
+    void setAnnotationHub(AnnotationHub* hub) override
+    {
+        m_viewer->setAnnotationHub(hub);
+    }
+
     bool setLogs(const QList<LogEntry>& content) override;
     void setFilter(const FilterOptions& options) override;
     QList<FieldInfo> availableFields() const override;

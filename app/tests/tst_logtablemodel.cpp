@@ -1,7 +1,10 @@
+#include "../src/annotationhub.h"
 #include "../src/logtablemodel.h"
 
 #include <logdor/FormatRegistry.h>
 #include <logdor/LineIndexer.h>
+
+#include <QSignalSpy>
 
 #include <QAbstractItemModelTester>
 #include <QTemporaryDir>
@@ -161,6 +164,36 @@ private slots:
 
         model.setRowOrder({});
         QCOMPARE(model.sourceLineForRow(0), qint64(1));
+    }
+
+    void annotationRoles()
+    {
+        QTemporaryDir dir;
+        auto o = openContent(dir, "n.log", QByteArray("zero\none\ntwo\n"));
+        LogTableModel model;
+        model.setSource(o.source, o.index, parserById(u"plaintext"));
+
+        AnnotationHub hub;
+        hub.setAuthor(QStringLiteral("paul"));
+        hub.beginFile(o.source, o.index, {});
+        model.setAnnotationHub(&hub);
+
+        QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+        hub.addAnnotation(1, 1, QStringLiteral("important"),
+                          QStringLiteral("#ffd54f"));
+        QVERIFY(changed.count() >= 1);
+
+        // Marker only on the No. column of the annotated row.
+        QVERIFY(model.data(model.index(1, 0), Qt::DecorationRole).isValid());
+        QVERIFY(!model.data(model.index(1, 1), Qt::DecorationRole).isValid());
+        QVERIFY(!model.data(model.index(0, 0), Qt::DecorationRole).isValid());
+
+        // Tooltip on every column of the annotated row, nowhere else.
+        const QString tooltip =
+            model.data(model.index(1, 1), Qt::ToolTipRole).toString();
+        QVERIFY(tooltip.contains("important"));
+        QVERIFY(tooltip.contains("paul"));
+        QVERIFY(!model.data(model.index(0, 1), Qt::ToolTipRole).isValid());
     }
 
     void lruPreventsReparsing()

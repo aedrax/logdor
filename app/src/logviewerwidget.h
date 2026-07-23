@@ -43,6 +43,9 @@ public:
     void setExtraPredicate(std::function<bool(qint64, QByteArrayView)> predicate,
                            bool refilter = true);
 
+    /// Enables annotation markers/tooltips and the note context menu.
+    void setAnnotationHub(AnnotationHub* hub);
+
     LogTableModel* model() const { return m_model; }
     QTableView* tableView() const { return m_view; }
 
@@ -60,6 +63,7 @@ private slots:
     void onExtractFinished();
     void onSortFinished();
     void onHeaderClicked(int section);
+    void onContextMenuRequested(const QPoint& pos);
 
 private:
     void startScan();
@@ -95,6 +99,7 @@ private:
 
     QList<int> m_lastSelection; // source lines, restored after row-set swaps
     bool m_syncing = false;     // echo-loop guard
+    AnnotationHub* m_annotationHub = nullptr;
 };
 
 #endif // LOGVIEWERWIDGET_H
