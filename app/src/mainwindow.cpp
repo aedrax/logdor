@@ -332,6 +332,9 @@ void MainWindow::onIndexingFinished()
     }
 
     m_logEntries = materializeLegacyEntries(*m_fileSource, *m_lineIndex);
+    qDebug() << "Indexed" << result.lineCount << "lines in" << result.elapsedMs
+             << "ms," << (m_fileSource->mode() == logdor::FileSource::Mode::Mapped
+                              ? "mapped" : "buffered");
     ui->statusbar->showMessage(tr("Indexed %L1 lines in %2 ms")
                                    .arg(result.lineCount)
                                    .arg(result.elapsedMs),

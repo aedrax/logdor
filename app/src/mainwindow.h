@@ -36,6 +36,10 @@ public:
     MainWindow(QWidget* parent = nullptr);
     ~MainWindow();
 
+    // Open a log file; returns true when indexing was started (completion is
+    // asynchronous). Also used for files passed on the command line.
+    bool openFile(const QString& fileName);
+
 private slots:
     void onActionOpenTriggered();
     void onFilterChanged();
@@ -58,7 +62,6 @@ private slots:
 
 private:
     void loadPlugins();
-    bool openFile(const QString& fileName);
     void saveSettings();
     void loadSettings();
     

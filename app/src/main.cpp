@@ -11,5 +11,9 @@ int main(int argc, char* argv[])
 
     MainWindow w;
     w.show();
+    const QStringList args = QApplication::arguments();
+    if (args.size() > 1) {
+        w.openFile(args.at(1));
+    }
     return a.exec();
 }

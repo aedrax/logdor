@@ -29,17 +29,23 @@ Logdor provides functionality through a plugin-based architecture. Each plugin s
 
 For detailed information about each plugin's features, please visit the individual plugin README files linked above.
 
+## Architecture
+
+Logdor is split into two layers:
+
+- **`core/` (`logdor-core`)** — the non-GUI functional core: file access
+  (`FileSource`, mmap with buffered fallback), line indexing (`LineIndex`,
+  ~4 bytes/line), and cancellable background index building (`buildLineIndex`).
+  It links QtCore/QtConcurrent only — never QtGui/QtWidgets — enforced by a
+  configure-time link check and CTest guards, so a future TUI can reuse it.
+- **`app/` + `plugins/`** — the Qt Widgets shell and viewer plugins.
+
 ## Building from Source
 
 ### Requirements
-- CMake 3.16 or higher
+- CMake 3.22 or higher
 - Qt 6.8 or higher
-- C++17 compliant compiler
-
-### Dependencies
-- Qt6::Core
-- Qt6::Gui
-- Qt6::Widgets
+- C++20 compliant compiler
 
 ### Build Instructions
 
@@ -57,4 +63,21 @@ cmake --build build/
 ```
 
 The built executable and plugins will be in the `build` directory. Logdor will be in `build/app`
-The plugins will be in `build/plugins/`.
+The plugins will be in `build/plugins/`. You can open a file directly with
+`build/app/logdor /path/to/file.log`.
+
+## Tests and Benchmarks
+
+Unit tests run with CTest:
+```bash
+ctest --test-dir build -L unit --output-on-failure
+```
+
+Performance benchmarks are opt-in (they generate a 1 GiB corpus with the
+bundled `loggen` tool on first run):
+```bash
+cmake -B build -DLOGDOR_ENABLE_BENCH=ON   # add -DLOGDOR_BENCH_LARGE=ON for the 5 GiB corpus
+ctest --test-dir build -L bench --output-on-failure
+```
+Gates: ≥1000 MB/s warm indexing throughput, ≤4.5 bytes/line index memory,
+≤100 ms cancellation latency.
