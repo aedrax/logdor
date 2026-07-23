@@ -5,6 +5,7 @@ set(LOGDOR_CORE_TESTS
     filesource
     lineindexer
     formatparsers
+    formatdetect
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)

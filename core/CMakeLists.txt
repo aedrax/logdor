@@ -18,6 +18,8 @@ qt_add_library(logdor-core STATIC
     src/LogcatParser.cpp
     include/logdor/ClfParser.h
     src/ClfParser.cpp
+    include/logdor/FormatRegistry.h
+    src/FormatRegistry.cpp
 )
 add_library(Logdor::Core ALIAS logdor-core)
 
