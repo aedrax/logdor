@@ -10,6 +10,7 @@ set(LOGDOR_CORE_TESTS
     filterscan
     query
     columnscan
+    formatspec
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)

@@ -29,6 +29,10 @@ qt_add_library(logdor-core STATIC
     src/Query.cpp
     include/logdor/ColumnScan.h
     src/ColumnScan.cpp
+    include/logdor/FormatSpec.h
+    src/FormatSpec.cpp
+    include/logdor/DeclarativeParser.h
+    src/DeclarativeParser.cpp
 )
 add_library(Logdor::Core ALIAS logdor-core)
 
@@ -56,3 +60,13 @@ if(BUILD_TESTING)
     add_subdirectory(tests)
     add_subdirectory(bench)
 endif()
+
+# Bundled declarative format specs: shipped next to the binaries for dev
+# runs, installed as shared data.
+file(GLOB LOGDOR_FORMAT_SPECS ${CMAKE_CURRENT_SOURCE_DIR}/formats/*.json)
+add_custom_target(logdor-formats ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/formats
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LOGDOR_FORMAT_SPECS}
+            ${CMAKE_BINARY_DIR}/formats/
+    COMMENT "Copying bundled format specs")
+install(FILES ${LOGDOR_FORMAT_SPECS} DESTINATION share/logdor/formats)

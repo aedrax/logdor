@@ -1,0 +1,26 @@
+{
+    "id": "keyvalue",
+    "displayName": "Key=Value (logfmt-style)",
+    "pattern": "^ts=(?<ts>\\S+) level=(?<level>\\S+)(?: code=(?<code>\\d+))? msg=\"?(?<msg>[^\"]*)\"?",
+    "fields": [
+        { "name": "Timestamp", "capture": "ts", "type": "datetime", "hint": "timestamp" },
+        { "name": "Level", "capture": "level", "type": "string", "hint": "severityname" },
+        { "name": "Code", "capture": "code", "type": "integer", "hint": "numeric" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
+    ],
+    "severity": {
+        "capture": "level",
+        "map": {
+            "trace": "verbose",
+            "debug": "debug",
+            "info": "info",
+            "warn": "warning",
+            "warning": "warning",
+            "error": "error",
+            "fatal": "fatal",
+            "panic": "fatal"
+        },
+        "default": "none"
+    },
+    "specificity": 0.9
+}

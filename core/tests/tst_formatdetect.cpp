@@ -1,5 +1,7 @@
+#include <logdor/DeclarativeParser.h>
 #include <logdor/FileSource.h>
 #include <logdor/FormatRegistry.h>
+#include <logdor/FormatSpec.h>
 #include <logdor/LineIndexer.h>
 
 #include <QTemporaryDir>
@@ -106,6 +108,31 @@ private slots:
         const auto scores = detectFormat(*o.source, *o.index);
         QVERIFY(!scores.isEmpty());
         QCOMPARE(scores.front().parserId, QStringLiteral("plaintext"));
+    }
+
+    void declarativeParserWinsDetection()
+    {
+        // A spec-defined format outranks plaintext on its own sample via the
+        // parameterized detectFormat overload.
+        const QByteArray specJson =
+            "{ \"id\": \"colonsep\", \"displayName\": \"Colon Separated\","
+            "  \"pattern\": \"^(?<a>\\\\w+)::(?<msg>.*)$\","
+            "  \"fields\": ["
+            "    { \"name\": \"Key\", \"capture\": \"a\" },"
+            "    { \"name\": \"Message\", \"capture\": \"msg\", \"hint\": \"message\" } ] }";
+        FormatSpecError specError;
+        auto spec = parseFormatSpec(specJson, "inline", &specError);
+        QVERIFY2(spec.has_value(), qPrintable(specError.message));
+
+        auto parsers = builtinParsers();
+        parsers.append(std::make_shared<const DeclarativeParser>(std::move(*spec)));
+
+        QTemporaryDir dir;
+        auto o = openContent(dir, "d.log", repeatLines("key::some message", 250));
+        const auto scores = detectFormat(*o.source, *o.index, parsers);
+        QCOMPARE(scores.front().parserId, QStringLiteral("colonsep"));
+        QVERIFY(parserById(u"colonsep", parsers));
+        QVERIFY(!parserById(u"colonsep")); // not a builtin
     }
 
     void emptyLinesAreSkippedInSample()

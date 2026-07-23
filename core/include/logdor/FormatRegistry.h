@@ -20,6 +20,10 @@ QList<std::shared_ptr<const FormatParser>> builtinParsers();
 /// nullptr when unknown.
 std::shared_ptr<const FormatParser> parserById(QStringView id);
 
+/// Same, over an explicit parser list (builtins + declarative formats).
+std::shared_ptr<const FormatParser> parserById(
+    QStringView id, const QList<std::shared_ptr<const FormatParser>>& parsers);
+
 struct FormatScore {
     QString parserId;
     double score = 0.0;
@@ -33,6 +37,11 @@ struct FormatScore {
  * Synchronous and cheap (bounded sample).
  */
 QList<FormatScore> detectFormat(const FileSource& source, const LineIndex& index,
+                                int maxSampleLines = 200);
+
+/// Same, over an explicit parser list (builtins + declarative formats).
+QList<FormatScore> detectFormat(const FileSource& source, const LineIndex& index,
+                                const QList<std::shared_ptr<const FormatParser>>& parsers,
                                 int maxSampleLines = 200);
 
 } // namespace logdor

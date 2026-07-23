@@ -21,7 +21,13 @@ QList<std::shared_ptr<const FormatParser>> builtinParsers()
 
 std::shared_ptr<const FormatParser> parserById(QStringView id)
 {
-    for (auto& parser : builtinParsers()) {
+    return parserById(id, builtinParsers());
+}
+
+std::shared_ptr<const FormatParser> parserById(
+    QStringView id, const QList<std::shared_ptr<const FormatParser>>& parsers)
+{
+    for (const auto& parser : parsers) {
         if (parser->id() == id)
             return parser;
     }
@@ -31,9 +37,14 @@ std::shared_ptr<const FormatParser> parserById(QStringView id)
 QList<FormatScore> detectFormat(const FileSource& source, const LineIndex& index,
                                 int maxSampleLines)
 {
-    constexpr quint64 kSampleByteCap = 1024 * 1024;
+    return detectFormat(source, index, builtinParsers(), maxSampleLines);
+}
 
-    const auto parsers = builtinParsers();
+QList<FormatScore> detectFormat(const FileSource& source, const LineIndex& index,
+                                const QList<std::shared_ptr<const FormatParser>>& parsers,
+                                int maxSampleLines)
+{
+    constexpr quint64 kSampleByteCap = 1024 * 1024;
     QList<qint64> sampleLines;
     sampleLines.reserve(maxSampleLines);
     for (qint64 line = 0; line < index.lineCount()
