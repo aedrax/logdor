@@ -1,107 +1,69 @@
 #include "clfviewer.h"
-#include <QHeaderView>
+
+#include <logdor/FormatRegistry.h>
 
 CLFViewer::CLFViewer(QObject* parent)
     : PluginInterface(parent)
-    , m_tableView(new QTableView)
-    , m_model(new CLFTableModel(this))
+    , m_viewer(new LogViewerWidget())
 {
-    m_tableView->setModel(m_model);
-    m_tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_tableView->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    // Set all columns to resize to contents by default
-    m_tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    
-    // Make the path column stretch to fill available space
-    m_tableView->horizontalHeader()->setSectionResizeMode(CLFColumn::Path, QHeaderView::Stretch);
-    m_tableView->verticalHeader()->hide();
-    m_tableView->setAlternatingRowColors(true);
-
-    connect(m_tableView->selectionModel(), &QItemSelectionModel::selectionChanged,
-            this, &CLFViewer::onSelectionChanged);
+    m_viewer->setParser(logdor::parserById(u"clf"));
+    connect(m_viewer, &LogViewerWidget::linesSelected, this,
+            [this](const QList<int>& lines) {
+                emit pluginEvent(PluginEvent::LinesSelected,
+                                 QVariant::fromValue(lines));
+            });
 }
 
 CLFViewer::~CLFViewer()
 {
-    delete m_tableView;
+    delete m_viewer;
+}
+
+void CLFViewer::setCoreSource(std::shared_ptr<logdor::FileSource> source,
+                              std::shared_ptr<const logdor::LineIndex> index)
+{
+    m_viewer->setCoreSource(std::move(source), std::move(index));
 }
 
 bool CLFViewer::setLogs(const QList<LogEntry>& content)
 {
-    m_model->setLogEntries(content);
+    // Legacy path unused: this plugin is fed through setCoreSource().
+    Q_UNUSED(content)
     return true;
 }
 
 void CLFViewer::setFilter(const FilterOptions& options)
 {
-    m_model->setFilter(options);
+    m_viewer->applyFilter(options);
 }
 
 QList<FieldInfo> CLFViewer::availableFields() const
 {
-    return {
-        {tr("Remote Host"), DataType::String, {}},
-        {tr("Identity"), DataType::String, {}},
-        {tr("User ID"), DataType::String, {}},
-        {tr("Timestamp"), DataType::DateTime, {}},
-        {tr("Method"), DataType::String, {}},
-        {tr("Path"), DataType::String, {}},
-        {tr("Protocol"), DataType::String, {}},
-        {tr("Status"), DataType::Integer, {}},
-        {tr("Bytes"), DataType::Integer, {}}
-    };
+    QList<FieldInfo> fields;
+    const auto schema = m_viewer->model()->parser()->schema();
+    for (const auto& field : schema) {
+        DataType type = DataType::String;
+        if (field.type == logdor::FieldType::Integer)
+            type = DataType::Integer;
+        else if (field.type == logdor::FieldType::DateTime)
+            type = DataType::DateTime;
+        fields.append({ field.name, type, {} });
+    }
+    return fields;
 }
 
 QSet<int> CLFViewer::filteredLines() const
 {
-    QSet<int> filtered;
-    for (int i = 0; i < m_model->rowCount(); ++i) {
-        filtered.insert(m_model->mapToSourceRow(i));
-    }
-    return filtered;
+    return QSet<int>();
 }
 
 void CLFViewer::synchronizeFilteredLines(const QSet<int>& lines)
 {
-    // Not implemented as we use our own filtering
-}
-
-void CLFViewer::onSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected)
-{
-    Q_UNUSED(selected);
-    Q_UNUSED(deselected);
-    
-    QList<int> selectedLines;
-    const auto indexes = m_tableView->selectionModel()->selectedRows();
-    for (const auto& index : indexes) {
-        selectedLines.append(m_model->mapToSourceRow(index.row()));
-    }
-    
-    emit pluginEvent(PluginEvent::LinesSelected, QVariant::fromValue(selectedLines));
+    Q_UNUSED(lines)
 }
 
 void CLFViewer::onPluginEvent(PluginEvent event, const QVariant& data)
 {
-    if (event == PluginEvent::LinesSelected) {
-        QList<int> selectedLines = data.value<QList<int>>();
-        if (selectedLines.isEmpty()) {
-            return;
-        }
-
-        // For all selected lines, select them in the table view
-        QItemSelection selection;
-        for (int line : selectedLines) {
-            const int row = m_model->mapFromSourceRow(line);
-            if (row >= 0) {
-                selection.select(m_model->index(row, 0), 
-                               m_model->index(row, m_model->columnCount() - 1));
-            }
-        }
-        m_tableView->selectionModel()->select(selection, QItemSelectionModel::ClearAndSelect);
-
-        // Scroll to the first selected line
-        if (!selectedLines.isEmpty()) {
-            m_tableView->scrollTo(m_model->index(m_model->mapFromSourceRow(selectedLines.first()), 0));
-        }
-    }
+    if (event == PluginEvent::LinesSelected)
+        m_viewer->selectSourceLines(data.value<QList<int>>());
 }

@@ -3,6 +3,10 @@
 
 #include <QFrame>
 
+class QHBoxLayout;
+class QLabel;
+class QPushButton;
+
 class TagLabel : public QFrame {
     Q_OBJECT
 public:

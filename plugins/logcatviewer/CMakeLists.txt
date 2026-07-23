@@ -7,11 +7,8 @@ qt_add_plugin(logcatviewer
 target_sources(logcatviewer
     PRIVATE
         logcatviewer.cpp
-        logcattablemodel.cpp
-        logcattablemodel.h
         taglabel.cpp
         taglabel.h
-        logcatentry.h
     PUBLIC
         logcatviewer.h
 )
@@ -31,6 +28,7 @@ target_include_directories(logcatviewer
 target_link_libraries(logcatviewer
     PRIVATE
         logdor_interface
+        Logdor::Core
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets

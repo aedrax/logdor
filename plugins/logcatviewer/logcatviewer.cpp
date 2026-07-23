@@ -1,43 +1,80 @@
 #include "logcatviewer.h"
-#include <QHeaderView>
+
+#include "../../app/src/logtablemodel.h"
+#include "taglabel.h"
+
+#include <logdor/FormatRegistry.h>
+#include <logdor/LogcatParser.h>
+
 #include <QIcon>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPainter>
-#include <QRegularExpression>
-#include <QStyle>
-#include <QTextStream>
-#include <algorithm>
-#include <QtConcurrent/QtConcurrent>
+#include <QTableView>
+#include <QtConcurrentRun>
 
-#include "taglabel.h"
-#include "../../app/src/plugindatabasemanager.h"
+namespace {
+
+constexpr qint64 kTagSuggestionLineCap = 100'000;
+
+const char* severityLabel(int severityIndex)
+{
+    switch (logdor::Severity(severityIndex)) {
+    case logdor::Severity::Verbose: return "Verbose";
+    case logdor::Severity::Debug: return "Debug";
+    case logdor::Severity::Info: return "Info";
+    case logdor::Severity::Warning: return "Warning";
+    case logdor::Severity::Error: return "Error";
+    case logdor::Severity::Fatal: return "Fatal";
+    case logdor::Severity::None: break;
+    }
+    return "Unknown";
+}
+
+QColor severityIconColor(int severityIndex)
+{
+    const QColor color =
+        LogTableModel::severityColor(logdor::Severity(severityIndex));
+    return color.isValid() ? color : QColor(255, 255, 255); // Unknown = white
+}
+
+} // namespace
 
 LogcatViewer::LogcatViewer(QObject* parent)
     : PluginInterface(parent)
     , m_container(new QWidget())
     , m_layout(new QVBoxLayout(m_container))
     , m_toolbar(new QToolBar())
-    , m_tableView(new QTableView())
-    , m_model(new LogcatTableModel(this))
+    , m_viewer(new LogViewerWidget())
+    , m_parser(logdor::parserById(u"logcat"))
     , m_tagComboBox(new QComboBox())
     , m_scrollArea(new QScrollArea())
     , m_tagsContainer(new QFrame())
     , m_tagsLayout(new QHBoxLayout(m_tagsContainer))
 {
+    m_levelEnabled.fill(true);
+    m_viewer->setParser(m_parser);
     setupUi();
 
-    // Initialize level filters (all enabled by default)
-    m_levelFilters[LogcatEntry::Level::Verbose] = true;
-    m_levelFilters[LogcatEntry::Level::Debug] = true;
-    m_levelFilters[LogcatEntry::Level::Info] = true;
-    m_levelFilters[LogcatEntry::Level::Warning] = true;
-    m_levelFilters[LogcatEntry::Level::Error] = true;
-    m_levelFilters[LogcatEntry::Level::Fatal] = true;
-    m_levelFilters[LogcatEntry::Level::Unknown] = true;
+    connect(m_viewer, &LogViewerWidget::linesSelected, this,
+            [this](const QList<int>& lines) {
+                emit pluginEvent(PluginEvent::LinesSelected,
+                                 QVariant::fromValue(lines));
+            });
+    connect(&m_tagScanWatcher, &QFutureWatcherBase::finished, this, [this]() {
+        if (m_tagScanWatcher.future().isCanceled()
+            || m_tagScanWatcher.future().resultCount() == 0)
+            return;
+        const QString current = m_tagComboBox->currentText();
+        m_tagComboBox->clear();
+        m_tagComboBox->addItems(m_tagScanWatcher.future().result());
+        m_tagComboBox->setCurrentText(current);
+    });
 }
 
 LogcatViewer::~LogcatViewer()
 {
+    m_tagScanWatcher.cancel();
     delete m_container;
 }
 
@@ -46,68 +83,64 @@ void LogcatViewer::setupUi()
     m_layout->setContentsMargins(0, 0, 0, 0);
     m_layout->addWidget(m_toolbar);
 
-    // Setup toolbar with level filter buttons
     auto createLevelIcon = [](const QColor& color, bool filtered) {
         QPixmap pixmap(16, 16);
         pixmap.fill(color);
-        
         if (filtered) {
             QPainter painter(&pixmap);
             painter.setPen(QPen(Qt::white, 2));
             painter.drawLine(4, 4, 12, 12);
             painter.drawLine(12, 4, 4, 12);
         }
-        
         return QIcon(pixmap);
     };
 
-    auto addLevelAction = [this, createLevelIcon](LogcatEntry::Level level) {
-        QAction* action = new QAction(LogcatEntry::levelToString(level), this);
+    auto addLevelAction = [this, createLevelIcon](int severityIndex) {
+        QAction* action = new QAction(tr(severityLabel(severityIndex)), this);
         action->setCheckable(true);
         action->setChecked(true);
-        QColor color = LogcatEntry::levelColor(level);
+        const QColor color = severityIconColor(severityIndex);
         action->setIcon(createLevelIcon(color, false));
-        connect(action, &QAction::toggled, this, [this, level, action, color, createLevelIcon](bool checked) {
-            action->setIcon(createLevelIcon(color, !checked));
-            toggleLevel(level, checked);
-        });
+        connect(action, &QAction::toggled, this,
+                [this, severityIndex, action, color, createLevelIcon](bool checked) {
+                    action->setIcon(createLevelIcon(color, !checked));
+                    m_levelEnabled[size_t(severityIndex)] = checked;
+                    updatePredicate();
+                });
         m_toolbar->addAction(action);
-        m_levelActions[level] = action;
+        m_levelActions[severityIndex] = action;
     };
 
-    addLevelAction(LogcatEntry::Level::Verbose);
-    addLevelAction(LogcatEntry::Level::Debug);
-    addLevelAction(LogcatEntry::Level::Info);
-    addLevelAction(LogcatEntry::Level::Warning);
-    addLevelAction(LogcatEntry::Level::Error);
-    addLevelAction(LogcatEntry::Level::Fatal);
-    addLevelAction(LogcatEntry::Level::Unknown);
+    // Legacy button order: Verbose..Fatal then Unknown (= severity None).
+    addLevelAction(int(logdor::Severity::Verbose));
+    addLevelAction(int(logdor::Severity::Debug));
+    addLevelAction(int(logdor::Severity::Info));
+    addLevelAction(int(logdor::Severity::Warning));
+    addLevelAction(int(logdor::Severity::Error));
+    addLevelAction(int(logdor::Severity::Fatal));
+    addLevelAction(int(logdor::Severity::None));
 
-    // Setup tag combobox
     m_tagComboBox->setEditable(true);
     m_tagComboBox->setInsertPolicy(QComboBox::InsertAlphabetically);
     m_tagComboBox->setMinimumWidth(200);
     m_tagComboBox->setPlaceholderText(tr("Filter by package/tag..."));
 
-    // Handle Enter key press in the combobox
     connect(m_tagComboBox->lineEdit(), &QLineEdit::returnPressed, this, [this]() {
-        QString tag = m_tagComboBox->currentText().trimmed();
+        const QString tag = m_tagComboBox->currentText().trimmed();
         if (!tag.isEmpty() && !m_selectedTags.contains(tag)) {
             addTagLabel(tag);
             m_tagComboBox->setCurrentText("");
         }
     });
+    connect(m_tagComboBox, QOverload<int>::of(&QComboBox::activated), this,
+            [this](int index) {
+                const QString tag = m_tagComboBox->itemText(index).trimmed();
+                if (!tag.isEmpty() && !m_selectedTags.contains(tag)) {
+                    addTagLabel(tag);
+                    m_tagComboBox->setCurrentText("");
+                }
+            });
 
-    // Handle item activation from dropdown
-    connect(m_tagComboBox, QOverload<int>::of(&QComboBox::activated), this, [this](int index) {
-        QString tag = m_tagComboBox->itemText(index).trimmed();
-        if (!tag.isEmpty() && !m_selectedTags.contains(tag)) {
-            addTagLabel(tag);
-            m_tagComboBox->setCurrentText("");
-        }
-    });
-
-    // Setup scroll area for tags
     m_scrollArea->setWidget(m_tagsContainer);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -115,446 +148,140 @@ void LogcatViewer::setupUi()
     m_scrollArea->setFixedHeight(36);
     m_scrollArea->setFrameStyle(QFrame::NoFrame);
 
-    // Setup tags container
     m_tagsContainer->setStyleSheet("QFrame { background: transparent; }");
     m_tagsLayout->setContentsMargins(0, 0, 0, 0);
     m_tagsLayout->setSpacing(2);
     m_tagsLayout->addStretch();
 
-    // Add tag label, combobox and container to toolbar
     m_toolbar->addSeparator();
-    QLabel* tagLabel = new QLabel(tr("Tags: "));
-    m_toolbar->addWidget(tagLabel);
+    m_toolbar->addWidget(new QLabel(tr("Tags: ")));
     m_toolbar->addWidget(m_tagComboBox);
     m_toolbar->addWidget(m_scrollArea);
 
-    // Setup table view
-    m_tableView->setModel(m_model);
-    m_tableView->horizontalHeader()->setSectionResizeMode(LogcatColumn::Message, QHeaderView::Stretch); // Message column stretches
-    m_tableView->setShowGrid(false);
-    m_tableView->setAlternatingRowColors(false);
-    m_tableView->verticalHeader()->setVisible(false);
-    m_tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_tableView->setSortingEnabled(true);
-    m_tableView->setFont(QFont("Monospace"));
-    m_tableView->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    m_tableView->sortByColumn(LogcatColumn::No, Qt::AscendingOrder);
-    
-    // Connect selection changes to our handler
-    connect(m_tableView->selectionModel(), &QItemSelectionModel::selectionChanged,
-            this, &LogcatViewer::onSelectionChanged);
-
-    connect(m_tableView->horizontalHeader(), &QHeaderView::sortIndicatorChanged,
-            this, &LogcatViewer::handleSort);
-
-    m_layout->addWidget(m_tableView);
+    m_viewer->tableView()->setAlternatingRowColors(false);
+    m_layout->addWidget(m_viewer);
 }
 
 void LogcatViewer::addTagLabel(const QString& tag)
 {
-    if (m_selectedTags.contains(tag)) {
+    if (m_selectedTags.contains(tag))
         return;
-    }
 
     m_selectedTags.insert(tag);
     TagLabel* label = new TagLabel(tag, m_tagsContainer);
-
-    // Insert before the stretch
     m_tagsLayout->insertWidget(m_tagsLayout->count() - 1, label);
 
     connect(label, &TagLabel::removed, this, [this, label, tag]() {
         m_selectedTags.remove(tag);
         m_tagsLayout->removeWidget(label);
         label->deleteLater();
-        updateVisibleRows();
+        updatePredicate();
     });
 
-    updateVisibleRows();
+    updatePredicate();
+}
+
+void LogcatViewer::updatePredicate()
+{
+    const bool allLevels = std::all_of(m_levelEnabled.begin(),
+                                       m_levelEnabled.end(),
+                                       [](bool b) { return b; });
+    if (allLevels && m_selectedTags.isEmpty()) {
+        // No chrome filter: null predicate keeps the empty-query passthrough.
+        m_viewer->setExtraPredicate(nullptr);
+        return;
+    }
+
+    // Captured by value; runs on scan worker threads (parser is stateless).
+    m_viewer->setExtraPredicate(
+        [levels = m_levelEnabled, tags = m_selectedTags, parser = m_parser](
+            qint64, QByteArrayView raw) {
+            logdor::ParsedRow row;
+            parser->parseLine(raw, row);
+            if (!levels[size_t(row.severity)])
+                return false;
+            return tags.isEmpty()
+                || tags.contains(row.fields[logdor::LogcatParser::Tag]);
+        });
+}
+
+void LogcatViewer::setCoreSource(std::shared_ptr<logdor::FileSource> source,
+                                 std::shared_ptr<const logdor::LineIndex> index)
+{
+    m_tagScanWatcher.cancel();
+    m_source = std::move(source);
+    m_index = std::move(index);
+    m_viewer->setCoreSource(m_source, m_index);
+    m_tagComboBox->clear();
+    if (m_source && m_index)
+        startTagSuggestionScan();
+}
+
+void LogcatViewer::startTagSuggestionScan()
+{
+    // Suggestions come from the first 100k lines, off-thread — full-file tag
+    // enumeration contradicts the lazy architecture; any tag can still be
+    // typed manually.
+    auto source = m_source;
+    auto index = m_index;
+    auto parser = m_parser;
+    m_tagScanWatcher.setFuture(QtConcurrent::run(
+        [source, index, parser](QPromise<QStringList>& promise) {
+            const qint64 cap = qMin(index->lineCount(), kTagSuggestionLineCap);
+            QSet<QString> tags;
+            logdor::ParsedRow row;
+            for (qint64 line = 0; line < cap; ++line) {
+                if ((line & 1023) == 0 && promise.isCanceled())
+                    return;
+                const QByteArray raw = source->read(index->offsetOf(line),
+                                                    index->lengthOf(line));
+                parser->parseLine(QByteArrayView(raw), row);
+                if (row.ok && !row.fields[logdor::LogcatParser::Tag].isEmpty())
+                    tags.insert(row.fields[logdor::LogcatParser::Tag]);
+            }
+            QStringList sorted(tags.begin(), tags.end());
+            std::sort(sorted.begin(), sorted.end());
+            promise.addResult(sorted);
+        }));
 }
 
 bool LogcatViewer::setLogs(const QList<LogEntry>& content)
 {
-    qDebug() << "LogcatViewer::setLogs called with" << content.size() << "entries";
-    m_entries = content;
-    m_logs = content; // Store for potential fallback use
-    
-    // Configure table model for database or in-memory mode
-    if (databaseManager() && databaseManager()->isReady() && !databaseManager()->hasFallbackMode()) {
-        // Set up database mode
-        m_model->setDatabaseManager(databaseManager());
-        m_model->setDatabaseMode(true);
-        
-        // Parse and insert data into database
-        QList<QVariantList> batchData;
-        QList<int> lineNumbers;
-        
-        for (int i = 0; i < content.size(); ++i) {
-            QVariantList record = parseToDatabaseRecord(content[i], i);
-            batchData.append(record);
-            lineNumbers.append(i);
-        }
-        
-        // Insert batch data into database
-        if (!databaseManager()->insertBatchData("logcatviewer", batchData, lineNumbers)) {
-            qWarning() << "Failed to insert logcat data into database, falling back to in-memory storage";
-            // Fall back to in-memory storage
-            m_model->setDatabaseMode(false);
-            m_model->setLogEntries(content);
-            
-            // Emit fallback notification
-            emit pluginEvent(PluginEvent::Custom, 
-                QVariantMap{
-                    {"type", "fallback_to_memory"}, 
-                    {"message", "Database insertion failed, using in-memory storage"}
-                });
-        } else {
-            qDebug() << "Successfully inserted" << content.size() << "logcat entries into database";
-            // Refresh model from database
-            m_model->setDatabaseFilter(m_filterOptions);
-        }
-    } else {
-        // Use in-memory storage (either no database manager, not ready, or in fallback mode)
-        if (databaseManager() && databaseManager()->hasFallbackMode()) {
-            qDebug() << "Database manager in fallback mode, using in-memory storage";
-        }
-        m_model->setDatabaseMode(false);
-        m_model->setLogEntries(content);
-    }
-
-    // Clear selected tags
-    while (m_tagsLayout->count() > 1) { // Keep the stretch
-        QLayoutItem* item = m_tagsLayout->takeAt(0);
-        if (QWidget* widget = item->widget()) {
-            widget->deleteLater();
-        }
-        delete item;
-    }
-    m_selectedTags.clear();
-
-    // Start background tag population
-    QFuture<QSet<QString>> future = QtConcurrent::run([this]() {
-        return getUniqueTags();
-    });
-
-    QFutureWatcher<QSet<QString>>* watcher = new QFutureWatcher<QSet<QString>>(this);
-    connect(watcher, &QFutureWatcher<QSet<QString>>::finished, this, [this, watcher]() {
-        QSet<QString> tagSet = watcher->result();
-        QList<QString> tags = tagSet.values();
-        std::sort(tags.begin(), tags.end());
-        
-        m_tagComboBox->clear();
-        for (const QString& tag : tags) {
-            m_tagComboBox->addItem(tag);
-        }
-        
-        watcher->deleteLater();
-    });
-
-    watcher->setFuture(future);
+    // Legacy path unused: this plugin is fed through setCoreSource().
+    Q_UNUSED(content)
     return true;
-}
-
-void LogcatViewer::toggleLevel(LogcatEntry::Level level, bool enabled)
-{
-    m_levelFilters[level] = enabled;
-    updateVisibleRows();
-}
-
-void LogcatViewer::updateVisibleRows()
-{
-    // Use database queries if available, otherwise fall back to in-memory filtering
-    if (databaseManager() && databaseManager()->isReady()) {
-        // In database mode, update the filter in the model
-        // The model will handle querying and filtering
-        m_model->setDatabaseFilter(m_filterOptions);
-    } else {
-        // Fall back to in-memory filtering
-        QSet<int> linesToShow;
-        for (int i = 0; i < m_entries.size(); ++i) {
-            LogcatEntry entry(m_entries[i]);
-            if (matchesFilter(entry)) {
-                // Add context lines before
-                for (int j = std::max(0, i - m_filterOptions.contextLinesBefore); j < i; ++j) {
-                    linesToShow.insert(j);
-                }
-                
-                // Add the matching line
-                linesToShow.insert(i);
-                
-                // Add context lines after
-                for (int j = i + 1; j <= std::min<int>(m_entries.size() - 1, i + m_filterOptions.contextLinesAfter); ++j) {
-                    linesToShow.insert(j);
-                }
-            }
-        }
-        m_model->setVisibleRows(linesToShow.values().toVector());
-    }
 }
 
 void LogcatViewer::setFilter(const FilterOptions& options)
 {
-    m_filterOptions = options;
-    updateVisibleRows();
+    m_viewer->applyFilter(options);
 }
 
 QList<FieldInfo> LogcatViewer::availableFields() const
 {
     return QList<FieldInfo>({
-        {"No.", DataType::Integer},
-        {"Time", DataType::DateTime},
-        {"PID", DataType::Integer},
-        {"TID", DataType::Integer},
-        {"Level", DataType::String, QList<QVariant>({
-            "Verbose", "Debug", "Info", "Warning", "Error", "Fatal", "Unknown"
-        })},
-        {"Tag", DataType::String},
-        {"Message", DataType::String}
+        { tr("No."), DataType::Integer },
+        { tr("Time"), DataType::DateTime },
+        { tr("PID"), DataType::Integer },
+        { tr("TID"), DataType::Integer },
+        { tr("Level"), DataType::String },
+        { tr("Tag"), DataType::String },
+        { tr("Message"), DataType::String },
     });
 }
 
 QSet<int> LogcatViewer::filteredLines() const
 {
-    // TODO: Implement this method to return the indices of filtered out lines
-    // For now, we return an empty set
     return QSet<int>();
 }
 
 void LogcatViewer::synchronizeFilteredLines(const QSet<int>& lines)
 {
-    // TODO: Implement this method to synchronize filtered lines with other plugins
-    // For now, we do nothing
-    Q_UNUSED(lines);
-}
-
-void LogcatViewer::handleSort(int column, Qt::SortOrder order)
-{
-    m_model->sort(column, order);
-}
-
-void LogcatViewer::onSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected)
-{
-    Q_UNUSED(deselected);
-    Q_UNUSED(selected);
-    
-    QList<int> selectedLines;
-    const auto indexes = m_tableView->selectionModel()->selectedRows();
-    for (const auto& index : indexes) {
-        selectedLines.append(m_model->mapToSourceRow(index.row()));
-    }
-    
-    emit pluginEvent(PluginEvent::LinesSelected, QVariant::fromValue(selectedLines));
+    Q_UNUSED(lines)
 }
 
 void LogcatViewer::onPluginEvent(PluginEvent event, const QVariant& data)
 {
-    if (event == PluginEvent::LinesSelected) {
-        QList<int> selectedLines = data.value<QList<int>>();
-        if (selectedLines.isEmpty()) {
-            return;
-        }
-
-        // For all selected lines, select them in the table view
-        QItemSelection selection;
-        for (int line : selectedLines) {
-            const int row = m_model->mapFromSourceRow(line);
-            selection.select(m_model->index(row, LogcatColumn::No), m_model->index(row, LogcatColumn::Message));
-        }
-        m_tableView->selectionModel()->select(selection, QItemSelectionModel::ClearAndSelect);
-
-        // Scroll to the first selected line
-        if (!selectedLines.isEmpty()) {
-            m_tableView->scrollTo(m_model->index(m_model->mapFromSourceRow(selectedLines.first()), 0));
-        }
-    }
-}
-
-QSet<QString> LogcatViewer::getUniqueTags() const
-{
-    // Reduce function that safely combines tags into the result set
-    auto reduceTags = [](QSet<QString>& result, const QString& tag) {
-        if (!tag.isEmpty()) {
-            result.insert(tag);
-        }
-        return result;
-    };
-
-    // Process entries and reduce results in parallel
-    return QtConcurrent::blockingMappedReduced<QSet<QString>>(
-        m_entries,
-        // Map function to extract tags
-        [this](const LogEntry& entry) {
-            LogcatEntry logcatEntry(entry);
-            return logcatEntry.tag;
-        },
-        // Reduce function to combine results
-        reduceTags,
-        // Use parallel reduction
-        QtConcurrent::ReduceOption::UnorderedReduce
-    );
-}
-
-bool LogcatViewer::matchesFilter(const LogcatEntry& entry) const
-{
-    // Check level filter
-    if (!m_levelFilters.value(entry.level, true)) {
-        return false;
-    }
-
-    // Check tag filters
-    if (!m_selectedTags.isEmpty() && !m_selectedTags.contains(entry.tag)) {
-        return false;
-    }
-
-    // Check text filter
-    if (!m_filterOptions.query.isEmpty()) {
-        bool matches;
-        
-        if (m_filterOptions.inRegexMode) {
-            // Regex mode
-            QRegularExpression::PatternOptions patternOptions = QRegularExpression::NoPatternOption;
-            if (m_filterOptions.caseSensitivity == Qt::CaseInsensitive) {
-                patternOptions |= QRegularExpression::CaseInsensitiveOption;
-            }
-            QRegularExpression regex(m_filterOptions.query, patternOptions);
-            matches = regex.match(entry.message).hasMatch();
-        } else {
-            // Normal text search mode
-            matches = entry.message.contains(m_filterOptions.query, m_filterOptions.caseSensitivity);
-        }
-        
-        if (matches == m_filterOptions.invertFilter) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-QList<FieldInfo> LogcatViewer::getDatabaseSchema() const
-{
-    return QList<FieldInfo>({
-        {"timestamp", DataType::String},      // Logcat timestamp as string
-        {"pid", DataType::String},            // Process ID as string (can be empty)
-        {"tid", DataType::String},            // Thread ID as string (can be empty)
-        {"level", DataType::String, QList<QVariant>({
-            "Verbose", "Debug", "Info", "Warning", "Error", "Fatal", "Unknown"
-        })},                                  // Log level
-        {"tag", DataType::String},            // Tag/package name
-        {"message", DataType::String}         // Log message content
-    });
-}
-
-QVariantList LogcatViewer::parseToDatabaseRecord(const LogEntry& entry, int lineNumber) const
-{
-    Q_UNUSED(lineNumber); // Line number is handled by PluginDatabaseManager
-    
-    LogcatEntry logcatEntry(entry);
-    
-    QVariantList record;
-    record.append(logcatEntry.timestamp);                           // timestamp
-    record.append(logcatEntry.pid);                                 // pid
-    record.append(logcatEntry.tid);                                 // tid
-    record.append(LogcatEntry::levelToString(logcatEntry.level));   // level
-    record.append(logcatEntry.tag);                                 // tag
-    record.append(logcatEntry.message);                             // message
-    
-    return record;
-}
-
-bool LogcatViewer::setDatabaseManager(PluginDatabaseManager* manager)
-{
-    if (PluginInterface::setDatabaseManager(manager)) {
-        // Database manager successfully set
-        return true;
-    }
-    return false;
-}
-
-bool LogcatViewer::initializeDatabase()
-{
-    if (!databaseManager() || !databaseManager()->isReady()) {
-        return false;
-    }
-    
-    // Create plugin table with our schema
-    QList<FieldInfo> schema = getDatabaseSchema();
-    return databaseManager()->createPluginTable("logcatviewer", schema);
-}
-
-void LogcatViewer::cleanupDatabase()
-{
-    // No specific cleanup needed for LogcatViewer
-    // Base class handles database manager cleanup
-}
-
-void LogcatViewer::onDatabaseError(const QString& error)
-{
-    qWarning() << "LogcatViewer database error:" << error;
-    
-    // Check if database manager is in fallback mode
-    if (databaseManager() && databaseManager()->hasFallbackMode()) {
-        qDebug() << "Database manager in fallback mode, switching to in-memory storage";
-        
-        // Switch table model to in-memory mode
-        if (m_model) {
-            m_model->setDatabaseMode(false);
-            
-            // If we have logs loaded, reload them in memory mode
-            if (!m_logs.isEmpty()) {
-                m_model->setLogEntries(m_logs);
-                applyCurrentFilters();
-            }
-        }
-        
-        // Emit plugin event to notify UI
-        emit pluginEvent(PluginEvent::Custom, 
-            QVariantMap{
-                {"type", "fallback_mode_enabled"}, 
-                {"message", "Switched to in-memory storage due to database issues"},
-                {"reason", error}
-            });
-    }
-    
-    // Call base implementation to emit plugin event
-    PluginInterface::onDatabaseError(error);
-}
-
-bool LogcatViewer::matchesLevelAndTagFilters(const LogcatEntry& entry) const
-{
-    // Check level filter
-    if (!m_levelFilters.value(entry.level, true)) {
-        return false;
-    }
-
-    // Check tag filters
-    if (!m_selectedTags.isEmpty() && !m_selectedTags.contains(entry.tag)) {
-        return false;
-    }
-
-    return true;
-}
-
-bool LogcatViewer::hasLevelOrTagFilters() const
-{
-    // Check if any level is disabled
-    for (auto it = m_levelFilters.begin(); it != m_levelFilters.end(); ++it) {
-        if (!it.value()) {
-            return true;
-        }
-    }
-    
-    // Check if any tags are selected
-    return !m_selectedTags.isEmpty();
-}
-void LogcatViewer::applyCurrentFilters()
-{
-    // Apply current filter options to the model
-    if (m_model) {
-        if (m_model->isDatabaseMode()) {
-            m_model->setDatabaseFilter(m_filterOptions);
-        } else {
-            // For in-memory mode, trigger filter update
-            updateVisibleRows();
-        }
-    }
+    if (event == PluginEvent::LinesSelected)
+        m_viewer->selectSourceLines(data.value<QList<int>>());
 }

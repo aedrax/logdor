@@ -1,12 +1,10 @@
 #ifndef CLFVIEWER_H
 #define CLFVIEWER_H
 
+#include "../../app/src/logviewerwidget.h"
 #include "../../app/src/plugininterface.h"
-#include "clftablemodel.h"
-#include <QTableView>
-#include <QString>
+
 #include <QtPlugin>
-#include <QItemSelection>
 
 class CLFViewer : public PluginInterface {
     Q_OBJECT
@@ -16,11 +14,15 @@ public:
     explicit CLFViewer(QObject* parent = nullptr);
     ~CLFViewer();
 
-    // PluginInterface implementation
     QString name() const override { return tr("Common Log Format Viewer"); }
-    QString version() const override { return "0.1.0"; }
+    QString version() const override { return "0.2.0"; }
     QString description() const override { return tr("A viewer for Common Log Format (CLF) logs."); }
-    QWidget* widget() override { return m_tableView; }
+    QWidget* widget() override { return m_viewer; }
+
+    bool wantsCoreSource() const override { return true; }
+    void setCoreSource(std::shared_ptr<logdor::FileSource> source,
+                       std::shared_ptr<const logdor::LineIndex> index) override;
+
     bool setLogs(const QList<LogEntry>& content) override;
     void setFilter(const FilterOptions& options) override;
     QList<FieldInfo> availableFields() const override;
@@ -30,12 +32,8 @@ public:
 public slots:
     void onPluginEvent(PluginEvent event, const QVariant& data) override;
 
-private slots:
-    void onSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected);
-
 private:
-    QTableView* m_tableView;
-    CLFTableModel* m_model;
+    LogViewerWidget* m_viewer;
 };
 
 #endif // CLFVIEWER_H

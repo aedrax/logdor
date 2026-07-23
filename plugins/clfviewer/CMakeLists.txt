@@ -6,9 +6,6 @@ qt_add_plugin(commonlogformatviewer
 
 target_sources(commonlogformatviewer
     PRIVATE
-        clfentry.h
-        clftablemodel.cpp
-        clftablemodel.h
         clfviewer.cpp
         clfviewer.h
 )
@@ -28,6 +25,7 @@ target_include_directories(commonlogformatviewer
 target_link_libraries(commonlogformatviewer
     PRIVATE
         logdor_interface
+        Logdor::Core
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
