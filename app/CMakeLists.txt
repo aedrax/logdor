@@ -37,6 +37,8 @@ add_library(logdor_interface SHARED
     src/logviewerwidget.cpp
     src/formatcatalog.h
     src/formatcatalog.cpp
+    src/annotationhub.h
+    src/annotationhub.cpp
 )
 
 target_link_libraries(logdor_interface PUBLIC
@@ -48,12 +50,14 @@ target_link_libraries(logdor_interface PUBLIC
 )
 
 if(BUILD_TESTING)
-    qt_add_executable(tst_logtablemodel tests/tst_logtablemodel.cpp)
-    target_link_libraries(tst_logtablemodel PRIVATE
-        logdor_interface Logdor::Core Qt6::Test Qt6::Widgets)
-    add_test(NAME app.logtablemodel COMMAND tst_logtablemodel)
-    set_tests_properties(app.logtablemodel PROPERTIES LABELS "unit"
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    foreach(t logtablemodel annotationhub)
+        qt_add_executable(tst_${t} tests/tst_${t}.cpp)
+        target_link_libraries(tst_${t} PRIVATE
+            logdor_interface Logdor::Core Qt6::Test Qt6::Widgets)
+        add_test(NAME app.${t} COMMAND tst_${t})
+        set_tests_properties(app.${t} PROPERTIES LABELS "unit"
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
 endif()
 
 # Main executable

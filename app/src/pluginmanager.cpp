@@ -211,6 +211,16 @@ void PluginManager::setCoreSource(std::shared_ptr<logdor::FileSource> source,
     }
 }
 
+void PluginManager::setAnnotationHub(AnnotationHub* hub)
+{
+    for (QPluginLoader* loader : m_pluginLoaders) {
+        if (QObject* instance = loader->instance()) {
+            if (auto* plugin = qobject_cast<PluginInterface*>(instance))
+                plugin->setAnnotationHub(hub);
+        }
+    }
+}
+
 bool PluginManager::anyEnabledLegacyPlugin() const
 {
     const auto plugins = enabledPlugins();

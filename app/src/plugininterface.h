@@ -11,8 +11,9 @@
 
 #include <memory>
 
-// Forward declaration to avoid circular dependency
+// Forward declarations to avoid circular dependencies
 class PluginDatabaseManager;
+class AnnotationHub;
 
 struct LogEntry {
     const char* message;
@@ -125,6 +126,11 @@ public:
         Q_UNUSED(index)
     }
 
+    // Shared annotation state for the current file (notes on lines/ranges).
+    // Called once at startup on the GUI thread; the pointer stays valid for
+    // the application lifetime.
+    virtual void setAnnotationHub(AnnotationHub* hub) { Q_UNUSED(hub) }
+
     // Apply filter options to the logs
     virtual void setFilter(const FilterOptions& options) = 0;
 
@@ -200,8 +206,8 @@ protected:
 };
 
 // Define the plugin interface ID
-// /2.0: core-source path added; stale /1.0 binaries must fail to load.
-#define PluginInterface_iid "com.logdor.PluginInterface/2.0"
+// /2.1: setAnnotationHub added (vtable change); stale binaries must fail to load.
+#define PluginInterface_iid "com.logdor.PluginInterface/2.1"
 Q_DECLARE_INTERFACE(PluginInterface, PluginInterface_iid)
 
 #endif // PLUGININTERFACE_H

@@ -43,6 +43,10 @@ public:
     // True when any enabled plugin still needs the legacy QList<LogEntry>.
     bool anyEnabledLegacyPlugin() const;
 
+    // Hand the shared annotation hub to ALL loaded plugins (pointer is
+    // stable for the app lifetime, so disabled plugins get it too).
+    void setAnnotationHub(AnnotationHub* hub);
+
     // Set filter for all enabled plugins
     void setFilter(const FilterOptions& options);
     
