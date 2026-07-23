@@ -19,7 +19,8 @@ struct ChunkShard {
 ChunkShard scanChunk(const FileSource& source, const LineIndex& index,
                      const FormatParser& parser, const QList<int>& columns,
                      const QList<FieldType>& columnTypes, bool wantSeverity,
-                     qint64 first, qint64 end)
+                     qint64 first, qint64 end,
+                     const QPromise<ColumnScanResult>& promise)
 {
     ChunkShard shard;
     shard.builders.reserve(columns.size());
@@ -45,6 +46,11 @@ ChunkShard scanChunk(const FileSource& source, const LineIndex& index,
 
     ParsedRow row;
     for (qint64 line = first; line < end; ++line) {
+        // Parsing is much slower than filtering; honor cancel mid-chunk so
+        // latency stays bounded by ~4k parses, not a whole super-chunk.
+        // A truncated shard is fine — a cancelled scan discards everything.
+        if ((line & 4095) == 0 && promise.isCanceled())
+            return shard;
         const QByteArrayView raw(base + (index.offsetOf(line) - baseOffset),
                                  index.lengthOf(line));
         parser.parseLine(raw, row);
@@ -150,7 +156,8 @@ QFuture<ColumnScanResult> extractColumns(
             auto chunkShards = QtConcurrent::blockingMapped(ranges,
                 std::function<ChunkShard(const Range&)>([&](const Range& r) {
                     return scanChunk(*source, *index, *parser, columns,
-                                     columnTypes, wantSeverity, r.first, r.end);
+                                     columnTypes, wantSeverity, r.first, r.end,
+                                     promise);
                 }));
             for (auto& shard : chunkShards)
                 shards.append(std::move(shard));

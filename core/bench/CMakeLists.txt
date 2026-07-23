@@ -8,6 +8,9 @@ target_link_libraries(bench_index PRIVATE Logdor::Core)
 add_executable(bench_filter bench_filter.cpp)
 target_link_libraries(bench_filter PRIVATE Logdor::Core)
 
+add_executable(bench_query bench_query.cpp)
+target_link_libraries(bench_query PRIVATE Logdor::Core)
+
 set(BENCH_DATA ${CMAKE_BINARY_DIR}/bench-data)
 
 add_test(NAME bench.generate_1g
@@ -44,9 +47,22 @@ add_test(NAME bench.filter_regex_1g
 set_tests_properties(bench.filter_1g bench.filter_regex_1g PROPERTIES
     FIXTURES_REQUIRED benchdata_1g LABELS "bench" TIMEOUT 600)
 
+add_test(NAME bench.generate_logcat_1g
+    COMMAND loggen --format logcat --bytes 1G --seed 44
+            --out ${BENCH_DATA}/logcat-1g.log)
+add_test(NAME bench.query_1g
+    COMMAND bench_query ${BENCH_DATA}/logcat-1g.log
+            --query "level:error tag:Wifi*"
+            --min-extract-mbps 50 --max-warm-ms 500 --check-cancel-ms 150)
+set_tests_properties(bench.generate_logcat_1g PROPERTIES
+    FIXTURES_SETUP benchdata_logcat_1g LABELS "bench" TIMEOUT 600)
+set_tests_properties(bench.query_1g PROPERTIES
+    FIXTURES_REQUIRED benchdata_logcat_1g LABELS "bench" TIMEOUT 600)
+
 if(NOT LOGDOR_ENABLE_BENCH)
     set_tests_properties(bench.generate_1g bench.index_1g
         bench.filter_1g bench.filter_regex_1g
+        bench.generate_logcat_1g bench.query_1g
         PROPERTIES DISABLED TRUE)
 endif()
 if(NOT LOGDOR_ENABLE_BENCH OR NOT LOGDOR_BENCH_LARGE)

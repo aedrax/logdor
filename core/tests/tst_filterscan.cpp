@@ -1,6 +1,9 @@
+#include <logdor/ColumnScan.h>
 #include <logdor/FileSource.h>
 #include <logdor/FilterScan.h>
+#include <logdor/FormatRegistry.h>
 #include <logdor/LineIndexer.h>
+#include <logdor/LogcatParser.h>
 
 #include <QRegularExpression>
 #include <QTemporaryDir>
@@ -239,6 +242,102 @@ private slots:
         f.query = " "; // present in every corpus line
         const auto result = runScan(o, f);
         QVERIFY(result.rows.isAll());
+    }
+
+    void fieldQueryMatchesReference_data()
+    {
+        QTest::addColumn<QString>("query");
+        QTest::addColumn<bool>("invert");
+        QTest::addColumn<int>("before");
+        QTest::addColumn<int>("after");
+        QTest::addColumn<bool>("withExtra");
+
+        QTest::newRow("severity") << "level:error" << false << 0 << 0 << false;
+        QTest::newRow("severity-order") << "level>=warning" << false << 0 << 0 << false;
+        QTest::newRow("tag-wildcard") << "tag:Tag1* OR tag:Tag3*" << false << 0 << 0 << false;
+        QTest::newRow("int-range") << "pid>=150 pid<250" << false << 0 << 0 << false;
+        QTest::newRow("mixed-freetext") << "level:error \"message 1\"" << false << 0 << 0 << false;
+        QTest::newRow("invert") << "level:error" << true << 0 << 0 << false;
+        QTest::newRow("context") << "level:fatal" << false << 2 << 1 << false;
+        QTest::newRow("with-extra") << "pid>=100" << false << 0 << 0 << true;
+    }
+
+    void fieldQueryMatchesReference()
+    {
+        QFETCH(QString, query);
+        QFETCH(bool, invert);
+        QFETCH(int, before);
+        QFETCH(int, after);
+        QFETCH(bool, withExtra);
+
+        QTemporaryDir dir;
+        QByteArray corpus;
+        const char levels[] = "VDIWEF";
+        for (int i = 0; i < 400; ++i) {
+            if (i % 13 == 12) {
+                corpus += "raw fallback " + QByteArray::number(i) + "\n";
+                continue;
+            }
+            corpus += "01-01 10:00:00.000 " + QByteArray::number(100 + i) + " "
+                + QByteArray::number(i) + " ";
+            corpus += levels[i % 6];
+            corpus += " Tag" + QByteArray::number(i % 5) + ": message "
+                + QByteArray::number(i) + "\n";
+        }
+        auto o = openContent(dir, "q.log", corpus);
+        auto parser = parserById(u"logcat");
+
+        QueryError error;
+        auto compiled = CompiledQuery::compile(query, parser->schema(),
+                                               Qt::CaseInsensitive, {}, &error);
+        QVERIFY2(compiled, qPrintable(error.message));
+
+        auto extract = extractColumns(o.source, o.index, parser,
+                                      compiled->referencedColumns(),
+                                      compiled->needsSeverity(), 17);
+        extract.waitForFinished();
+        const auto columns = extract.result();
+
+        LineFilter filter;
+        filter.fieldQuery = compiled;
+        filter.columns.columns = columns.columns;
+        filter.columns.severity = columns.severity;
+        filter.invert = invert;
+        filter.contextBefore = before;
+        filter.contextAfter = after;
+        if (withExtra)
+            filter.extraPredicate = [](qint64 line, QByteArrayView) {
+                return line % 2 == 0;
+            };
+
+        auto scan = scanFilter(o.source, o.index, filter, 7);
+        scan.waitForFinished();
+        const FilterScanResult result = scan.result();
+
+        // Single-threaded reference over the same compiled query.
+        QList<qint32> refMatches;
+        for (qint32 i = 0; i < qint32(o.lines.size()); ++i) {
+            const QByteArray raw = o.lines[i].toUtf8();
+            bool match = compiled->evaluate(i, QByteArrayView(raw),
+                                            filter.columns) != invert;
+            if (match && filter.extraPredicate)
+                match = filter.extraPredicate(i, QByteArrayView(raw));
+            if (match)
+                refMatches << i;
+        }
+        QSet<qint32> visible;
+        for (qint32 m : refMatches) {
+            for (qint32 l = qMax(0, m - before);
+                 l <= qMin(qint32(o.lines.size()) - 1, m + after); ++l)
+                visible.insert(l);
+        }
+        QList<qint32> expected(visible.begin(), visible.end());
+        std::sort(expected.begin(), expected.end());
+
+        QCOMPARE(result.matchCount, qint64(refMatches.size()));
+        QCOMPARE(result.rows.size(), qint64(expected.size()));
+        for (qint64 row = 0; row < result.rows.size(); ++row)
+            QCOMPARE(result.rows.sourceLine(row), qint64(expected[int(row)]));
     }
 
     void cancellationProducesNoResult()

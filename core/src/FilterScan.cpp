@@ -40,8 +40,15 @@ std::vector<qint32> scanRange(const FileSource& source, const LineIndex& index,
     for (qint64 line = first; line < end; ++line) {
         const QByteArrayView raw(base + (index.offsetOf(line) - baseOffset),
                                  index.lengthOf(line));
-        // Empty query ignores invert (legacy); with a query, XOR applies.
-        bool match = queryEmpty || (matcher.textMatches(raw) != filter.invert);
+        bool match;
+        if (filter.fieldQuery) {
+            // Query mode: the compiled query replaces the plain text match.
+            match = filter.fieldQuery->evaluate(line, raw, filter.columns)
+                != filter.invert;
+        } else {
+            // Empty query ignores invert (legacy); with a query, XOR applies.
+            match = queryEmpty || (matcher.textMatches(raw) != filter.invert);
+        }
         if (match && filter.extraPredicate)
             match = filter.extraPredicate(line, raw);
         if (match)
@@ -79,6 +86,9 @@ QFuture<FilterScanResult> scanFilter(std::shared_ptr<FileSource> source,
 {
     Q_ASSERT(source && index);
     Q_ASSERT(linesPerChunk > 0);
+    Q_ASSERT(!filter.fieldQuery
+             || filter.columns.covers(filter.fieldQuery->referencedColumns(),
+                                      filter.fieldQuery->needsSeverity()));
 
     return QtConcurrent::run([source, index, filter = std::move(filter),
                               linesPerChunk](QPromise<FilterScanResult>& promise) {

@@ -2,6 +2,7 @@
 
 #include "logdor/FileSource.h"
 #include "logdor/LineIndex.h"
+#include "logdor/Query.h"
 #include "logdor/RowSet.h"
 
 #include <QFuture>
@@ -34,7 +35,19 @@ struct LineFilter {
      */
     std::function<bool(qint64 line, QByteArrayView raw)> extraPredicate;
 
-    bool isPassthrough() const { return query.isEmpty() && !extraPredicate; }
+    /**
+     * Compiled field query (query mode). When set it REPLACES the plain
+     * query/regexMode text match; `columns` must cover
+     * fieldQuery->referencedColumns() and needsSeverity() (see ColumnCache).
+     * invert and context expansion compose identically to text mode.
+     */
+    std::shared_ptr<const CompiledQuery> fieldQuery;
+    ColumnSnapshot columns;
+
+    bool isPassthrough() const
+    {
+        return query.isEmpty() && !fieldQuery && !extraPredicate;
+    }
 };
 
 struct FilterScanResult {
