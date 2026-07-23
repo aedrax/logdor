@@ -41,6 +41,8 @@ add_library(logdor_interface SHARED
     src/annotationhub.cpp
     src/annotationdialog.h
     src/annotationdialog.cpp
+    src/annotationexporter.h
+    src/annotationexporter.cpp
 )
 
 target_link_libraries(logdor_interface PUBLIC

@@ -6,11 +6,14 @@
 #include <QTimer>
 #include <QPushButton>
 #include <QSettings>
+#include "annotationhub.h"
 #include "pluginmanager.h"
 #include <logdor/FileSource.h>
 #include <logdor/LineIndex.h>
 #include <logdor/LineIndexer.h>
 #include <memory>
+
+class QLabel;
 
 #define FILTER_DEBOUNCE_TIMEOUT_MILLISECONDS 300
 
@@ -65,6 +68,14 @@ private:
     // Materialize the legacy QList<LogEntry> from the core source if not
     // already done (heap-loads the file first in buffered mode).
     bool ensureLegacyEntries(QString* error);
+    // Annotation persistence (sidecar next to the log, appdata fallback).
+    QString annotationSidecarPath() const;
+    QString annotationFallbackPath(const logdor::FileIdentity& identity) const;
+    logdor::AnnotationSet loadAnnotationSidecars();
+    void flushAnnotationSave();
+    void updateNoteCount();
+    void importAnnotations();
+    void exportAnnotations();
     void saveSettings();
     void loadSettings();
     
@@ -89,6 +100,10 @@ private:
     std::shared_ptr<const logdor::LineIndex> m_lineIndex;
     QFutureWatcher<logdor::IndexingResult>* m_indexWatcher = nullptr;
     QString m_pendingFileName;
+    QString m_currentFileName;
+    AnnotationHub* m_annotationHub = nullptr;
+    QTimer* m_annotationSaveTimer = nullptr;
+    QLabel* m_noteCountLabel = nullptr;
     QList<LogEntry> m_logEntries;
     FilterOptions m_filterOptions;
     

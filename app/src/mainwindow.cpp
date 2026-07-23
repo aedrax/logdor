@@ -4,6 +4,10 @@
 #include "legacybridge.h"
 #include "progressdialog.h"
 #include "pluginprocessingtask.h"
+#include "annotationexporter.h"
+#include <QLabel>
+#include <QSaveFile>
+#include <QStandardPaths>
 #include <logdor/Query.h>
 #include <QDockWidget>
 #include <QFileDialog>
@@ -140,6 +144,45 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_indexWatcher, &QFutureWatcherBase::finished,
             this, &MainWindow::onIndexingFinished);
 
+    // Annotations: one hub for all viewers, autosaved on a short debounce so
+    // notes are never lost silently.
+    m_annotationHub = new AnnotationHub(this);
+    {
+        QSettings settings("Logdor", "Logdor");
+        const QString author =
+            settings.value("annotations/author").toString();
+        if (!author.isEmpty())
+            m_annotationHub->setAuthor(author);
+    }
+    m_annotationSaveTimer = new QTimer(this);
+    m_annotationSaveTimer->setSingleShot(true);
+    m_annotationSaveTimer->setInterval(1000);
+    connect(m_annotationSaveTimer, &QTimer::timeout,
+            this, &MainWindow::flushAnnotationSave);
+    connect(m_annotationHub, &AnnotationHub::annotationsChanged, this, [this]() {
+        if (m_annotationHub->isDirty())
+            m_annotationSaveTimer->start();
+        updateNoteCount();
+    });
+    connect(m_annotationHub, &AnnotationHub::reanchorFinished, this,
+            [this](int, int reanchored, int orphaned) {
+                if (reanchored > 0 || orphaned > 0)
+                    ui->statusbar->showMessage(
+                        tr("Annotations: %1 re-anchored, %2 orphaned")
+                            .arg(reanchored)
+                            .arg(orphaned),
+                        5000);
+                updateNoteCount();
+            });
+    m_noteCountLabel = new QLabel(this);
+    ui->statusbar->addPermanentWidget(m_noteCountLabel);
+    m_noteCountLabel->hide();
+
+    QAction* importAction = ui->menuFile->addAction(tr("Import Annotations..."));
+    connect(importAction, &QAction::triggered, this, &MainWindow::importAnnotations);
+    QAction* exportAction = ui->menuFile->addAction(tr("Export Annotations..."));
+    connect(exportAction, &QAction::triggered, this, &MainWindow::exportAnnotations);
+
     loadPlugins();
     loadSettings();
     initializeBackgroundProcessing();
@@ -160,6 +203,7 @@ MainWindow::~MainWindow()
 void MainWindow::loadPlugins()
 {
     m_pluginManager->loadPlugins();
+    m_pluginManager->setAnnotationHub(m_annotationHub);
 
     // Create dock widgets and menu actions for each plugin
     for (PluginInterface* plugin : m_pluginManager->plugins()) {
@@ -263,6 +307,7 @@ void MainWindow::loadSettings()
 void MainWindow::closeEvent(QCloseEvent* event)
 {
     m_indexWatcher->cancel();
+    flushAnnotationSave();
     saveSettings();
     QMainWindow::closeEvent(event);
 }
@@ -275,6 +320,12 @@ bool MainWindow::openFile(const QString& fileName)
     if (m_indexWatcher->isRunning()) {
         m_indexWatcher->cancel();
     }
+
+    // Save the outgoing file's notes before anything else can fail.
+    flushAnnotationSave();
+    m_annotationHub->clear();
+    m_currentFileName.clear();
+    updateNoteCount();
 
     // Clear plugins' data before dropping the previous mapping — they hold
     // pointers (legacy) or shared_ptrs (core) into it.
@@ -358,6 +409,12 @@ void MainWindow::onIndexingFinished()
                                    .arg(result.elapsedMs),
                                3000);
 
+    // Annotations first, so viewers paint markers on their first fill.
+    m_currentFileName = fileName;
+    m_annotationHub->beginFile(m_fileSource, m_lineIndex,
+                               loadAnnotationSidecars());
+    updateNoteCount();
+
     // Core-source plugins go live immediately, on the GUI thread — no
     // materialized entry list, no background stage.
     m_pluginManager->setCoreSource(m_fileSource, m_lineIndex);
@@ -394,6 +451,183 @@ void MainWindow::onIndexingFinished()
             setWindowTitle(tr("Logdor - %1").arg(QFileInfo(fileName).fileName()));
         }
     }
+}
+
+QString MainWindow::annotationSidecarPath() const
+{
+    return m_currentFileName.isEmpty()
+        ? QString()
+        : m_currentFileName + QStringLiteral(".logdor.json");
+}
+
+QString MainWindow::annotationFallbackPath(const logdor::FileIdentity& identity) const
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+        + QStringLiteral("/annotations/")
+        + QString::fromUtf8(identity.prefixSha256)
+        + QStringLiteral(".logdor.json");
+}
+
+logdor::AnnotationSet MainWindow::loadAnnotationSidecars()
+{
+    // Identity gates auto-load: a sidecar written for different content is
+    // ignored (Import remains available for deliberate merges).
+    const logdor::FileIdentity identity =
+        logdor::computeFileIdentity(*m_fileSource);
+
+    logdor::AnnotationSet merged;
+    bool first = true;
+    for (const QString& path :
+         { annotationSidecarPath(), annotationFallbackPath(identity) }) {
+        QFile file(path);
+        if (path.isEmpty() || !file.open(QIODevice::ReadOnly))
+            continue;
+        logdor::AnnotationFileError error;
+        const auto loaded = logdor::loadAnnotations(file.readAll(), &error);
+        if (!loaded) {
+            ui->statusbar->showMessage(
+                tr("Could not read annotations from %1: %2").arg(path, error.message),
+                8000);
+            continue;
+        }
+        if (logdor::matchIdentity(loaded->identity, *m_fileSource)
+            == logdor::IdentityMatch::Mismatch) {
+            ui->statusbar->showMessage(
+                tr("Ignoring %1: it belongs to a different file").arg(path), 8000);
+            continue;
+        }
+        for (const QString& warning : loaded->warnings)
+            qWarning() << "annotation sidecar" << path << ":" << warning;
+        merged = first ? loaded->set
+                       : logdor::mergeAnnotations(merged, loaded->set);
+        first = false;
+    }
+    merged.clearDirty(); // loading isn't an edit
+    return merged;
+}
+
+void MainWindow::flushAnnotationSave()
+{
+    if (!m_annotationHub->hasFile() || !m_annotationHub->isDirty())
+        return;
+
+    const QByteArray bytes = logdor::saveAnnotations(
+        m_annotationHub->set(), m_annotationHub->identity(),
+        QFileInfo(m_currentFileName).fileName());
+
+    const auto writeTo = [&bytes](const QString& path) {
+        QSaveFile file(path);
+        if (!file.open(QIODevice::WriteOnly))
+            return false;
+        file.write(bytes);
+        return file.commit();
+    };
+
+    if (writeTo(annotationSidecarPath())) {
+        m_annotationHub->clearDirty();
+        return;
+    }
+    // The log's directory isn't writable: keep notes in the app data dir,
+    // keyed by content so they reunite with the log wherever it goes.
+    const QString fallback = annotationFallbackPath(m_annotationHub->identity());
+    QDir().mkpath(QFileInfo(fallback).absolutePath());
+    if (writeTo(fallback)) {
+        m_annotationHub->clearDirty();
+        ui->statusbar->showMessage(
+            tr("Log directory is not writable; notes saved to %1").arg(fallback),
+            5000);
+    } else {
+        ui->statusbar->showMessage(
+            tr("FAILED to save annotations — check disk space and permissions"),
+            10000);
+    }
+}
+
+void MainWindow::updateNoteCount()
+{
+    const auto count = m_annotationHub->set().size();
+    if (count == 0) {
+        m_noteCountLabel->hide();
+        return;
+    }
+    int orphaned = 0;
+    for (const auto& annotation : m_annotationHub->set().annotations())
+        orphaned += annotation.orphaned ? 1 : 0;
+    m_noteCountLabel->setText(orphaned > 0
+        ? tr("%1 notes (%2 orphaned)").arg(count).arg(orphaned)
+        : tr("%1 notes").arg(count));
+    m_noteCountLabel->show();
+}
+
+void MainWindow::importAnnotations()
+{
+    if (!m_annotationHub->hasFile()) {
+        QMessageBox::information(this, tr("Import Annotations"),
+                                 tr("Open a log file first."));
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(
+        this, tr("Import Annotations"), QString(),
+        tr("Logdor annotations (*.logdor.json);;All files (*)"));
+    if (path.isEmpty())
+        return;
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("Import Annotations"),
+                             tr("Cannot open %1").arg(path));
+        return;
+    }
+    logdor::AnnotationFileError error;
+    const auto loaded = logdor::loadAnnotations(file.readAll(), &error);
+    if (!loaded) {
+        QMessageBox::warning(this, tr("Import Annotations"), error.message);
+        return;
+    }
+    if (logdor::matchIdentity(loaded->identity, *m_fileSource)
+            == logdor::IdentityMatch::Mismatch
+        && QMessageBox::question(
+               this, tr("Import Annotations"),
+               tr("These annotations were made on a different file. Line "
+                  "positions will be re-anchored by content where possible.\n\n"
+                  "Import anyway?"))
+            != QMessageBox::Yes) {
+        return;
+    }
+    m_annotationHub->mergeFrom(loaded->set);
+    ui->statusbar->showMessage(
+        tr("Imported %1 annotations from %2").arg(loaded->set.size()).arg(path),
+        5000);
+}
+
+void MainWindow::exportAnnotations()
+{
+    if (m_annotationHub->set().isEmpty()) {
+        QMessageBox::information(this, tr("Export Annotations"),
+                                 tr("There are no annotations to export."));
+        return;
+    }
+    QString selectedFilter;
+    const QString path = QFileDialog::getSaveFileName(
+        this, tr("Export Annotations"), QString(),
+        tr("HTML report (*.html);;CSV (*.csv)"), &selectedFilter);
+    if (path.isEmpty())
+        return;
+
+    const QByteArray bytes = selectedFilter.contains(QLatin1String("CSV"))
+        ? exportAnnotationsCsv(m_annotationHub->set())
+        : exportAnnotationsHtml(
+              m_annotationHub->set(),
+              [this](qint64 line) { return m_annotationHub->lineText(line); },
+              QFileInfo(m_currentFileName).fileName());
+
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly) || (file.write(bytes), !file.commit())) {
+        QMessageBox::warning(this, tr("Export Annotations"),
+                             tr("Could not write %1").arg(path));
+        return;
+    }
+    ui->statusbar->showMessage(tr("Exported annotations to %1").arg(path), 5000);
 }
 
 bool MainWindow::ensureLegacyEntries(QString* error)
