@@ -6,6 +6,11 @@
 #include <QWidget>
 #include <QtPlugin>
 
+#include <logdor/FileSource.h>
+#include <logdor/LineIndex.h>
+
+#include <memory>
+
 // Forward declaration to avoid circular dependency
 class PluginDatabaseManager;
 
@@ -102,6 +107,24 @@ public:
     // Load logs into the plugin's widget
     virtual bool setLogs(const QList<LogEntry>& logs) = 0;
 
+    // === Core-source path (Phase 2) =========================================
+    // A plugin returning true is fed via setCoreSource() on the GUI thread
+    // and is EXCLUDED from the legacy setLogs() fan-out (including the
+    // worker-thread background-processing path). setFilter() is still
+    // delivered on the GUI thread; core plugins run their own off-thread
+    // logdor::scanFilter instead of rescanning inline.
+    virtual bool wantsCoreSource() const { return false; }
+
+    // Both null => file closed or being replaced: drop every reference now,
+    // the old mapping dies after this returns. Always called on the GUI
+    // thread.
+    virtual void setCoreSource(std::shared_ptr<logdor::FileSource> source,
+                               std::shared_ptr<const logdor::LineIndex> index)
+    {
+        Q_UNUSED(source)
+        Q_UNUSED(index)
+    }
+
     // Apply filter options to the logs
     virtual void setFilter(const FilterOptions& options) = 0;
 
@@ -177,7 +200,8 @@ protected:
 };
 
 // Define the plugin interface ID
-#define PluginInterface_iid "com.logdor.PluginInterface/1.0"
+// /2.0: core-source path added; stale /1.0 binaries must fail to load.
+#define PluginInterface_iid "com.logdor.PluginInterface/2.0"
 Q_DECLARE_INTERFACE(PluginInterface, PluginInterface_iid)
 
 #endif // PLUGININTERFACE_H

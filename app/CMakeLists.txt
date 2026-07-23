@@ -31,14 +31,28 @@ add_library(logdor_interface SHARED
     src/databaseconnectionpool.cpp
     src/searchtokenizer.h
     src/searchtokenizer.cpp
+    src/logtablemodel.h
+    src/logtablemodel.cpp
+    src/logviewerwidget.h
+    src/logviewerwidget.cpp
 )
 
 target_link_libraries(logdor_interface PUBLIC
+    Logdor::Core
     Qt6::Core
     Qt6::Widgets
     Qt6::Concurrent
     Qt6::Sql
 )
+
+if(BUILD_TESTING)
+    qt_add_executable(tst_logtablemodel tests/tst_logtablemodel.cpp)
+    target_link_libraries(tst_logtablemodel PRIVATE
+        logdor_interface Logdor::Core Qt6::Test Qt6::Widgets)
+    add_test(NAME app.logtablemodel COMMAND tst_logtablemodel)
+    set_tests_properties(app.logtablemodel PROPERTIES LABELS "unit"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
 
 # Main executable
 set(PROJECT_SOURCES
