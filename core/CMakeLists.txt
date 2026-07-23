@@ -35,6 +35,10 @@ qt_add_library(logdor-core STATIC
     src/DeclarativeParser.cpp
     include/logdor/SortScan.h
     src/SortScan.cpp
+    include/logdor/FileIdentity.h
+    src/FileIdentity.cpp
+    include/logdor/Annotation.h
+    src/Annotation.cpp
 )
 add_library(Logdor::Core ALIAS logdor-core)
 

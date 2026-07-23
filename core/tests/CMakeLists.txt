@@ -12,6 +12,8 @@ set(LOGDOR_CORE_TESTS
     columnscan
     formatspec
     sortscan
+    annotation
+    fileidentity
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
