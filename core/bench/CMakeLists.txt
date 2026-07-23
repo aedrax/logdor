@@ -5,6 +5,9 @@
 add_executable(bench_index bench_index.cpp)
 target_link_libraries(bench_index PRIVATE Logdor::Core)
 
+add_executable(bench_filter bench_filter.cpp)
+target_link_libraries(bench_filter PRIVATE Logdor::Core)
+
 set(BENCH_DATA ${CMAKE_BINARY_DIR}/bench-data)
 
 add_test(NAME bench.generate_1g
@@ -31,8 +34,19 @@ set_tests_properties(bench.generate_5g PROPERTIES
 set_tests_properties(bench.index_5g PROPERTIES
     FIXTURES_REQUIRED benchdata_5g LABELS "bench" TIMEOUT 3600)
 
+add_test(NAME bench.filter_1g
+    COMMAND bench_filter ${BENCH_DATA}/plain-1g.log
+            --query transaction --min-mbps 800 --check-cancel-ms 100
+            --max-rowset-bytes-per-line 4.5)
+add_test(NAME bench.filter_regex_1g
+    COMMAND bench_filter ${BENCH_DATA}/plain-1g.log
+            --query "transa[ck]tion \\w+" --regex --min-mbps 100)
+set_tests_properties(bench.filter_1g bench.filter_regex_1g PROPERTIES
+    FIXTURES_REQUIRED benchdata_1g LABELS "bench" TIMEOUT 600)
+
 if(NOT LOGDOR_ENABLE_BENCH)
     set_tests_properties(bench.generate_1g bench.index_1g
+        bench.filter_1g bench.filter_regex_1g
         PROPERTIES DISABLED TRUE)
 endif()
 if(NOT LOGDOR_ENABLE_BENCH OR NOT LOGDOR_BENCH_LARGE)
