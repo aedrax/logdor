@@ -27,6 +27,8 @@ qt_add_library(logdor-core STATIC
     src/TextMatch_p.h
     include/logdor/Query.h
     src/Query.cpp
+    include/logdor/ColumnScan.h
+    src/ColumnScan.cpp
 )
 add_library(Logdor::Core ALIAS logdor-core)
 

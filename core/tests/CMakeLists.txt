@@ -9,6 +9,7 @@ set(LOGDOR_CORE_TESTS
     rowset
     filterscan
     query
+    columnscan
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
