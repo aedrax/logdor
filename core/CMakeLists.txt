@@ -9,6 +9,8 @@ qt_add_library(logdor-core STATIC
     src/LineIndex.cpp
     include/logdor/FileSource.h
     src/FileSource.cpp
+    include/logdor/LineIndexer.h
+    src/LineIndexer.cpp
 )
 add_library(Logdor::Core ALIAS logdor-core)
 

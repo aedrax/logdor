@@ -3,6 +3,7 @@
 set(LOGDOR_CORE_TESTS
     lineindex
     filesource
+    lineindexer
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
