@@ -51,6 +51,22 @@ Logdor is split into two layers:
   parses only visible rows; opening a file costs the line index, not the file
   size (a 1 GB / 10M-line file adds ~44 MB of owned memory).
 
+## Annotations
+
+Right-click any line (or selection) in a viewer to add a note with an
+optional color and tag; the **Annotations** panel lists every note — click
+to jump all viewers there. Notes are saved automatically to a sidecar file
+next to the log (`<logfile>.logdor.json`; app-data fallback when the
+directory is read-only) keyed by content, so they survive restarts, log
+growth, renames, and — via content re-anchoring — log rotation (notes whose
+lines vanish are flagged orphaned, never dropped). **Share** by sending the
+sidecar: a colleague drops it next to their copy of the log, or uses
+File → Import Annotations to merge it (conflicts resolve by most-recent
+edit). File → Export Annotations produces a self-contained HTML report or
+CSV. No benchmarks gate this path by design: annotation counts are
+human-scale and re-anchoring is bounded (≤32 MiB per note, off-thread,
+cancellable).
+
 ## Building from Source
 
 ### Requirements
