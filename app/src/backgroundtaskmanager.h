@@ -116,7 +116,7 @@ private:
     TaskStatus m_status;
     TaskResult m_result;
     std::shared_ptr<ProgressTracker> m_progressTracker;
-    mutable QMutex m_mutex;
+    mutable QRecursiveMutex m_mutex; // recursive: setResult()/cancel() re-enter setStatus()
 };
 
 // Worker thread for executing background tasks

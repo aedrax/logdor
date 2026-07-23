@@ -101,7 +101,7 @@ private:
     QSqlDatabase m_database;
     DatabaseStatus m_status;
     QString m_lastError;
-    QMutex m_mutex;
+    QRecursiveMutex m_mutex; // recursive: openDatabase() re-enters executeQuery()
     
     // Bulk insert state
     QSqlQuery* m_bulkQuery;

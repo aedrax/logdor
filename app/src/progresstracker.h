@@ -163,7 +163,7 @@ private:
     std::function<void()> m_completionCallback;
     
     // Thread safety
-    mutable QMutex m_mutex;
+    mutable QRecursiveMutex m_mutex; // recursive: progress emission re-enters currentProgress()
     
     // Constants
     static const int DEFAULT_UPDATE_INTERVAL_MS;
@@ -256,7 +256,7 @@ private:
     std::function<void()> m_completionCallback;
     
     // Thread safety
-    mutable QMutex m_mutex;
+    mutable QRecursiveMutex m_mutex; // recursive: progress emission re-enters currentProgress()
 };
 
 // Progress aggregator for combining multiple progress trackers
@@ -340,7 +340,7 @@ private:
     std::function<void()> m_completionCallback;
     
     // Thread safety
-    mutable QMutex m_mutex;
+    mutable QRecursiveMutex m_mutex; // recursive: progress emission re-enters currentProgress()
 };
 
 #endif // PROGRESSTRACKER_H
