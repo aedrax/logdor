@@ -8,6 +8,7 @@ set(LOGDOR_CORE_TESTS
     formatdetect
     rowset
     filterscan
+    query
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)

@@ -24,6 +24,9 @@ qt_add_library(logdor-core STATIC
     src/RowSet.cpp
     include/logdor/FilterScan.h
     src/FilterScan.cpp
+    src/TextMatch_p.h
+    include/logdor/Query.h
+    src/Query.cpp
 )
 add_library(Logdor::Core ALIAS logdor-core)
 
