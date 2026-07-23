@@ -14,11 +14,16 @@ public:
     explicit SelectedLineViewer(QObject* parent = nullptr);
     ~SelectedLineViewer();
 
-    // PluginInterface implementation
     QString name() const override { return tr("Selected Line Viewer"); }
-    QString version() const override { return "0.1.0"; }
+    QString version() const override { return "0.2.0"; }
     QString description() const override { return tr("A viewer for selected lines of logs."); }
     QWidget* widget() override { return m_textBrowser; }
+
+    // Core-source path: line text is read on demand, O(selected lines).
+    bool wantsCoreSource() const override { return true; }
+    void setCoreSource(std::shared_ptr<logdor::FileSource> source,
+                       std::shared_ptr<const logdor::LineIndex> index) override;
+
     bool setLogs(const QList<LogEntry>& content) override;
     void setFilter(const FilterOptions& options) override;
     QList<FieldInfo> availableFields() const override;
@@ -30,7 +35,8 @@ public slots:
 
 private:
     QTextBrowser* m_textBrowser;
-    QList<LogEntry> m_entries;
+    std::shared_ptr<logdor::FileSource> m_source;
+    std::shared_ptr<const logdor::LineIndex> m_index;
 };
 
 #endif // SELECTEDLINEVIEWER_H

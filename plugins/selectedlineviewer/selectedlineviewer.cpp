@@ -1,5 +1,4 @@
 #include "selectedlineviewer.h"
-#include <QVBoxLayout>
 
 SelectedLineViewer::SelectedLineViewer(QObject* parent)
     : PluginInterface(parent)
@@ -9,8 +8,6 @@ SelectedLineViewer::SelectedLineViewer(QObject* parent)
     m_textBrowser->setReadOnly(true);
     m_textBrowser->setText(tr("No line selected"));
     m_textBrowser->setLineWrapMode(QTextEdit::WidgetWidth);
-    
-    // Set minimum size for better visibility
     m_textBrowser->setMinimumSize(200, 100);
 }
 
@@ -19,54 +16,58 @@ SelectedLineViewer::~SelectedLineViewer()
     delete m_textBrowser;
 }
 
-bool SelectedLineViewer::setLogs(const QList<LogEntry>& logs)
+void SelectedLineViewer::setCoreSource(std::shared_ptr<logdor::FileSource> source,
+                                       std::shared_ptr<const logdor::LineIndex> index)
 {
-    qDebug() << "SelectedLineViewer::setLogs called with" << logs.size() << "entries";
-    m_entries = logs;
+    m_source = std::move(source);
+    m_index = std::move(index);
+    m_textBrowser->setText(tr("No line selected"));
+}
+
+bool SelectedLineViewer::setLogs(const QList<LogEntry>& content)
+{
+    // Legacy path unused: this plugin is fed through setCoreSource().
+    Q_UNUSED(content)
     return true;
 }
 
 void SelectedLineViewer::setFilter(const FilterOptions& options)
 {
-    // Not needed for this plugin
-    Q_UNUSED(options);
+    Q_UNUSED(options)
 }
 
 void SelectedLineViewer::onPluginEvent(PluginEvent event, const QVariant& data)
 {
-    if (event == PluginEvent::LinesSelected) {
-        QList<int> selectedLines = data.value<QList<int>>();
-        if (selectedLines.isEmpty()) {
-            m_textBrowser->setText(tr("No line selected"));
-            return;
-        }
-
-        // For all selected lines, show them in the text browser
-        QString text;
-        for (int line : selectedLines) {
-            if (line >= 0 && line < m_entries.size()) {
-                const LogEntry& entry = m_entries[line];
-                text += entry.getMessage() + "\n";
-            }
-        }
-        m_textBrowser->setText(text);
+    if (event != PluginEvent::LinesSelected)
+        return;
+    const QList<int> selectedLines = data.value<QList<int>>();
+    if (selectedLines.isEmpty() || !m_source || !m_index) {
+        m_textBrowser->setText(tr("No line selected"));
+        return;
     }
+
+    QString text;
+    for (int line : selectedLines) {
+        if (line >= 0 && qint64(line) < m_index->lineCount()) {
+            const QByteArray raw = m_source->read(m_index->offsetOf(line),
+                                                  m_index->lengthOf(line));
+            text += QString::fromUtf8(raw) + QLatin1Char('\n');
+        }
+    }
+    m_textBrowser->setText(text);
 }
 
 QList<FieldInfo> SelectedLineViewer::availableFields() const
 {
-    // This plugin does not provide field information
     return QList<FieldInfo>();
 }
 
 QSet<int> SelectedLineViewer::filteredLines() const
 {
-    // This plugin does not filter lines
     return QSet<int>();
 }
 
 void SelectedLineViewer::synchronizeFilteredLines(const QSet<int>& lines)
 {
-    // This plugin does not synchronize filtered lines
-    Q_UNUSED(lines);
+    Q_UNUSED(lines)
 }

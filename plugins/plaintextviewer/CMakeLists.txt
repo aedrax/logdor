@@ -7,8 +7,6 @@ qt_add_plugin(plaintextviewer
 target_sources(plaintextviewer
     PRIVATE
         plaintextviewer.cpp
-        plaintexttablemodel.cpp
-        plaintexttablemodel.h
     PUBLIC
         plaintextviewer.h
 )
@@ -28,6 +26,7 @@ target_include_directories(plaintextviewer
 target_link_libraries(plaintextviewer
     PRIVATE
         logdor_interface
+        Logdor::Core
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets

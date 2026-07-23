@@ -23,6 +23,7 @@ target_include_directories(selectedlineviewer
 
 target_link_libraries(selectedlineviewer PRIVATE
     logdor_interface
+    Logdor::Core
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
