@@ -11,6 +11,13 @@ qt_add_library(logdor-core STATIC
     src/FileSource.cpp
     include/logdor/LineIndexer.h
     src/LineIndexer.cpp
+    include/logdor/FormatParser.h
+    include/logdor/PlainTextParser.h
+    src/PlainTextParser.cpp
+    include/logdor/LogcatParser.h
+    src/LogcatParser.cpp
+    include/logdor/ClfParser.h
+    src/ClfParser.cpp
 )
 add_library(Logdor::Core ALIAS logdor-core)
 
