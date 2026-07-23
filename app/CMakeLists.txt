@@ -35,6 +35,8 @@ add_library(logdor_interface SHARED
     src/logtablemodel.cpp
     src/logviewerwidget.h
     src/logviewerwidget.cpp
+    src/formatcatalog.h
+    src/formatcatalog.cpp
 )
 
 target_link_libraries(logdor_interface PUBLIC

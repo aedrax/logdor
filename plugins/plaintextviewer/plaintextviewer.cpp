@@ -1,12 +1,43 @@
 #include "plaintextviewer.h"
 
+#include "../../app/src/formatcatalog.h"
+
 #include <logdor/FormatRegistry.h>
+
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QVBoxLayout>
 
 PlainTextViewer::PlainTextViewer(QObject* parent)
     : PluginInterface(parent)
+    , m_container(new QWidget())
     , m_viewer(new LogViewerWidget())
+    , m_formatCombo(new QComboBox())
+    , m_parsers(loadAllParsers())
 {
-    m_viewer->setParser(logdor::parserById(u"plaintext"));
+    auto* layout = new QVBoxLayout(m_container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    auto* formatBar = new QWidget();
+    auto* formatLayout = new QHBoxLayout(formatBar);
+    formatLayout->setContentsMargins(4, 2, 4, 2);
+    formatLayout->addWidget(new QLabel(tr("Format:")));
+    m_formatCombo->addItem(tr("Auto-detect"));
+    for (const auto& parser : std::as_const(m_parsers))
+        m_formatCombo->addItem(parser->displayName());
+    formatLayout->addWidget(m_formatCombo);
+    formatLayout->addStretch();
+    layout->addWidget(formatBar);
+    layout->addWidget(m_viewer);
+
+    m_viewer->setParser(logdor::parserById(u"plaintext", m_parsers));
+
+    connect(m_formatCombo, QOverload<int>::of(&QComboBox::activated), this,
+            [this](int index) {
+                if (!m_updatingCombo)
+                    applyFormatSelection(index);
+            });
     connect(m_viewer, &LogViewerWidget::linesSelected, this,
             [this](const QList<int>& lines) {
                 emit pluginEvent(PluginEvent::LinesSelected,
@@ -16,13 +47,40 @@ PlainTextViewer::PlainTextViewer(QObject* parent)
 
 PlainTextViewer::~PlainTextViewer()
 {
-    delete m_viewer;
+    delete m_container;
+}
+
+void PlainTextViewer::applyFormatSelection(int comboIndex)
+{
+    std::shared_ptr<const logdor::FormatParser> parser;
+    if (comboIndex == 0) {
+        // Auto-detect against the current file; plaintext floor without one.
+        if (m_source && m_index) {
+            const auto scores = logdor::detectFormat(*m_source, *m_index, m_parsers);
+            if (!scores.isEmpty())
+                parser = logdor::parserById(scores.front().parserId, m_parsers);
+        }
+        if (!parser)
+            parser = logdor::parserById(u"plaintext", m_parsers);
+    } else if (comboIndex - 1 < m_parsers.size()) {
+        parser = m_parsers[comboIndex - 1];
+    }
+    if (!parser)
+        return;
+
+    m_viewer->setParser(parser);
+    if (m_source && m_index)
+        m_viewer->applyFilter(m_lastFilter);
 }
 
 void PlainTextViewer::setCoreSource(std::shared_ptr<logdor::FileSource> source,
                                     std::shared_ptr<const logdor::LineIndex> index)
 {
-    m_viewer->setCoreSource(std::move(source), std::move(index));
+    m_source = std::move(source);
+    m_index = std::move(index);
+    m_viewer->setCoreSource(m_source, m_index);
+    if (m_source && m_index && m_formatCombo->currentIndex() == 0)
+        applyFormatSelection(0); // re-run auto-detection for the new file
 }
 
 bool PlainTextViewer::setLogs(const QList<LogEntry>& content)
@@ -34,15 +92,24 @@ bool PlainTextViewer::setLogs(const QList<LogEntry>& content)
 
 void PlainTextViewer::setFilter(const FilterOptions& options)
 {
+    m_lastFilter = options;
     m_viewer->applyFilter(options);
 }
 
 QList<FieldInfo> PlainTextViewer::availableFields() const
 {
-    return QList<FieldInfo>({
-        { tr("No."), DataType::Integer },
-        { tr("Log"), DataType::String },
-    });
+    QList<FieldInfo> fields { { tr("No."), DataType::Integer, {} } };
+    if (const auto& parser = m_viewer->model()->parser()) {
+        for (const auto& field : parser->schema()) {
+            DataType type = DataType::String;
+            if (field.type == logdor::FieldType::Integer)
+                type = DataType::Integer;
+            else if (field.type == logdor::FieldType::DateTime)
+                type = DataType::DateTime;
+            fields.append({ field.name, type, {} });
+        }
+    }
+    return fields;
 }
 
 QSet<int> PlainTextViewer::filteredLines() const
