@@ -6,6 +6,8 @@ set(LOGDOR_CORE_TESTS
     lineindexer
     formatparsers
     formatdetect
+    rowset
+    filterscan
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)

@@ -20,6 +20,10 @@ qt_add_library(logdor-core STATIC
     src/ClfParser.cpp
     include/logdor/FormatRegistry.h
     src/FormatRegistry.cpp
+    include/logdor/RowSet.h
+    src/RowSet.cpp
+    include/logdor/FilterScan.h
+    src/FilterScan.cpp
 )
 add_library(Logdor::Core ALIAS logdor-core)
 
