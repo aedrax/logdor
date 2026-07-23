@@ -35,10 +35,17 @@ Logdor is split into two layers:
 
 - **`core/` (`logdor-core`)** — the non-GUI functional core: file access
   (`FileSource`, mmap with buffered fallback), line indexing (`LineIndex`,
-  ~4 bytes/line), and cancellable background index building (`buildLineIndex`).
-  It links QtCore/QtConcurrent only — never QtGui/QtWidgets — enforced by a
-  configure-time link check and CTest guards, so a future TUI can reuse it.
-- **`app/` + `plugins/`** — the Qt Widgets shell and viewer plugins.
+  ~4 bytes/line), cancellable background index building (`buildLineIndex`),
+  format parsers (`FormatParser`: plaintext, Android logcat, Apache CLF, with
+  sample-based auto-detection), and off-thread filtering (`scanFilter` over a
+  `RowSet`). It links QtCore/QtConcurrent only — never QtGui/QtWidgets —
+  enforced by a configure-time link check and CTest guards, so a future TUI
+  can reuse it.
+- **`app/` + `plugins/`** — the Qt Widgets shell and viewer plugins. Ported
+  plugins (plaintext, selected-line, CLF, logcat) are thin wrappers over one
+  shared schema-driven lazy view (`LogViewerWidget`/`LogTableModel`) that
+  parses only visible rows; opening a file costs the line index, not the file
+  size (a 1 GB / 10M-line file adds ~44 MB of owned memory).
 
 ## Building from Source
 
