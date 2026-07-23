@@ -171,9 +171,20 @@ void MainWindow::loadPlugins()
         connect(action, &QAction::toggled, [this, dock, plugin](bool checked) {
             dock->setVisible(checked);
             plugin->setEnabled(checked);
-            // Process existing logs when plugin is enabled
-            if (checked && !m_logEntries.isEmpty()) {
-                plugin->setLogs(m_logEntries);
+            // Process the open file when a plugin is enabled late
+            if (checked && m_fileSource && m_lineIndex) {
+                if (plugin->wantsCoreSource()) {
+                    plugin->setCoreSource(m_fileSource, m_lineIndex);
+                } else {
+                    // Enabling a legacy plugin after a core-only open pays
+                    // the legacy materialization cost now, by choice.
+                    QString error;
+                    if (!ensureLegacyEntries(&error)) {
+                        ui->statusbar->showMessage(error, 5000);
+                        return;
+                    }
+                    plugin->setLogs(m_logEntries);
+                }
                 plugin->setFilter(m_filterOptions);
             }
         });
@@ -250,11 +261,12 @@ bool MainWindow::openFile(const QString& fileName)
     }
 
     // Clear plugins' data before dropping the previous mapping — they hold
-    // pointers into it.
+    // pointers (legacy) or shared_ptrs (core) into it.
     m_logEntries.clear();
     for (PluginInterface* plugin : m_activePlugins) {
         plugin->setLogs(m_logEntries);
     }
+    m_pluginManager->setCoreSource(nullptr, nullptr);
     m_lineIndex.reset();
     m_fileSource.reset();
 
@@ -322,16 +334,6 @@ void MainWindow::onIndexingFinished()
     const logdor::IndexingResult result = m_indexWatcher->future().result();
     m_lineIndex = result.index;
 
-    // Legacy plugins consume pointers into one contiguous range. In buffered
-    // mode (mmap failed) that means heap-loading the file once, up front.
-    QString error;
-    if (!m_fileSource->isContiguous() && !m_fileSource->ensureContiguous(&error)) {
-        QMessageBox::warning(this, tr("Error"), error);
-        setWindowTitle(tr("Logdor"));
-        return;
-    }
-
-    m_logEntries = materializeLegacyEntries(*m_fileSource, *m_lineIndex);
     qDebug() << "Indexed" << result.lineCount << "lines in" << result.elapsedMs
              << "ms," << (m_fileSource->mode() == logdor::FileSource::Mode::Mapped
                               ? "mapped" : "buffered");
@@ -340,8 +342,29 @@ void MainWindow::onIndexingFinished()
                                    .arg(result.elapsedMs),
                                3000);
 
+    // Core-source plugins go live immediately, on the GUI thread — no
+    // materialized entry list, no background stage.
+    m_pluginManager->setCoreSource(m_fileSource, m_lineIndex);
+
+    if (!m_pluginManager->anyEnabledLegacyPlugin()) {
+        // Index-only path: for a 5 GB file this is ~200 MB of RAM total.
+        m_pluginManager->setFilter(m_filterOptions);
+        setWindowTitle(tr("Logdor - %1").arg(QFileInfo(fileName).fileName()));
+        return;
+    }
+
+    // At least one legacy plugin needs the QList<LogEntry> view of the file.
+    QString error;
+    if (!ensureLegacyEntries(&error)) {
+        QMessageBox::warning(this, tr("Error"), error);
+        setWindowTitle(tr("Logdor"));
+        return;
+    }
+
     if (shouldUseBackgroundProcessing(fileName)) {
         processFileInBackground(fileName, m_logEntries);
+        // Core plugins shouldn't wait for the legacy stage to filter.
+        m_pluginManager->setFilter(m_filterOptions);
         setWindowTitle(tr("Logdor - %1 (Loading...)").arg(QFileInfo(fileName).fileName()));
     } else {
         const bool success = m_pluginManager->setLogs(m_logEntries, fileName);
@@ -355,6 +378,26 @@ void MainWindow::onIndexingFinished()
             setWindowTitle(tr("Logdor - %1").arg(QFileInfo(fileName).fileName()));
         }
     }
+}
+
+bool MainWindow::ensureLegacyEntries(QString* error)
+{
+    if (!m_fileSource || !m_lineIndex) {
+        if (error)
+            *error = tr("No file is open");
+        return false;
+    }
+    if (!m_logEntries.isEmpty() || m_lineIndex->lineCount() == 0)
+        return true;
+
+    // Legacy plugins consume pointers into one contiguous range. In buffered
+    // mode (mmap failed) that means heap-loading the whole file once.
+    if (!m_fileSource->isContiguous() && !m_fileSource->ensureContiguous(error))
+        return false;
+
+    m_logEntries = materializeLegacyEntries(*m_fileSource, *m_lineIndex);
+    qDebug() << "Materialized legacy entry list:" << m_logEntries.size() << "entries";
+    return true;
 }
 
 void MainWindow::onActionOpenTriggered()

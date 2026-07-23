@@ -35,6 +35,14 @@ public:
     // Set logs with file path for database initialization
     bool setLogs(const QList<LogEntry>& logs, const QString& filePath);
 
+    // Fan the core source out to enabled wantsCoreSource() plugins.
+    // GUI thread only.
+    void setCoreSource(std::shared_ptr<logdor::FileSource> source,
+                       std::shared_ptr<const logdor::LineIndex> index);
+
+    // True when any enabled plugin still needs the legacy QList<LogEntry>.
+    bool anyEnabledLegacyPlugin() const;
+
     // Set filter for all enabled plugins
     void setFilter(const FilterOptions& options);
     

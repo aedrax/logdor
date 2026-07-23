@@ -2,6 +2,8 @@
 #include <QDir>
 #include <QCoreApplication>
 #include <QDebug>
+#include <QThread>
+#include <algorithm>
 
 PluginManager::PluginManager(QObject* parent)
     : QObject(parent)
@@ -186,12 +188,34 @@ bool PluginManager::setLogs(const QList<LogEntry>& logs, const QString& filePath
     
     bool success = true;
     for (PluginInterface* plugin : enabledPlugins()) {
+        // Core-source plugins were already served on the GUI thread; keeping
+        // them out of this fan-out also keeps them off the worker thread when
+        // the background-processing path calls in here.
+        if (plugin->wantsCoreSource())
+            continue;
         if (!plugin->setLogs(logs)) {
             qWarning() << "Failed to set logs for plugin:" << plugin->name();
             success = false;
         }
     }
     return success;
+}
+
+void PluginManager::setCoreSource(std::shared_ptr<logdor::FileSource> source,
+                                  std::shared_ptr<const logdor::LineIndex> index)
+{
+    Q_ASSERT(QThread::currentThread() == qApp->thread());
+    for (PluginInterface* plugin : enabledPlugins()) {
+        if (plugin->wantsCoreSource())
+            plugin->setCoreSource(source, index);
+    }
+}
+
+bool PluginManager::anyEnabledLegacyPlugin() const
+{
+    const auto plugins = enabledPlugins();
+    return std::any_of(plugins.begin(), plugins.end(),
+                       [](PluginInterface* p) { return !p->wantsCoreSource(); });
 }
 
 void PluginManager::setFilter(const FilterOptions& options)

@@ -129,8 +129,11 @@ void PluginProcessingTask::initializeProcessing()
         throw std::runtime_error("Plugin manager is null");
     }
     
-    // Get enabled plugins
+    // Get enabled plugins. Core-source plugins were already served on the
+    // GUI thread and must never be touched from this worker thread.
     m_enabledPlugins = m_pluginManager->enabledPlugins();
+    m_enabledPlugins.removeIf(
+        [](PluginInterface* p) { return p->wantsCoreSource(); });
     if (m_enabledPlugins.isEmpty()) {
         qWarning() << "No enabled plugins found for processing";
         return;

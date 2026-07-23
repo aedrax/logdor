@@ -62,6 +62,9 @@ private slots:
 
 private:
     void loadPlugins();
+    // Materialize the legacy QList<LogEntry> from the core source if not
+    // already done (heap-loads the file first in buffered mode).
+    bool ensureLegacyEntries(QString* error);
     void saveSettings();
     void loadSettings();
     
