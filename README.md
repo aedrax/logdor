@@ -36,11 +36,15 @@ Logdor is split into two layers:
 - **`core/` (`logdor-core`)** — the non-GUI functional core: file access
   (`FileSource`, mmap with buffered fallback), line indexing (`LineIndex`,
   ~4 bytes/line), cancellable background index building (`buildLineIndex`),
-  format parsers (`FormatParser`: plaintext, Android logcat, Apache CLF, with
-  sample-based auto-detection), and off-thread filtering (`scanFilter` over a
-  `RowSet`). It links QtCore/QtConcurrent only — never QtGui/QtWidgets —
-  enforced by a configure-time link check and CTest guards, so a future TUI
-  can reuse it.
+  format parsers (`FormatParser`: plaintext, Android logcat, Apache CLF,
+  plus user-writable **declarative JSON format specs** — drop a `.json` into
+  `~/.local/share/logdor/formats` to parse a new format without compiling),
+  sample-based auto-detection, off-thread filtering (`scanFilter` over a
+  `RowSet`), a **field query language** (`level:error tag:Wifi* pid>=100
+  "free text"` with AND/OR/NOT — toggle the `Q` button), and off-thread
+  column sorting. It links QtCore/QtConcurrent only — never
+  QtGui/QtWidgets — enforced by a configure-time link check and CTest
+  guards, so a future TUI can reuse it.
 - **`app/` + `plugins/`** — the Qt Widgets shell and viewer plugins. Ported
   plugins (plaintext, selected-line, CLF, logcat) are thin wrappers over one
   shared schema-driven lazy view (`LogViewerWidget`/`LogTableModel`) that
