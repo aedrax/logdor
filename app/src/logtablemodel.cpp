@@ -28,6 +28,22 @@ void LogTableModel::setRowSet(RowSet rows)
 {
     beginResetModel();
     m_rows = std::move(rows);
+    m_order.clear();
+    m_inverse.clear();
+    endResetModel();
+}
+
+void LogTableModel::setRowOrder(std::vector<qint32> order)
+{
+    Q_ASSERT(order.empty() || qint64(order.size()) == m_rows.size());
+    beginResetModel();
+    m_order = std::move(order);
+    m_inverse.clear();
+    if (!m_order.empty()) {
+        m_inverse.resize(m_order.size());
+        for (size_t viewRow = 0; viewRow < m_order.size(); ++viewRow)
+            m_inverse[size_t(m_order[viewRow])] = qint32(viewRow);
+    }
     endResetModel();
 }
 
@@ -35,12 +51,16 @@ qint64 LogTableModel::sourceLineForRow(int row) const
 {
     if (row < 0 || qint64(row) >= m_rows.size())
         return -1;
-    return m_rows.sourceLine(row);
+    const qint64 rowSetPos = m_order.empty() ? row : m_order[size_t(row)];
+    return m_rows.sourceLine(rowSetPos);
 }
 
 int LogTableModel::rowForSourceLine(qint64 line) const
 {
-    return int(m_rows.rowForSourceLine(line));
+    const qint64 rowSetPos = m_rows.rowForSourceLine(line);
+    if (rowSetPos < 0 || m_order.empty())
+        return int(rowSetPos);
+    return int(m_inverse[size_t(rowSetPos)]);
 }
 
 QColor LogTableModel::severityColor(Severity severity)

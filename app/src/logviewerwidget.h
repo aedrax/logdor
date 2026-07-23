@@ -4,17 +4,22 @@
 #include "logtablemodel.h"
 #include "plugininterface.h"
 
+#include <logdor/ColumnScan.h>
 #include <logdor/FilterScan.h>
+#include <logdor/SortScan.h>
 
 #include <QFutureWatcher>
 #include <QWidget>
 
+class QLabel;
 class QTableView;
 
 /**
- * Reusable log viewer: QTableView (uniform row heights, row selection, no
- * sorting) over a LogTableModel, plus off-thread filter scanning and
- * echo-safe selection sync. Plugins wrap this and add format-specific chrome.
+ * Reusable log viewer: QTableView (uniform row heights, row selection) over
+ * a LogTableModel, plus off-thread filtering (text or field-query mode),
+ * header-click sorting, and echo-safe selection sync. Field queries and
+ * sorting share a per-file column cache: the first one pays a one-time
+ * extraction scan, refinements are fast.
  */
 class Q_DECL_EXPORT LogViewerWidget : public QWidget {
     Q_OBJECT
@@ -22,17 +27,19 @@ public:
     explicit LogViewerWidget(QWidget* parent = nullptr);
     ~LogViewerWidget() override;
 
-    // Null pair => file closed: cancels any scan and clears the model.
+    // Null pair => file closed: cancels all background work, clears caches.
     void setCoreSource(std::shared_ptr<logdor::FileSource> source,
                        std::shared_ptr<const logdor::LineIndex> index);
     void setParser(std::shared_ptr<const logdor::FormatParser> parser);
 
-    /// Converts FilterOptions + the extra predicate into a cancellable
-    /// off-thread logdor::scanFilter; the result swaps in atomically.
+    /// Text mode filters directly; query mode (options.inQueryMode) compiles
+    /// the field query against the parser schema, extracting any missing
+    /// columns first. Compile errors keep the previous rows and show a
+    /// status strip.
     void applyFilter(const FilterOptions& options);
 
     /// Structured predicate (e.g. logcat level/tag chrome), ANDed with the
-    /// text filter. Re-runs the last filter when @p refilter.
+    /// filter. Re-runs the scan when @p refilter.
     void setExtraPredicate(std::function<bool(qint64, QByteArrayView)> predicate,
                            bool refilter = true);
 
@@ -42,30 +49,51 @@ public:
 signals:
     void linesSelected(const QList<int>& sourceLines);
     void filterApplied(qint64 matchCount, qint64 elapsedMs);
+    void queryError(const QString& message, int position);
 
 public slots:
-    /// Incoming sync from other plugins: selects the visible rows for these
-    /// source lines WITHOUT re-emitting linesSelected; scrolls to the first
-    /// visible one. Hidden (filtered-out) lines are skipped.
     void selectSourceLines(const QList<int>& sourceLines);
 
 private slots:
     void onSelectionChanged();
     void onScanFinished();
+    void onExtractFinished();
+    void onSortFinished();
+    void onHeaderClicked(int section);
 
 private:
     void startScan();
+    void startSort();
+    // Ensure the given columns/severity are cached; returns true when an
+    // extraction was started (completion continues the pending work).
+    bool ensureColumns(const QList<int>& columns, bool needsSeverity);
+    void restoreSelectionSilently();
     void configureColumns();
+    void showStatusStrip(const QString& message);
+    void clearSortIndicator();
 
     QTableView* m_view = nullptr;
+    QLabel* m_statusStrip = nullptr;
     LogTableModel* m_model = nullptr;
     std::shared_ptr<logdor::FileSource> m_source;
     std::shared_ptr<const logdor::LineIndex> m_index;
     std::shared_ptr<const logdor::FormatParser> m_parser;
+
     QFutureWatcher<logdor::FilterScanResult> m_scanWatcher;
+    QFutureWatcher<logdor::ColumnScanResult> m_extractWatcher;
+    QFutureWatcher<logdor::SortResult> m_sortWatcher;
+    logdor::ColumnCache m_columnCache;
+
     FilterOptions m_lastOptions;
+    std::shared_ptr<const logdor::CompiledQuery> m_activeQuery;
     std::function<bool(qint64, QByteArrayView)> m_extraPredicate;
-    QList<int> m_lastSelection; // source lines; restored after row-set swaps
+
+    bool m_scanAfterExtract = false;
+    bool m_sortAfterExtract = false;
+    int m_sortColumn = -1; // view column (0 = No.), -1 = unsorted
+    Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
+
+    QList<int> m_lastSelection; // source lines, restored after row-set swaps
     bool m_syncing = false;     // echo-loop guard
 };
 

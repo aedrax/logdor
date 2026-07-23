@@ -4,6 +4,7 @@
 #include "legacybridge.h"
 #include "progressdialog.h"
 #include "pluginprocessingtask.h"
+#include <logdor/Query.h>
 #include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -78,9 +79,19 @@ MainWindow::MainWindow(QWidget* parent)
     setupToggleButton(m_regexModeButton, tr("Treat filter as a regular expression"));
     filterToolBar->addWidget(m_regexModeButton);
     
-    setupToggleButton(m_queryModeButton, tr("Enable query mode for advanced filtering"));
-    // Hide for now until query mode is implemented
-    // filterToolBar->addWidget(m_queryModeButton);
+    setupToggleButton(m_queryModeButton,
+                      tr("Field query mode: level:error tag:Wifi* pid>=100 \"free text\""));
+    filterToolBar->addWidget(m_queryModeButton);
+
+    // Query mode and regex mode are mutually exclusive filter languages.
+    connect(m_queryModeButton, &QPushButton::toggled, this, [this](bool on) {
+        if (on)
+            m_regexModeButton->setChecked(false);
+    });
+    connect(m_regexModeButton, &QPushButton::toggled, this, [this](bool on) {
+        if (on)
+            m_queryModeButton->setChecked(false);
+    });
     
     // Add context line controls
     filterToolBar->addSeparator();
@@ -416,17 +427,31 @@ void MainWindow::onFocusFilterInput()
 
 void MainWindow::onFilterChanged()
 {
-    // Reset background color to default if regex mode is disabled
-    if (!m_regexModeButton->isChecked()) {
-        m_filterInput->setStyleSheet("");
-    } else {
-        // Validate regex pattern when regex mode is enabled
+    // Tint the input by validity: regex mode validates the pattern, query
+    // mode validates syntax only (schema-aware errors surface per viewer).
+    if (m_regexModeButton->isChecked()) {
         QRegularExpression regex(m_filterInput->text());
         if (regex.isValid() || m_filterInput->text().isEmpty()) {
             m_filterInput->setStyleSheet("QLineEdit { background-color: #90EE90; color: black; }"); // Light green
         } else {
             m_filterInput->setStyleSheet("QLineEdit { background-color: #FFB6C1; color: black; }"); // Light red
         }
+    } else if (m_queryModeButton->isChecked() && !m_filterInput->text().isEmpty()) {
+        logdor::QueryError error;
+        const auto query = logdor::CompiledQuery::compile(
+            m_filterInput->text(), {},
+            m_caseSensitiveButton->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive,
+            logdor::QueryOption::AllowUnknownFields, &error);
+        if (query) {
+            m_filterInput->setStyleSheet("QLineEdit { background-color: #90EE90; color: black; }");
+            m_filterInput->setToolTip(QString());
+        } else {
+            m_filterInput->setStyleSheet("QLineEdit { background-color: #FFB6C1; color: black; }");
+            m_filterInput->setToolTip(error.message);
+        }
+    } else {
+        m_filterInput->setStyleSheet("");
+        m_filterInput->setToolTip(QString());
     }
 
     FilterOptions options(m_filterInput->text(),

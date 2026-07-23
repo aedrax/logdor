@@ -131,6 +131,38 @@ private slots:
         QVERIFY(!model.data(model.index(1, 1), Qt::BackgroundRole).isValid());
     }
 
+    void rowOrderPermutation()
+    {
+        QTemporaryDir dir;
+        auto o = openContent(dir, "o.log", QByteArray("a\nb\nc\nd\n"));
+        LogTableModel model;
+        model.setSource(o.source, o.index, parserById(u"plaintext"));
+
+        // Reverse order: view row 0 shows source line 3.
+        model.setRowOrder({ 3, 2, 1, 0 });
+        QVERIFY(model.hasRowOrder());
+        QCOMPARE(model.sourceLineForRow(0), qint64(3));
+        QCOMPARE(model.data(model.index(0, 1), Qt::DisplayRole).toString(),
+                 QStringLiteral("d"));
+        QCOMPARE(model.rowForSourceLine(3), 0);
+        QCOMPARE(model.rowForSourceLine(0), 3);
+        // Round trip under permutation.
+        for (int row = 0; row < 4; ++row)
+            QCOMPARE(model.rowForSourceLine(model.sourceLineForRow(row)), row);
+
+        // Order composes with a filtered row set.
+        model.setRowSet(RowSet::fromLines({ 1, 2, 3 }, 4));
+        QVERIFY(!model.hasRowOrder()); // setRowSet cleared it
+        model.setRowOrder({ 2, 0, 1 }); // rowSet positions
+        QCOMPARE(model.sourceLineForRow(0), qint64(3));
+        QCOMPARE(model.sourceLineForRow(1), qint64(1));
+        QCOMPARE(model.rowForSourceLine(2), 2);
+        QCOMPARE(model.rowForSourceLine(0), -1); // hidden stays hidden
+
+        model.setRowOrder({});
+        QCOMPARE(model.sourceLineForRow(0), qint64(1));
+    }
+
     void lruPreventsReparsing()
     {
         QTemporaryDir dir;

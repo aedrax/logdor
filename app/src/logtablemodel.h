@@ -30,9 +30,17 @@ public:
                    std::shared_ptr<const logdor::LineIndex> index,
                    std::shared_ptr<const logdor::FormatParser> parser);
 
-    void setRowSet(logdor::RowSet rows);
+    void setRowSet(logdor::RowSet rows); // clears any row order
     const logdor::RowSet& rowSet() const { return m_rows; }
     const std::shared_ptr<const logdor::FormatParser>& parser() const { return m_parser; }
+
+    /**
+     * Optional display permutation on top of the row set:
+     * order[viewRow] = position within the RowSet (see logdor::sortRows).
+     * Empty = natural order. Size must equal rowSet().size().
+     */
+    void setRowOrder(std::vector<qint32> order);
+    bool hasRowOrder() const { return !m_order.empty(); }
 
     qint64 sourceLineForRow(int row) const;  // -1 when out of range
     int rowForSourceLine(qint64 line) const; // -1 when hidden
@@ -54,6 +62,8 @@ private:
     std::shared_ptr<const logdor::FormatParser> m_parser;
     QList<logdor::FieldSchema> m_schema;
     logdor::RowSet m_rows;
+    std::vector<qint32> m_order;   // order[viewRow] = rowSetPos; empty = natural
+    std::vector<qint32> m_inverse; // inverse[rowSetPos] = viewRow
     mutable QCache<qint64, logdor::ParsedRow> m_cache { 8192 };
 };
 
