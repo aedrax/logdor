@@ -2,6 +2,7 @@
 # Add new tests by appending to LOGDOR_CORE_TESTS.
 set(LOGDOR_CORE_TESTS
     lineindex
+    filesource
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
