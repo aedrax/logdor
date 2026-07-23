@@ -11,6 +11,7 @@ set(LOGDOR_CORE_TESTS
     query
     columnscan
     formatspec
+    sortscan
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
