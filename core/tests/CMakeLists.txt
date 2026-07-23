@@ -14,6 +14,7 @@ set(LOGDOR_CORE_TESTS
     sortscan
     annotation
     fileidentity
+    annotationscan
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)

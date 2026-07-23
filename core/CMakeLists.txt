@@ -39,6 +39,8 @@ qt_add_library(logdor-core STATIC
     src/FileIdentity.cpp
     include/logdor/Annotation.h
     src/Annotation.cpp
+    include/logdor/AnnotationScan.h
+    src/AnnotationScan.cpp
 )
 add_library(Logdor::Core ALIAS logdor-core)
 
