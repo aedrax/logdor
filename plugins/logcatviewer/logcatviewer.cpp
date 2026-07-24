@@ -7,6 +7,7 @@
 #include <logdor/LogcatParser.h>
 
 #include <QIcon>
+#include <QJsonArray>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPainter>
@@ -81,7 +82,19 @@ LogcatViewer::~LogcatViewer()
 void LogcatViewer::setupUi()
 {
     m_layout->setContentsMargins(0, 0, 0, 0);
-    m_layout->addWidget(m_toolbar);
+    m_layout->setSpacing(0);
+    // Pin the metrics: the desktop theme's toolbar icon size / button style
+    // must not inflate the level buttons.
+    m_toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    m_toolbar->setIconSize(QSize(16, 16));
+    // MUST be named: QMainWindow::restoreState() matches toolbars by
+    // objectName across ALL descendants - an unnamed toolbar here can get
+    // captured by a stale unnamed main-window toolbar entry and yanked to
+    // its saved geometry (buttons painted over the tags row).
+    m_toolbar->setObjectName("LogcatLevelToolbar");
+    // Never squeezed: squeezing a QToolBar hides buttons behind a ">>"
+    // popup it cannot populate outside a QMainWindow.
+    m_toolbar->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     auto createLevelIcon = [](const QColor& color, bool filtered) {
         QPixmap pixmap(16, 16);
@@ -153,13 +166,24 @@ void LogcatViewer::setupUi()
     m_tagsLayout->setSpacing(2);
     m_tagsLayout->addStretch();
 
-    m_toolbar->addSeparator();
-    m_toolbar->addWidget(new QLabel(tr("Tags: ")));
-    m_toolbar->addWidget(m_tagComboBox);
-    m_toolbar->addWidget(m_scrollArea);
+    // One chrome row: level buttons, then the tag filter to their right.
+    // A plain QHBoxLayout instead of toolbar items - the old single
+    // QToolBar hid overflowing addWidget() items behind a ">>" popup it
+    // cannot even populate outside a QMainWindow, so in a narrow dock the
+    // combo and tag labels silently vanished. A layout squeezes instead.
+    auto* chromeRow = new QWidget(m_container);
+    auto* chromeLayout = new QHBoxLayout(chromeRow);
+    chromeLayout->setContentsMargins(4, 0, 4, 0);
+    chromeLayout->setSpacing(4);
+    chromeLayout->addWidget(m_toolbar);
+    chromeLayout->addWidget(new QLabel(tr("Tags: ")));
+    chromeLayout->addWidget(m_tagComboBox);
+    chromeLayout->addWidget(m_scrollArea, /*stretch*/ 1);
+    m_layout->addWidget(chromeRow);
 
     m_viewer->tableView()->setAlternatingRowColors(false);
-    m_layout->addWidget(m_viewer);
+    // All vertical slack goes to the table, not the chrome rows.
+    m_layout->addWidget(m_viewer, /*stretch*/ 1);
 }
 
 void LogcatViewer::addTagLabel(const QString& tag)
@@ -181,14 +205,70 @@ void LogcatViewer::addTagLabel(const QString& tag)
     updatePredicate();
 }
 
-void LogcatViewer::updatePredicate()
+void LogcatViewer::clearTagLabels()
 {
+    m_selectedTags.clear();
+    // The stretch added last in setupUi stays; everything before it is a tag.
+    while (m_tagsLayout->count() > 1) {
+        QLayoutItem* item = m_tagsLayout->takeAt(0);
+        if (QWidget* widget = item->widget())
+            widget->deleteLater();
+        delete item;
+    }
+}
+
+QJsonObject LogcatViewer::saveViewState() const
+{
+    QJsonObject state = m_viewer->saveViewState();
+    QJsonArray levels;
+    for (bool enabled : m_levelEnabled)
+        levels.append(enabled);
+    state.insert(QStringLiteral("levels"), levels);
+    if (!m_selectedTags.isEmpty()) {
+        QJsonArray tags;
+        for (const QString& tag : m_selectedTags)
+            tags.append(tag);
+        state.insert(QStringLiteral("tags"), tags);
+    }
+    return state;
+}
+
+void LogcatViewer::restoreViewState(const QJsonObject& state)
+{
+    // Batch: every setChecked/addTagLabel below funnels into
+    // updatePredicate(), which would rescan per toggle without the guard.
+    m_restoring = true;
+
+    const QJsonArray levels = state.value(QLatin1String("levels")).toArray();
+    if (levels.size() == int(m_levelEnabled.size())) {
+        for (int i = 0; i < levels.size(); ++i) {
+            if (QAction* action = m_levelActions.value(i))
+                action->setChecked(levels.at(i).toBool(true));
+        }
+    }
+
+    clearTagLabels();
+    const QJsonArray tags = state.value(QLatin1String("tags")).toArray();
+    for (const QJsonValue& tag : tags)
+        addTagLabel(tag.toString());
+
+    m_restoring = false;
+    // No refilter: the shell's setFilter() follows this call and runs the
+    // scan with the rebuilt predicate in place.
+    updatePredicate(false);
+    m_viewer->restoreViewState(state);
+}
+
+void LogcatViewer::updatePredicate(bool refilter)
+{
+    if (m_restoring)
+        return;
     const bool allLevels = std::all_of(m_levelEnabled.begin(),
                                        m_levelEnabled.end(),
                                        [](bool b) { return b; });
     if (allLevels && m_selectedTags.isEmpty()) {
         // No chrome filter: null predicate keeps the empty-query passthrough.
-        m_viewer->setExtraPredicate(nullptr);
+        m_viewer->setExtraPredicate(nullptr, refilter);
         return;
     }
 
@@ -202,7 +282,8 @@ void LogcatViewer::updatePredicate()
                 return false;
             return tags.isEmpty()
                 || tags.contains(row.fields[logdor::LogcatParser::Tag]);
-        });
+        },
+        refilter);
 }
 
 void LogcatViewer::setCoreSource(std::shared_ptr<logdor::FileSource> source,
@@ -219,7 +300,7 @@ void LogcatViewer::setCoreSource(std::shared_ptr<logdor::FileSource> source,
 
 void LogcatViewer::startTagSuggestionScan()
 {
-    // Suggestions come from the first 100k lines, off-thread — full-file tag
+    // Suggestions come from the first 100k lines, off-thread - full-file tag
     // enumeration contradicts the lazy architecture; any tag can still be
     // typed manually.
     auto source = m_source;

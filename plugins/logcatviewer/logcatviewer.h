@@ -44,14 +44,19 @@ public:
 
     void setFilter(const FilterOptions& options) override;
 
+    QJsonObject saveViewState() const override;
+    void restoreViewState(const QJsonObject& state) override;
+
 public slots:
     void onPluginEvent(PluginEvent event, const QVariant& data) override;
 
 private:
     void setupUi();
     void addTagLabel(const QString& tag);
-    // Rebuilds the level/tag predicate and re-runs the filter scan.
-    void updatePredicate();
+    void clearTagLabels();
+    // Rebuilds the level/tag predicate and (unless told otherwise) re-runs
+    // the filter scan.
+    void updatePredicate(bool refilter = true);
     void startTagSuggestionScan();
 
     QWidget* m_container;
@@ -72,6 +77,7 @@ private:
     std::shared_ptr<logdor::FileSource> m_source;
     std::shared_ptr<const logdor::LineIndex> m_index;
     QFutureWatcher<QStringList> m_tagScanWatcher;
+    bool m_restoring = false; // batches predicate updates during restore
 };
 
 #endif // LOGCATVIEWER_H
