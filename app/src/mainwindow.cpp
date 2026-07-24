@@ -19,8 +19,13 @@
 #include <QRegularExpression>
 #include <QStyle>
 #include <QActionGroup>
+#include <QCheckBox>
+#include <QDateTimeEdit>
+#include <QGridLayout>
 #include <QInputDialog>
+#include <QMenu>
 #include <QTimeZone>
+#include <QWidgetAction>
 #include "folderview.h"
 #include "recentitems.h"
 #include "timesettings.h"
@@ -130,6 +135,78 @@ MainWindow::MainWindow(QWidget* parent)
     setupToggleButton(m_queryModeButton,
                       tr("Field query mode: level:error tag:Wifi* pid>=100 \"free text\""));
     filterRowLayout->addWidget(m_queryModeButton);
+
+    // Time-range picker: a popup with From/To datetime edits that injects
+    // @time>= / @time<= query terms - @time resolves to each viewer's own
+    // timestamp column.
+    auto* timeRangeButton = new QPushButton(tr("Time"), this);
+    timeRangeButton->setFlat(false);
+    timeRangeButton->setFixedSize(44, 24);
+    timeRangeButton->setToolTip(
+        tr("Filter by time range (adds @time terms to the query)"));
+    filterRowLayout->addWidget(timeRangeButton);
+
+    auto* timeMenu = new QMenu(this);
+    auto* timePanel = new QWidget(timeMenu);
+    auto* timeGrid = new QGridLayout(timePanel);
+    timeGrid->setContentsMargins(8, 8, 8, 8);
+    auto* fromCheck = new QCheckBox(tr("From"), timePanel);
+    auto* fromEdit = new QDateTimeEdit(timePanel);
+    auto* toCheck = new QCheckBox(tr("To"), timePanel);
+    auto* toEdit = new QDateTimeEdit(timePanel);
+    for (QDateTimeEdit* edit : { fromEdit, toEdit }) {
+        edit->setDisplayFormat(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+        edit->setCalendarPopup(true);
+        edit->setEnabled(false);
+    }
+    connect(fromCheck, &QCheckBox::toggled, fromEdit, &QWidget::setEnabled);
+    connect(toCheck, &QCheckBox::toggled, toEdit, &QWidget::setEnabled);
+    auto* applyButton = new QPushButton(tr("Apply"), timePanel);
+    auto* clearButton = new QPushButton(tr("Clear"), timePanel);
+    timeGrid->addWidget(fromCheck, 0, 0);
+    timeGrid->addWidget(fromEdit, 0, 1);
+    timeGrid->addWidget(toCheck, 1, 0);
+    timeGrid->addWidget(toEdit, 1, 1);
+    timeGrid->addWidget(clearButton, 2, 0);
+    timeGrid->addWidget(applyButton, 2, 1);
+    auto* timeAction = new QWidgetAction(timeMenu);
+    timeAction->setDefaultWidget(timePanel);
+    timeMenu->addAction(timeAction);
+
+    connect(timeRangeButton, &QPushButton::clicked, this,
+            [this, timeMenu, timeRangeButton, fromCheck, toCheck, fromEdit,
+             toEdit]() {
+                if (!fromCheck->isChecked() && !toCheck->isChecked()) {
+                    // Fresh defaults: today so far.
+                    const QDateTime now = QDateTime::currentDateTime();
+                    fromEdit->setDateTime(QDateTime(now.date(), QTime(0, 0)));
+                    toEdit->setDateTime(now);
+                }
+                timeMenu->popup(timeRangeButton->mapToGlobal(
+                    QPoint(0, timeRangeButton->height())));
+            });
+    connect(applyButton, &QPushButton::clicked, this,
+            [this, timeMenu, fromCheck, toCheck, fromEdit, toEdit]() {
+                const QString format = QStringLiteral("yyyy-MM-dd HH:mm:ss");
+                QStringList terms;
+                if (fromCheck->isChecked())
+                    terms << QStringLiteral("@time>=")
+                            + logdor::quoteQueryValue(
+                                fromEdit->dateTime().toString(format));
+                if (toCheck->isChecked())
+                    terms << QStringLiteral("@time<=")
+                            + logdor::quoteQueryValue(
+                                toEdit->dateTime().toString(format));
+                timeMenu->hide();
+                applyTimeRange(terms);
+            });
+    connect(clearButton, &QPushButton::clicked, this,
+            [this, timeMenu, fromCheck, toCheck]() {
+                fromCheck->setChecked(false);
+                toCheck->setChecked(false);
+                timeMenu->hide();
+                applyTimeRange({});
+            });
 
     // Query mode and regex mode are mutually exclusive filter languages.
     connect(m_queryModeButton, &QPushButton::toggled, this, [this](bool on) {
@@ -913,6 +990,36 @@ void MainWindow::onFilterChanged()
 
     // Apply filter to all enabled plugins with context lines
     m_pluginManager->setFilter(m_filterOptions);
+}
+
+void MainWindow::applyTimeRange(const QStringList& terms)
+{
+    // Replace, never stack: strip the terms this picker injected last time,
+    // leaving anything the user typed alone.
+    QString text = m_filterInput->text();
+    for (const QString& old : std::as_const(m_timeRangeTerms)) {
+        const qsizetype at = text.indexOf(old);
+        if (at < 0)
+            continue; // the user edited it away; nothing to strip
+        qsizetype begin = at, end = at + old.size();
+        if (end < text.size() && text[end] == u' ')
+            ++end; // absorb one separator space
+        else if (begin > 0 && text[begin - 1] == u' ')
+            --begin;
+        text.remove(begin, end - begin);
+    }
+    text = text.trimmed();
+    m_timeRangeTerms = terms;
+
+    m_filterTimer->stop();
+    {
+        const QSignalBlocker blockInput(m_filterInput);
+        m_filterInput->setText(text);
+    }
+    if (terms.isEmpty())
+        onFilterChanged();
+    else
+        onFilterTermRequested(terms.join(u' '));
 }
 
 void MainWindow::onFilterTermRequested(const QString& term)

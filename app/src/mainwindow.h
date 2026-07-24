@@ -71,6 +71,9 @@ private:
     void updateNoteCount();
     void importAnnotations();
     void exportAnnotations();
+    // Time-range picker: replace (never stack) the @time terms it injected
+    // last time with @p terms, then re-apply the filter in query mode.
+    void applyTimeRange(const QStringList& terms);
     void saveSettings();
     void loadSettings();
     // Per-file view state (filter + plugin states), kept for the app run so
@@ -116,6 +119,7 @@ private:
     QSpinBox* m_beforeSpinBox;
     QSpinBox* m_afterSpinBox;
     QTimer* m_filterTimer;
+    QStringList m_timeRangeTerms; // @time terms injected by the range picker
 };
 
 #endif // MAINWINDOW_H
