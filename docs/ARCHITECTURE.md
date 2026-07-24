@@ -22,7 +22,7 @@ Registries are value-returning free functions.
 |---|---|---|
 | Bytes | `FileSource` | mmap-first read-only file owner; buffered 4 MiB LRU fallback when mapping fails; `shared_ptr` lifetime so cancelled background work can outlive a file switch |
 | Lines | `LineIndex`, `buildLineIndex` | block-delta line offsets (~4 B/line); cancellable off-thread scan with permille progress |
-| Parsing | `FormatParser`, `PlainTextParser`/`LogcatParser`/`ClfParser`/`CsvParser`, `DeclarativeParser` + `FormatSpec`, `FormatRegistry` | schema + stateless thread-safe per-line parse; JSON-defined formats; sample-scored auto-detection |
+| Parsing | `FormatParser`, `PlainTextParser`/`LogcatParser`/`ClfParser`/`CsvParser`/`JsonLinesParser`, `DeclarativeParser` + `FormatSpec`, `FormatRegistry` | schema + stateless thread-safe per-line parse; JSON-defined formats; sample-scored auto-detection |
 | Filtering | `RowSet`, `scanFilter`, `CompiledQuery`, `ColumnScan`/`ColumnCache` | chunk-parallel cancellable scans; field-query language over extracted columns; empty filter costs zero bytes |
 | Sorting | `sortRows` | stable off-thread sort of visible rows by cached keys |
 | Annotations | `Annotation`/`AnnotationSet`, `FileIdentity`, `AnnotationScan` | versioned sidecar JSON, LWW merge, content-hash identity, bounded re-anchoring |
@@ -94,7 +94,22 @@ is a union by UUID with last-write-wins by modification time.
 `~/.local/share/logdor/formats/` (see `core/formats/*.json` for the
 schema), or build it interactively in the **Custom Format Viewer** and
 click *Save as Format*. Specs participate in auto-detection and appear
-in the Plain Text Viewer's format list.
+in the Plain Text Viewer's format list. Bundled specs live in
+`core/formats/`: `syslog-rfc3164`, `syslog-iso` (modern
+rsyslog/Ubuntu 24.04+ high-precision timestamps), `dpkg`, `dmesg`,
+`keyvalue`, `apt-history`, `apt-term`, `cloud-init`,
+`cloud-init-output`, `apport`, `xorg`, and `alternatives` — all
+golden-tested against real Ubuntu `/var/log` lines in
+`core/tests/tst_systemformats.cpp`.
+
+**Binary logs** (systemd journal, wtmp/btmp/lastlog) have no newline
+record boundaries, so they don't fit the `LineIndex` pipeline; a
+record-index abstraction is future core work. Until then, export to
+text: `journalctl -o short-iso-precise > out.log` is parsed by
+`syslog-iso`, `journalctl -o json > out.log` by the `jsonlines`
+builtin (which handles the journal's arbitrary field order, `PRIORITY`
+levels, and µs-epoch timestamps), and `last -f /var/log/wtmp > out.log`
+is plain text.
 
 **A new C++ parser** - implement `FormatParser` (stateless, thread-safe
 `parseLine`; fill every schema field even on mismatch; keep

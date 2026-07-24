@@ -23,7 +23,7 @@ Logdor provides functionality through a plugin-based architecture. Each plugin s
 - **Selected Line Viewer** - focused view of lines selected in other viewers
 - **Map Viewer** - extracts coordinates (decimal, labeled, DMS) from log lines and plots them on an OpenStreetMap map (requires Qt WebEngine and network access for tiles)
 
-Removed in the core migration (all preserved in git history): *Bookmark Viewer* (replaced by Annotations), *Syslog Viewer* (superseded by the bundled `syslog-rfc3164` format spec), *Regex Viewer* (replaced by the Custom Format Viewer), *PGN Viewer* (retired).
+Removed in the core migration (all preserved in git history): *Bookmark Viewer* (replaced by Annotations), *Syslog Viewer* (superseded by the bundled `syslog-rfc3164`/`syslog-iso` format specs), *Regex Viewer* (replaced by the Custom Format Viewer), *PGN Viewer* (retired).
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how it all fits together and how to extend it.
 
@@ -35,8 +35,14 @@ Logdor is split into two layers:
   (`FileSource`, mmap with buffered fallback), line indexing (`LineIndex`,
   ~4 bytes/line), cancellable background index building (`buildLineIndex`),
   format parsers (`FormatParser`: plaintext, Android logcat, Apache CLF,
+  JSON Lines (`journalctl -o json`, pino/bunyan-style app logs),
   plus user-writable **declarative JSON format specs** - drop a `.json` into
-  `~/.local/share/logdor/formats` to parse a new format without compiling),
+  `~/.local/share/logdor/formats` to parse a new format without compiling;
+  bundled specs cover syslog in both the traditional RFC 3164 and modern
+  ISO 8601/rsyslog flavors - the latter also parses `journalctl >
+  file` exports - plus dpkg.log, dmesg, apt history.log/term.log,
+  cloud-init(-output).log, apport.log, Xorg.0.log, alternatives.log,
+  and logfmt-style key=value),
   sample-based auto-detection, off-thread filtering (`scanFilter` over a
   `RowSet`), a **field query language** (`level:error tag:Wifi* pid>=100
   "free text"` with AND/OR/NOT - toggle the `Q` button), and off-thread
