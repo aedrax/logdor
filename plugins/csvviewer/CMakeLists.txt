@@ -7,9 +7,6 @@ qt_add_plugin(csvviewer
 target_sources(csvviewer
     PRIVATE
         csvviewer.cpp
-        csvtablemodel.cpp
-        csvtablemodel.h
-        csventry.h
     PUBLIC
         csvviewer.h
 )
@@ -29,6 +26,7 @@ target_include_directories(csvviewer
 target_link_libraries(csvviewer
     PRIVATE
         logdor_interface
+        Logdor::Core
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets

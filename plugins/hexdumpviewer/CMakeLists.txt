@@ -26,6 +26,7 @@ target_include_directories(hexdumpviewer
 target_link_libraries(hexdumpviewer
     PRIVATE
         logdor_interface
+        Logdor::Core
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
