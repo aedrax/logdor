@@ -14,6 +14,7 @@
 #include <memory>
 
 class QLabel;
+class QProgressDialog;
 
 #define FILTER_DEBOUNCE_TIMEOUT_MILLISECONDS 300
 
@@ -22,14 +23,6 @@ namespace Ui { class MainWindow; }
 class QLineEdit;
 class QSpinBox;
 QT_END_NAMESPACE
-
-// Forward declarations for background processing
-class BackgroundTaskManager;
-class ProgressDialog;
-class StatusBarProgress;
-class PluginProcessingTask;
-struct TaskResult;
-struct ProgressInfo;
 
 class MainWindow : public QMainWindow
 {
@@ -53,21 +46,8 @@ private slots:
 protected:
     void closeEvent(QCloseEvent* event) override;
 
-private slots:
-    // Background processing slots
-    void onBackgroundTaskStarted(const QString& taskId);
-    void onBackgroundTaskCompleted(const QString& taskId, const TaskResult& result);
-    void onBackgroundTaskCancelled(const QString& taskId);
-    void onBackgroundTaskFailed(const QString& taskId, const QString& error);
-    void onBackgroundTaskProgressChanged(const QString& taskId, const ProgressInfo& progress);
-    void onProgressDialogCancelled();
-    void onStatusBarProgressClicked();
-
 private:
     void loadPlugins();
-    // Materialize the legacy QList<LogEntry> from the core source if not
-    // already done (heap-loads the file first in buffered mode).
-    bool ensureLegacyEntries(QString* error);
     // Annotation persistence (sidecar next to the log, appdata fallback).
     QString annotationSidecarPath() const;
     QString annotationFallbackPath(const logdor::FileIdentity& identity) const;
@@ -78,15 +58,6 @@ private:
     void exportAnnotations();
     void saveSettings();
     void loadSettings();
-    
-    // Background processing methods
-    void initializeBackgroundProcessing();
-    void shutdownBackgroundProcessing();
-    void processFileInBackground(const QString& fileName, const QList<LogEntry>& logEntries);
-    void showProgressDialog(const QString& taskId, const QString& title);
-    void hideProgressDialog();
-    void updateStatusBarProgress(const QString& taskId);
-    bool shouldUseBackgroundProcessing(const QString& fileName) const;
 
     Ui::MainWindow* ui;
     PluginManager* m_pluginManager;
@@ -94,19 +65,18 @@ private:
     QMap<QString, QDockWidget*> m_pluginDocks;
     QMap<QString, QAction*> m_pluginActions;
     QMenu* m_pluginsMenu;
-    // Current file, owned by the core: the source outlives any background
-    // consumer via shared_ptr; entries in m_logEntries point into its bytes.
+    // Current file, owned by the core; viewers hold shared_ptrs into it.
     std::shared_ptr<logdor::FileSource> m_fileSource;
     std::shared_ptr<const logdor::LineIndex> m_lineIndex;
     QFutureWatcher<logdor::IndexingResult>* m_indexWatcher = nullptr;
+    QProgressDialog* m_indexProgress = nullptr;
     QString m_pendingFileName;
     QString m_currentFileName;
     AnnotationHub* m_annotationHub = nullptr;
     QTimer* m_annotationSaveTimer = nullptr;
     QLabel* m_noteCountLabel = nullptr;
-    QList<LogEntry> m_logEntries;
     FilterOptions m_filterOptions;
-    
+
     // Filter controls
     QLineEdit* m_filterInput;
     QPushButton* m_caseSensitiveButton;
@@ -116,15 +86,6 @@ private:
     QSpinBox* m_beforeSpinBox;
     QSpinBox* m_afterSpinBox;
     QTimer* m_filterTimer;
-    
-    // Background processing components
-    std::unique_ptr<BackgroundTaskManager> m_backgroundTaskManager;
-    std::unique_ptr<ProgressDialog> m_progressDialog;
-    std::unique_ptr<StatusBarProgress> m_statusBarProgress;
-    QString m_currentBackgroundTaskId;
-    
-    // Background processing configuration
-    static const qint64 BACKGROUND_PROCESSING_THRESHOLD; // File size threshold for background processing
 };
 
 #endif // MAINWINDOW_H
