@@ -46,6 +46,13 @@ public:
     /// Enables annotation markers/tooltips and the note context menu.
     void setAnnotationHub(AnnotationHub* hub);
 
+    /**
+     * Restrict visible rows to @p sortedLines (ANDed with the filter and any
+     * extra predicate) — the PluginEvent::LinesConstrained mechanism. Null or
+     * empty lifts the restriction. Cleared automatically on a new file.
+     */
+    void setLineConstraint(std::shared_ptr<const std::vector<qint32>> sortedLines);
+
     LogTableModel* model() const { return m_model; }
     QTableView* tableView() const { return m_view; }
 
@@ -91,6 +98,7 @@ private:
     FilterOptions m_lastOptions;
     std::shared_ptr<const logdor::CompiledQuery> m_activeQuery;
     std::function<bool(qint64, QByteArrayView)> m_extraPredicate;
+    std::shared_ptr<const std::vector<qint32>> m_lineConstraint;
 
     bool m_scanAfterExtract = false;
     bool m_sortAfterExtract = false;

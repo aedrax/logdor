@@ -40,6 +40,14 @@ struct FilterOptions {
 /// Cross-plugin events, fanned out synchronously by PluginManager.
 enum class PluginEvent {
     LinesSelected, // payload: QList<int> of SOURCE line numbers
+
+    /**
+     * Restrict every viewer to a set of source lines — e.g. the Map Viewer
+     * broadcasting the lines inside a drawn area. Payload: sorted
+     * QList<int>; an EMPTY list lifts the restriction. Viewers AND this
+     * with their own filters; a new file clears it implicitly.
+     */
+    LinesConstrained,
 };
 
 /**

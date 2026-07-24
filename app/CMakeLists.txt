@@ -37,7 +37,7 @@ target_link_libraries(logdor_interface PUBLIC
 )
 
 if(BUILD_TESTING)
-    foreach(t logtablemodel annotationhub)
+    foreach(t logtablemodel annotationhub logviewerwidget)
         qt_add_executable(tst_${t} tests/tst_${t}.cpp)
         target_link_libraries(tst_${t} PRIVATE
             logdor_interface Logdor::Core Qt6::Test Qt6::Widgets)

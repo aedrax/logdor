@@ -9,6 +9,7 @@
 
 #include <QFutureWatcher>
 #include <QLabel>
+#include <QPushButton>
 #include <QSplitter>
 #include <QTableView>
 #include <QWebEngineView>
@@ -49,17 +50,27 @@ private slots:
     void onFilterScanFinished();
     void onMapLoadFinished(bool ok);
     void onMapUrlChanged(const QUrl& url);
+    void onSelectAreaToggled(bool on);
+    void clearArea();
 
 private:
     void applyVisiblePoints();
+    void applyAreaBounds(double south, double west, double north, double east);
+    void broadcastAreaConstraint();
     void pushMarkers();
     void runMapJs(const QString& js);
 
     QSplitter* m_splitter;
     QTableView* m_tableView;
     QLabel* m_status;
+    QPushButton* m_selectAreaButton;
+    QPushButton* m_clearAreaButton;
     QWebEngineView* m_mapView;
     MapTableModel* m_model;
+
+    // Active area (inclusive bounding box); no area when !m_hasArea.
+    bool m_hasArea = false;
+    double m_areaSouth = 0, m_areaWest = 0, m_areaNorth = 0, m_areaEast = 0;
 
     std::shared_ptr<logdor::FileSource> m_source;
     std::shared_ptr<const logdor::LineIndex> m_index;

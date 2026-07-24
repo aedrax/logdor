@@ -11,6 +11,8 @@
 #include <QTableView>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 using namespace logdor;
 
 LogViewerWidget::LogViewerWidget(QWidget* parent)
@@ -76,6 +78,7 @@ void LogViewerWidget::setCoreSource(std::shared_ptr<FileSource> source,
     m_source = std::move(source);
     m_index = std::move(index);
     m_columnCache.clear();
+    m_lineConstraint.reset(); // constraints don't survive a file switch
     m_activeQuery.reset();
     m_scanAfterExtract = false;
     m_sortAfterExtract = false;
@@ -261,6 +264,16 @@ void LogViewerWidget::setExtraPredicate(
         applyFilter(m_lastOptions);
 }
 
+void LogViewerWidget::setLineConstraint(
+    std::shared_ptr<const std::vector<qint32>> sortedLines)
+{
+    if (sortedLines && sortedLines->empty())
+        sortedLines.reset();
+    m_lineConstraint = std::move(sortedLines);
+    if (m_source && m_index)
+        applyFilter(m_lastOptions);
+}
+
 bool LogViewerWidget::ensureColumns(const QList<int>& columns, bool needsSeverity)
 {
     const QList<int> missing = m_columnCache.missing(columns);
@@ -305,7 +318,21 @@ void LogViewerWidget::startScan()
     filter.invert = m_lastOptions.invertFilter;
     filter.contextBefore = m_lastOptions.contextLinesBefore;
     filter.contextAfter = m_lastOptions.contextLinesAfter;
-    filter.extraPredicate = m_extraPredicate;
+
+    // Compose: line constraint (membership) AND plugin chrome predicate.
+    if (m_lineConstraint) {
+        auto constraint = m_lineConstraint;
+        auto chrome = m_extraPredicate;
+        filter.extraPredicate = [constraint, chrome](qint64 line,
+                                                     QByteArrayView raw) {
+            if (!std::binary_search(constraint->begin(), constraint->end(),
+                                    qint32(line)))
+                return false;
+            return !chrome || chrome(line, raw);
+        };
+    } else {
+        filter.extraPredicate = m_extraPredicate;
+    }
 
     m_scanWatcher.setFuture(scanFilter(m_source, m_index, std::move(filter)));
 }

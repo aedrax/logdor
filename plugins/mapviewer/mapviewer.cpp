@@ -1,5 +1,6 @@
 #include "mapviewer.h"
 
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QItemSelectionModel>
 #include <QJsonArray>
@@ -63,12 +64,59 @@ const char* kMapHtml = R"HTML(<!DOCTYPE html>
         if (map) map.panTo([lat, lon]);
     }
 
+    // --- Area selection: drag a rectangle, report bounds via the hash. ---
+    var selecting = false;
+    var selStart = null;
+    var dragRect = null;   // rubber band while dragging
+    var areaRect = null;   // committed area
+
+    function setSelectMode(on) {
+        if (!map) return;
+        selecting = on;
+        map.dragging[on ? 'disable' : 'enable']();
+        map.getContainer().style.cursor = on ? 'crosshair' : '';
+    }
+    function clearArea() {
+        if (areaRect) { map.removeLayer(areaRect); areaRect = null; }
+    }
+    function bindAreaHandlers() {
+        map.on('mousedown', function(e) {
+            if (!selecting) return;
+            selStart = e.latlng;
+            if (dragRect) { map.removeLayer(dragRect); dragRect = null; }
+        });
+        map.on('mousemove', function(e) {
+            if (!selecting || !selStart) return;
+            var bounds = L.latLngBounds(selStart, e.latlng);
+            if (!dragRect)
+                dragRect = L.rectangle(bounds, { color: '#cc4444', weight: 1,
+                                                 fillOpacity: 0.08 }).addTo(map);
+            else
+                dragRect.setBounds(bounds);
+        });
+        map.on('mouseup', function(e) {
+            if (!selecting || !selStart) return;
+            var bounds = L.latLngBounds(selStart, e.latlng);
+            selStart = null;
+            if (dragRect) { map.removeLayer(dragRect); dragRect = null; }
+            setSelectMode(false);
+            clearArea();
+            areaRect = L.rectangle(bounds, { color: '#cc4444', weight: 2,
+                                             fillOpacity: 0.05 }).addTo(map);
+            // Commas are safe separators for negative coordinates.
+            location.hash = 'area=' + bounds.getSouth() + ',' + bounds.getWest()
+                + ',' + bounds.getNorth() + ',' + bounds.getEast()
+                + '&t=' + Date.now();
+        });
+    }
+
     if (typeof L !== 'undefined') {
         map = L.map('map').setView([20, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
         markerLayer = L.layerGroup().addTo(map);
+        bindAreaHandlers();
     } else {
         document.getElementById('offline').style.display = 'flex';
     }
@@ -90,6 +138,22 @@ MapViewer::MapViewer(QObject* parent)
     auto* leftLayout = new QVBoxLayout(left);
     leftLayout->setContentsMargins(0, 0, 0, 0);
     leftLayout->setSpacing(2);
+
+    auto* toolbar = new QWidget();
+    auto* toolbarLayout = new QHBoxLayout(toolbar);
+    toolbarLayout->setContentsMargins(4, 2, 4, 2);
+    m_selectAreaButton = new QPushButton(tr("Select Area"));
+    m_selectAreaButton->setCheckable(true);
+    m_selectAreaButton->setToolTip(
+        tr("Drag a rectangle on the map; all viewers filter to lines whose "
+           "coordinates fall inside it"));
+    m_clearAreaButton = new QPushButton(tr("Clear Area"));
+    m_clearAreaButton->setEnabled(false);
+    toolbarLayout->addWidget(m_selectAreaButton);
+    toolbarLayout->addWidget(m_clearAreaButton);
+    toolbarLayout->addStretch();
+    leftLayout->addWidget(toolbar);
+
     m_status->setContentsMargins(4, 2, 4, 2);
     m_status->setText(tr("No location events"));
     leftLayout->addWidget(m_status);
@@ -128,6 +192,10 @@ MapViewer::MapViewer(QObject* parent)
                                  QVariant::fromValue(lines));
             });
 
+    connect(m_selectAreaButton, &QPushButton::toggled,
+            this, &MapViewer::onSelectAreaToggled);
+    connect(m_clearAreaButton, &QPushButton::clicked,
+            this, &MapViewer::clearArea);
     connect(m_mapView, &QWebEngineView::loadFinished,
             this, &MapViewer::onMapLoadFinished);
     connect(m_mapView, &QWebEngineView::urlChanged,
@@ -158,6 +226,12 @@ void MapViewer::setCoreSource(std::shared_ptr<logdor::FileSource> source,
     m_allPoints.clear();
     m_visibleRows = {};
     m_hasFilterResult = false;
+    // Areas don't survive a file switch (viewers clear their constraint on
+    // setCoreSource themselves, so no broadcast is needed).
+    m_hasArea = false;
+    m_selectAreaButton->setChecked(false);
+    m_clearAreaButton->setEnabled(false);
+    runMapJs(QStringLiteral("clearArea(); setSelectMode(false);"));
     m_model->setSource(m_source, m_index);
     m_status->setText(tr("No location events"));
     pushMarkers();
@@ -201,6 +275,9 @@ void MapViewer::onGeoScanFinished()
         return;
     m_allPoints = m_geoWatcher.future().result().points;
     applyVisiblePoints();
+    // An area drawn while the scan ran was computed against no points.
+    if (m_hasArea)
+        broadcastAreaConstraint();
     // A filter may already be active; refresh against it.
     if (!m_lastFilter.query.isEmpty() && !m_lastFilter.inQueryMode)
         setFilter(m_lastFilter);
@@ -215,13 +292,67 @@ void MapViewer::onFilterScanFinished()
     applyVisiblePoints();
 }
 
+void MapViewer::onSelectAreaToggled(bool on)
+{
+    runMapJs(QStringLiteral("setSelectMode(%1);").arg(on ? u"true" : u"false"));
+}
+
+void MapViewer::clearArea()
+{
+    if (!m_hasArea)
+        return;
+    m_hasArea = false;
+    m_clearAreaButton->setEnabled(false);
+    runMapJs(QStringLiteral("clearArea();"));
+    applyVisiblePoints();
+    broadcastAreaConstraint(); // empty payload lifts the restriction
+}
+
+void MapViewer::applyAreaBounds(double south, double west, double north,
+                                double east)
+{
+    m_hasArea = true;
+    m_areaSouth = south;
+    m_areaWest = west;
+    m_areaNorth = north;
+    m_areaEast = east;
+    m_clearAreaButton->setEnabled(true);
+    m_selectAreaButton->setChecked(false); // JS already left select mode
+    applyVisiblePoints();
+    broadcastAreaConstraint();
+}
+
+void MapViewer::broadcastAreaConstraint()
+{
+    QList<int> lines;
+    if (m_hasArea) {
+        for (const logdor::GeoPoint& point : m_allPoints) {
+            if (point.latitude >= m_areaSouth && point.latitude <= m_areaNorth
+                && point.longitude >= m_areaWest
+                && point.longitude <= m_areaEast)
+                lines.append(point.line); // m_allPoints is line-ascending
+        }
+        // An empty payload means "lift the restriction", but an area with no
+        // events must show NOTHING — send an impossible line instead.
+        if (lines.isEmpty())
+            lines.append(-1);
+    }
+    emit pluginEvent(PluginEvent::LinesConstrained,
+                     QVariant::fromValue(lines));
+}
+
 void MapViewer::applyVisiblePoints()
 {
     QList<logdor::GeoPoint> visible;
     for (const logdor::GeoPoint& point : m_allPoints) {
-        if (!m_hasFilterResult
-            || m_visibleRows.rowForSourceLine(point.line) >= 0)
-            visible.append(point);
+        if (m_hasFilterResult && m_visibleRows.rowForSourceLine(point.line) < 0)
+            continue;
+        if (m_hasArea
+            && !(point.latitude >= m_areaSouth && point.latitude <= m_areaNorth
+                 && point.longitude >= m_areaWest
+                 && point.longitude <= m_areaEast))
+            continue;
+        visible.append(point);
     }
 
     m_model->setPoints(visible);
@@ -233,6 +364,8 @@ void MapViewer::applyVisiblePoints()
         : tr("%n location event(s)", nullptr, int(total));
     if (total > kMaxMarkers)
         status += tr(" — plotting the first %1").arg(kMaxMarkers);
+    if (m_hasArea)
+        status += tr(" — area active, all viewers filtered");
     if (m_lastFilter.inQueryMode && !m_lastFilter.query.isEmpty())
         status += tr(" (field queries are not applied to the map)");
     m_status->setText(status);
@@ -285,8 +418,25 @@ void MapViewer::onMapLoadFinished(bool ok)
 
 void MapViewer::onMapUrlChanged(const QUrl& url)
 {
-    // Marker clicks set location.hash to "line-<n>-<nonce>".
     const QString hash = url.fragment();
+
+    // Area drags set location.hash to "area=S,W,N,E&t=<nonce>".
+    if (hash.startsWith(QLatin1String("area="))) {
+        const QString bounds = hash.mid(5).section(u'&', 0, 0);
+        const QStringList parts = bounds.split(u',');
+        if (parts.size() != 4)
+            return;
+        bool ok0 = false, ok1 = false, ok2 = false, ok3 = false;
+        const double south = parts[0].toDouble(&ok0);
+        const double west = parts[1].toDouble(&ok1);
+        const double north = parts[2].toDouble(&ok2);
+        const double east = parts[3].toDouble(&ok3);
+        if (ok0 && ok1 && ok2 && ok3)
+            applyAreaBounds(south, west, north, east);
+        return;
+    }
+
+    // Marker clicks set location.hash to "line-<n>-<nonce>".
     if (!hash.startsWith(QLatin1String("line-")))
         return;
     const QStringList parts = hash.split(u'-');

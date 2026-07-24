@@ -252,6 +252,12 @@ void LogcatViewer::setFilter(const FilterOptions& options)
 
 void LogcatViewer::onPluginEvent(PluginEvent event, const QVariant& data)
 {
-    if (event == PluginEvent::LinesSelected)
+    if (event == PluginEvent::LinesSelected) {
         m_viewer->selectSourceLines(data.value<QList<int>>());
+    } else if (event == PluginEvent::LinesConstrained) {
+        const QList<int> lines = data.value<QList<int>>();
+        auto sorted = std::make_shared<std::vector<qint32>>(lines.begin(),
+                                                            lines.end());
+        m_viewer->setLineConstraint(std::move(sorted));
+    }
 }
