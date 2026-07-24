@@ -284,6 +284,10 @@ void MainWindow::loadPlugins()
         
         // Connect dock visibility to just update action state
         connect(dock, &QDockWidget::visibilityChanged, action, &QAction::setChecked);
+
+        // Viewers push "add to filter" terms up to the shared filter bar.
+        connect(plugin, &PluginInterface::filterTermRequested,
+                this, &MainWindow::onFilterTermRequested);
         
         m_pluginsMenu->addAction(action);
         m_pluginActions[pluginName] = action;
@@ -862,4 +866,31 @@ void MainWindow::onFilterChanged()
 
     // Apply filter to all enabled plugins with context lines
     m_pluginManager->setFilter(m_filterOptions);
+}
+
+void MainWindow::onFilterTermRequested(const QString& term)
+{
+    QString text = m_filterInput->text().trimmed();
+    if (m_queryModeButton->isChecked()) {
+        text = text.isEmpty() ? term : text + u' ' + term; // implicit AND
+    } else if (!m_regexModeButton->isChecked() && !text.isEmpty()) {
+        // A plain-text filter is equivalent to a quoted free-text term
+        // (raw-line substring match), so it survives the mode switch.
+        text = logdor::quoteQueryValue(text, /*forceQuote=*/true) + u' ' + term;
+    } else {
+        text = term; // empty filter, or regex (no query-language equivalent)
+    }
+
+    // Same no-debounce pattern as restoreSession(): set the widgets silently,
+    // then apply in one shot.
+    m_filterTimer->stop();
+    {
+        const QSignalBlocker blockInput(m_filterInput);
+        const QSignalBlocker blockQuery(m_queryModeButton);
+        const QSignalBlocker blockRegex(m_regexModeButton);
+        m_filterInput->setText(text);
+        m_regexModeButton->setChecked(false);
+        m_queryModeButton->setChecked(true);
+    }
+    onFilterChanged();
 }

@@ -13,6 +13,8 @@ CsvViewer::CsvViewer(QObject* parent)
                 emit pluginEvent(PluginEvent::LinesSelected,
                                  QVariant::fromValue(lines));
             });
+    connect(m_viewer, &LogViewerWidget::filterTermRequested,
+            this, &PluginInterface::filterTermRequested);
 }
 
 CsvViewer::~CsvViewer()

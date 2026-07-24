@@ -62,6 +62,8 @@ LogcatViewer::LogcatViewer(QObject* parent)
                 emit pluginEvent(PluginEvent::LinesSelected,
                                  QVariant::fromValue(lines));
             });
+    connect(m_viewer, &LogViewerWidget::filterTermRequested,
+            this, &PluginInterface::filterTermRequested);
     connect(&m_tagScanWatcher, &QFutureWatcherBase::finished, this, [this]() {
         if (m_tagScanWatcher.future().isCanceled()
             || m_tagScanWatcher.future().resultCount() == 0)

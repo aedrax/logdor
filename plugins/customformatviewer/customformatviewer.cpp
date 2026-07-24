@@ -77,6 +77,8 @@ CustomFormatViewer::CustomFormatViewer(QObject* parent)
                 emit pluginEvent(PluginEvent::LinesSelected,
                                  QVariant::fromValue(lines));
             });
+    connect(m_viewer, &LogViewerWidget::filterTermRequested,
+            this, &PluginInterface::filterTermRequested);
 
     QSettings settings("Logdor", "Logdor");
     m_patternEdit->setText(

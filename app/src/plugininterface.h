@@ -124,6 +124,13 @@ signals:
     /// Broadcast an event to every other enabled plugin.
     void pluginEvent(PluginEvent event, const QVariant& data);
 
+    /**
+     * Ask the shell to add @p term (a query-language field term, e.g.
+     * Tag="foo bar") to the shared filter bar and enable query mode. Routed
+     * to the shell only, never to other plugins.
+     */
+    void filterTermRequested(const QString& term);
+
 protected:
     bool m_enabled = true;
 };
@@ -131,7 +138,8 @@ protected:
 // /3.0: legacy setLogs pipeline, field metadata, and database API removed;
 // stale binaries must fail to load.
 // /3.1: save/restoreViewState for per-file session retention.
-#define PluginInterface_iid "com.logdor.PluginInterface/3.1"
+// /3.2: filterTermRequested viewer-to-shell filter routing.
+#define PluginInterface_iid "com.logdor.PluginInterface/3.2"
 Q_DECLARE_INTERFACE(PluginInterface, PluginInterface_iid)
 
 #endif // PLUGININTERFACE_H

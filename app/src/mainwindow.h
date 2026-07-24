@@ -45,6 +45,7 @@ private slots:
     void onActionOpenTriggered();
     void onActionOpenFolderTriggered();
     void onFilterChanged();
+    void onFilterTermRequested(const QString& term);
     void onFocusFilterInput();
     void onIndexingProgress(int permille);
     void onIndexingFinished();
