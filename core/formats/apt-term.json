@@ -1,0 +1,10 @@
+{
+    "id": "apt-term",
+    "displayName": "APT Terminal Log (apt/term.log)",
+    "pattern": "^(?<action>Log started|Log ended|Preparing to unpack|Unpacking|Setting up|Processing triggers for|Selecting previously unselected package|De-configuring|Removing|Purging configuration files for):? (?<detail>.*)$",
+    "fields": [
+        { "name": "Action", "capture": "action", "type": "string", "hint": "identifier" },
+        { "name": "Details", "capture": "detail", "type": "string", "hint": "message" }
+    ],
+    "specificity": 0.8
+}

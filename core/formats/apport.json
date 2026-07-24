@@ -1,0 +1,17 @@
+{
+    "id": "apport",
+    "displayName": "Apport Crash Handler Log",
+    "pattern": "^(?<level>[A-Z]+): apport \\(pid (?<pid>\\d+)\\) (?<time>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}): (?<msg>.*)$",
+    "fields": [
+        { "name": "Level", "capture": "level", "type": "string", "hint": "severityname" },
+        { "name": "PID", "capture": "pid", "type": "integer", "hint": "numeric" },
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
+    ],
+    "severity": {
+        "capture": "level",
+        "map": { "info": "info", "warning": "warning", "error": "error" },
+        "default": "none"
+    },
+    "specificity": 0.9
+}

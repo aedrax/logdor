@@ -1,0 +1,18 @@
+{
+    "id": "cloud-init",
+    "displayName": "Cloud-init Log",
+    "pattern": "^(?<time>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}) - (?<module>\\S+)\\[(?<level>[A-Z]+)\\]: (?<msg>.*)$",
+    "fields": [
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp" },
+        { "name": "Module", "capture": "module", "type": "string", "hint": "identifier" },
+        { "name": "Level", "capture": "level", "type": "string", "hint": "severityname" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
+    ],
+    "severity": {
+        "capture": "level",
+        "map": { "debug": "debug", "info": "info", "warning": "warning",
+                 "error": "error", "critical": "fatal" },
+        "default": "none"
+    },
+    "specificity": 0.9
+}

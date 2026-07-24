@@ -215,7 +215,9 @@ private slots:
         for (const auto& spec : specs)
             ids.append(spec.id);
         for (const char* required : { "syslog-rfc3164", "syslog-iso", "keyvalue",
-                                      "dpkg", "dmesg" })
+                                      "dpkg", "dmesg", "apt-history", "apt-term",
+                                      "cloud-init", "cloud-init-output", "apport",
+                                      "xorg", "alternatives" })
             QVERIFY2(ids.contains(QLatin1StringView(required)), required);
     }
 };

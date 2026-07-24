@@ -1,0 +1,16 @@
+{
+    "id": "xorg",
+    "displayName": "X.Org Server Log",
+    "pattern": "^\\[ *(?<time>\\d+\\.\\d{3})\\] (?:\\((?<marker>--|\\*\\*|==|\\+\\+|!!|II|WW|EE|NI|\\?\\?)\\) )?(?<msg>.*)$",
+    "fields": [
+        { "name": "Time", "capture": "time", "type": "string", "hint": "timestamp" },
+        { "name": "Marker", "capture": "marker", "type": "string", "hint": "identifier" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
+    ],
+    "severity": {
+        "capture": "marker",
+        "map": { "ii": "info", "ww": "warning", "ee": "error", "ni": "warning" },
+        "default": "none"
+    },
+    "specificity": 0.95
+}

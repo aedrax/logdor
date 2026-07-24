@@ -1,0 +1,15 @@
+{
+    "id": "apt-history",
+    "displayName": "APT History (apt/history.log)",
+    "pattern": "^(?<key>Start-Date|End-Date|Commandline|Requested-By|Install|Upgrade|Remove|Purge|Downgrade|Reinstall|Error): (?<value>.*)$",
+    "fields": [
+        { "name": "Key", "capture": "key", "type": "string", "hint": "identifier" },
+        { "name": "Value", "capture": "value", "type": "string", "hint": "message" }
+    ],
+    "severity": {
+        "capture": "key",
+        "map": { "error": "error" },
+        "default": "none"
+    },
+    "specificity": 0.9
+}
