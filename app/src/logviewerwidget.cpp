@@ -500,6 +500,13 @@ void LogViewerWidget::startSort()
         kind = SortKeyKind::Severity;
     else if (schema[schemaColumn].type == FieldType::Integer)
         kind = SortKeyKind::Integer;
+    else if (schema[schemaColumn].type == FieldType::DateTime) {
+        // Temporal order via the extracted epochs; when nothing parsed
+        // (unknown format), lexicographic text keeps the old behavior.
+        const auto column = m_columnCache.column(schemaColumn);
+        if (column && column->validIntCount() > 0)
+            kind = SortKeyKind::Integer;
+    }
 
     m_sortWatcher.setFuture(sortRows(m_model->rowSet(), kind,
                                      m_columnCache.column(schemaColumn),

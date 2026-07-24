@@ -1,4 +1,5 @@
 #include <logdor/SortScan.h>
+#include <logdor/TimestampParse.h>
 
 #include <QTest>
 
@@ -63,6 +64,28 @@ private slots:
         const auto result = sortSync(RowSet::all(5), SortKeyKind::Severity,
                                      nullptr, severity);
         QCOMPARE(result.order, (std::vector<qint32>{ 4, 1, 3, 0, 2 }));
+    }
+
+    // The shell sorts DateTime columns with Integer keys over the epoch
+    // lane: CLF's dd/MMM/yyyy would order wrong lexicographically.
+    void dateTimeSortsTemporallyViaIntegerKeys()
+    {
+        ColumnData::Builder builder(
+            FieldType::DateTime,
+            TimestampCodec::fromFormatString(
+                QStringLiteral("dd/MMM/yyyy:HH:mm:ss"),
+                { QTimeZone::utc(), 2026, 12 }));
+        for (const char* v : { "02/Jan/2026:00:00:00", "01/Feb/2025:00:00:00",
+                               "not a date", "01/Jan/2026:00:00:00" })
+            builder.append(QString::fromLatin1(v), FieldType::DateTime);
+        const auto keys
+            = std::make_shared<const ColumnData>(std::move(builder).build());
+        QCOMPARE(keys->validIntCount(), qint64(3));
+
+        const auto result = sortSync(RowSet::all(4), SortKeyKind::Integer, keys);
+        // Unparseable first, then Feb 2025, Jan 1 2026, Jan 2 2026 -
+        // lexicographic would have put "01/Feb/2025" after "01/Jan/2026".
+        QCOMPARE(result.order, (std::vector<qint32>{ 2, 1, 3, 0 }));
     }
 
     void subsetRowSetSortsRowSetPositions()
