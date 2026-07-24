@@ -294,7 +294,7 @@ private slots:
 
         auto extract = extractColumns(o.source, o.index, parser,
                                       compiled->referencedColumns(),
-                                      compiled->needsSeverity(), 17);
+                                      compiled->needsSeverity(), {}, 17);
         extract.waitForFinished();
         const auto columns = extract.result();
 

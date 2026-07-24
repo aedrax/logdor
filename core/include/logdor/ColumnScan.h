@@ -24,12 +24,19 @@ struct ColumnScanResult {
  * Same QPromise contract as scanFilter: cancellable between super-chunks,
  * permille progress. This is what field queries and column sorting pay once
  * per (file, column); results are immutable and shared.
+ *
+ * DateTime columns additionally get UTC epoch milliseconds: the codec comes
+ * from the field's declared timeFormat, else is detected once from the first
+ * parsed sample values (every chunk uses the same codec). @p timeContext
+ * supplies the assumed zone and reference date for zone-less/year-less
+ * formats; results are only valid for the context they were extracted with.
  */
 QFuture<ColumnScanResult> extractColumns(
     std::shared_ptr<FileSource> source,
     std::shared_ptr<const LineIndex> index,
     std::shared_ptr<const FormatParser> parser,
     QList<int> columns, bool wantSeverity,
+    TimeParseContext timeContext = {},
     qint64 linesPerChunk = kDefaultFilterChunkLines);
 
 /**

@@ -10,8 +10,9 @@ namespace logdor {
 
 //=== ColumnData ==============================================================
 
-ColumnData::Builder::Builder(FieldType t)
+ColumnData::Builder::Builder(FieldType t, TimestampCodec c)
     : type(t)
+    , codec(std::move(c))
 {
     if (type == FieldType::Integer) {
         // no blob
@@ -36,10 +37,17 @@ void ColumnData::Builder::appendInt(const QString& text)
 
 void ColumnData::Builder::append(const QString& fieldText, FieldType t)
 {
-    if (t == FieldType::Integer)
+    if (t == FieldType::Integer) {
         appendInt(fieldText);
-    else
-        appendString(fieldText.toUtf8());
+        return;
+    }
+    appendString(fieldText.toUtf8());
+    if (t == FieldType::DateTime) {
+        qint64 ms = 0;
+        const bool ok = codec.parse(fieldText, &ms);
+        ints.push_back(ok ? ms : 0);
+        intValid.push_back(ok);
+    }
 }
 
 qint64 ColumnData::Builder::count() const
@@ -53,6 +61,8 @@ ColumnData ColumnData::Builder::build() &&
     ColumnData data;
     data.m_type = type;
     data.m_count = count();
+    data.m_validIntCount
+        = std::count(intValid.begin(), intValid.end(), true);
     data.m_blob = std::move(blob);
     data.m_offsets = std::move(offsets);
     data.m_ints = std::move(ints);

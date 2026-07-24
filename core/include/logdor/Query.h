@@ -1,6 +1,7 @@
 #pragma once
 
 #include "logdor/FormatParser.h"
+#include "logdor/TimestampParse.h"
 
 #include <QByteArrayView>
 #include <QHash>
@@ -33,13 +34,16 @@ Q_DECLARE_OPERATORS_FOR_FLAGS(QueryOptions)
  * Immutable per-line values of one schema column across ALL source lines.
  * String/DateTime columns store UTF-8 bytes in one flat blob; Integer
  * columns store qint64 plus a validity bit (fallback/unparseable rows).
- * Built single-threaded via Builder (or merged from shards), then immutable;
+ * DateTime columns ALSO fill the integer lane with UTC epoch milliseconds
+ * parsed by the Builder's TimestampCodec, so temporal comparison and sorting
+ * read plain integers while contains/wildcard terms keep the text. Built
+ * single-threaded via Builder (or merged from shards), then immutable;
  * const access is thread-safe.
  */
 class ColumnData {
 public:
     struct Builder {
-        explicit Builder(FieldType type);
+        explicit Builder(FieldType type, TimestampCodec codec = {});
         void appendString(QByteArrayView utf8);
         void appendInt(const QString& text); // parses; invalid => validity bit off
         void append(const QString& fieldText, FieldType type);
@@ -47,6 +51,7 @@ public:
         ColumnData build() &&;
 
         FieldType type;
+        TimestampCodec codec; // DateTime columns; invalid => no valid epochs
         QByteArray blob;
         std::vector<quint64> offsets; // size n+1, starts at 0
         std::vector<qint64> ints;
@@ -66,7 +71,8 @@ public:
                               qsizetype(m_offsets[size_t(line) + 1] - start));
     }
 
-    /// Integer columns only; false when the row's value was unparseable.
+    /// Integer and DateTime columns (DateTime = UTC epoch ms); false when
+    /// the row's value was unparseable.
     bool intAt(qint64 line, qint64* out) const
     {
         if (!m_intValid[size_t(line)])
@@ -75,11 +81,16 @@ public:
         return true;
     }
 
+    /// Rows whose integer lane is valid (Integer/DateTime columns); 0 for a
+    /// DateTime column whose values no codec could parse.
+    qint64 validIntCount() const { return m_validIntCount; }
+
     size_t memoryUsage() const;
 
 private:
     FieldType m_type = FieldType::String;
     qint64 m_count = 0;
+    qint64 m_validIntCount = 0;
     QByteArray m_blob;
     std::vector<quint64> m_offsets;
     std::vector<qint64> m_ints;

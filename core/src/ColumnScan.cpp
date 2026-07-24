@@ -18,14 +18,15 @@ struct ChunkShard {
 
 ChunkShard scanChunk(const FileSource& source, const LineIndex& index,
                      const FormatParser& parser, const QList<int>& columns,
-                     const QList<FieldType>& columnTypes, bool wantSeverity,
-                     qint64 first, qint64 end,
+                     const QList<FieldType>& columnTypes,
+                     const QList<TimestampCodec>& columnCodecs,
+                     bool wantSeverity, qint64 first, qint64 end,
                      const QPromise<ColumnScanResult>& promise)
 {
     ChunkShard shard;
     shard.builders.reserve(columns.size());
-    for (FieldType type : columnTypes)
-        shard.builders.emplace_back(type);
+    for (int i = 0; i < columnTypes.size(); ++i)
+        shard.builders.emplace_back(columnTypes[i], columnCodecs[i]);
     if (wantSeverity)
         shard.severity.reserve(size_t(end - first));
 
@@ -72,7 +73,8 @@ ColumnScanResult mergeShards(QList<ChunkShard>&& shards,
 
     for (int i = 0; i < columns.size(); ++i) {
         ColumnData::Builder merged(columnTypes[i]);
-        if (columnTypes[i] == FieldType::Integer) {
+        // DateTime columns carry both lanes: text blob + parsed epochs.
+        if (columnTypes[i] != FieldType::String) {
             merged.ints.reserve(size_t(totalLines));
             merged.intValid.reserve(size_t(totalLines));
             for (ChunkShard& shard : shards) {
@@ -81,7 +83,8 @@ ColumnScanResult mergeShards(QList<ChunkShard>&& shards,
                 merged.intValid.insert(merged.intValid.end(),
                                        b.intValid.begin(), b.intValid.end());
             }
-        } else {
+        }
+        if (columnTypes[i] != FieldType::Integer) {
             qsizetype blobSize = 0;
             size_t lineCount = 0;
             for (const ChunkShard& shard : shards) {
@@ -115,19 +118,72 @@ ColumnScanResult mergeShards(QList<ChunkShard>&& shards,
     return result;
 }
 
+// Resolve the codec of each requested DateTime column: the declared
+// timeFormat wins; otherwise detect from the first parsed sample values.
+// Runs once, before chunking - every shard must use the same codec.
+QList<TimestampCodec> resolveCodecs(const FileSource& source,
+                                    const LineIndex& index,
+                                    const FormatParser& parser,
+                                    const QList<FieldSchema>& schema,
+                                    const QList<int>& columns,
+                                    const TimeParseContext& timeContext)
+{
+    QList<TimestampCodec> codecs;
+    codecs.reserve(columns.size());
+    QList<int> pending; // indices into columns needing detection
+    for (int i = 0; i < columns.size(); ++i) {
+        const FieldSchema& field = schema[columns[i]];
+        codecs.append(field.type == FieldType::DateTime
+                          ? TimestampCodec::fromFormatString(field.timeFormat,
+                                                             timeContext)
+                          : TimestampCodec());
+        if (field.type == FieldType::DateTime && !codecs[i].isValid())
+            pending.append(i);
+    }
+    if (pending.isEmpty())
+        return codecs;
+
+    constexpr qint64 kMaxSampleLines = 2048;
+    constexpr qsizetype kMaxSamples = 256;
+    QList<QStringList> samples(pending.size());
+    ParsedRow row;
+    const qint64 end = std::min(index.lineCount(), kMaxSampleLines);
+    for (qint64 line = 0; line < end; ++line) {
+        const QByteArray raw
+            = source.read(index.offsetOf(line), index.lengthOf(line));
+        parser.parseLine(QByteArrayView(raw), row);
+        bool wantMore = false;
+        for (int p = 0; p < pending.size(); ++p) {
+            const QString& value = row.fields[columns[pending[p]]];
+            if (samples[p].size() < kMaxSamples) {
+                if (!value.isEmpty())
+                    samples[p].append(value);
+                wantMore = wantMore || samples[p].size() < kMaxSamples;
+            }
+        }
+        if (!wantMore)
+            break;
+    }
+    for (int p = 0; p < pending.size(); ++p)
+        codecs[pending[p]] = TimestampCodec::detect(samples[p], timeContext);
+    return codecs;
+}
+
 } // namespace
 
 QFuture<ColumnScanResult> extractColumns(
     std::shared_ptr<FileSource> source,
     std::shared_ptr<const LineIndex> index,
     std::shared_ptr<const FormatParser> parser,
-    QList<int> columns, bool wantSeverity, qint64 linesPerChunk)
+    QList<int> columns, bool wantSeverity, TimeParseContext timeContext,
+    qint64 linesPerChunk)
 {
     Q_ASSERT(source && index && parser);
     Q_ASSERT(linesPerChunk > 0);
 
     return QtConcurrent::run([source, index, parser,
                               columns = std::move(columns), wantSeverity,
+                              timeContext = std::move(timeContext),
                               linesPerChunk](QPromise<ColumnScanResult>& promise) {
         QElapsedTimer timer;
         timer.start();
@@ -138,6 +194,8 @@ QFuture<ColumnScanResult> extractColumns(
         columnTypes.reserve(columns.size());
         for (int col : columns)
             columnTypes.append(schema[col].type);
+        const QList<TimestampCodec> columnCodecs = resolveCodecs(
+            *source, *index, *parser, schema, columns, timeContext);
 
         const qint64 total = index->lineCount();
         const int threads = qMax(1, QThread::idealThreadCount());
@@ -156,8 +214,8 @@ QFuture<ColumnScanResult> extractColumns(
             auto chunkShards = QtConcurrent::blockingMapped(ranges,
                 std::function<ChunkShard(const Range&)>([&](const Range& r) {
                     return scanChunk(*source, *index, *parser, columns,
-                                     columnTypes, wantSeverity, r.first, r.end,
-                                     promise);
+                                     columnTypes, columnCodecs, wantSeverity,
+                                     r.first, r.end, promise);
                 }));
             for (auto& shard : chunkShards)
                 shards.append(std::move(shard));

@@ -1,8 +1,10 @@
 #include <logdor/ColumnScan.h>
 #include <logdor/FormatRegistry.h>
+#include <logdor/JsonLinesParser.h>
 #include <logdor/LineIndexer.h>
 #include <logdor/LogcatParser.h>
 
+#include <QDateTime>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -66,7 +68,7 @@ private slots:
         // shard merging is exercised.
         auto future = extractColumns(o.source, o.index, parser,
                                      { LogcatParser::Tag, LogcatParser::Pid },
-                                     true, 7);
+                                     true, {}, 7);
         future.waitForFinished();
         const ColumnScanResult result = future.result();
 
@@ -103,14 +105,14 @@ private slots:
         auto mapped = openContent(dir, "m.log", corpus);
         auto parser = parserById(u"logcat");
         auto f1 = extractColumns(mapped.source, mapped.index, parser,
-                                 { LogcatParser::Tag }, false, 13);
+                                 { LogcatParser::Tag }, false, {}, 13);
         f1.waitForFinished();
 
         qputenv("LOGDOR_FORCE_BUFFERED", "1");
         auto buffered = openContent(dir, "b.log", corpus);
         QCOMPARE(buffered.source->mode(), FileSource::Mode::Buffered);
         auto f2 = extractColumns(buffered.source, buffered.index, parser,
-                                 { LogcatParser::Tag }, false, 13);
+                                 { LogcatParser::Tag }, false, {}, 13);
         f2.waitForFinished();
 
         const auto a = f1.result().columns[LogcatParser::Tag];
@@ -138,11 +140,90 @@ private slots:
         QTemporaryDir dir;
         auto o = openContent(dir, "big.log", logcatCorpus(200'000));
         auto future = extractColumns(o.source, o.index, parserById(u"logcat"),
-                                     { LogcatParser::Message }, true, 64);
+                                     { LogcatParser::Message }, true, {}, 64);
         future.cancel();
         future.waitForFinished();
         QVERIFY(future.isCanceled());
         QCOMPARE(future.resultCount(), 0);
+    }
+
+    // Logcat declares "MM-dd HH:mm:ss.zzz": the Time column must carry both
+    // the raw text and parsed UTC epochs, across shard boundaries, with
+    // garbage rows invalid.
+    void datetimeColumnsCarryEpochs()
+    {
+        QTemporaryDir dir;
+        auto o = openContent(dir, "c.log", logcatCorpus(500));
+        auto parser = parserById(u"logcat");
+
+        const TimeParseContext ctx { QTimeZone::utc(), 2026, 7 };
+        auto future = extractColumns(o.source, o.index, parser,
+                                     { LogcatParser::Time }, false, ctx, 7);
+        future.waitForFinished();
+        const auto time = future.result().columns[LogcatParser::Time];
+        QVERIFY(time);
+        QCOMPARE(time->lineCount(), o.index->lineCount());
+        QVERIFY(time->validIntCount() > 0);
+        QVERIFY(time->validIntCount() < time->lineCount()); // garbage rows
+
+        const TimestampCodec codec = TimestampCodec::fromFormatString(
+            QStringLiteral("MM-dd HH:mm:ss.zzz"), ctx);
+        ParsedRow row;
+        for (qint64 line = 0; line < o.index->lineCount(); ++line) {
+            const QByteArray raw = o.source->read(o.index->offsetOf(line),
+                                                  o.index->lengthOf(line));
+            parser->parseLine(QByteArrayView(raw), row);
+            const QString& text = row.fields[LogcatParser::Time];
+            QCOMPARE(QString::fromUtf8(time->stringAt(line)), text);
+
+            qint64 expected = 0;
+            const bool expectedValid = codec.parse(text, &expected);
+            qint64 actual = 0;
+            QCOMPARE(time->intAt(line, &actual), expectedValid);
+            if (expectedValid)
+                QCOMPARE(actual, expected);
+        }
+    }
+
+    // JsonLines declares no timeFormat: detection over the first sample
+    // values must resolve ISO timestamps to epochs.
+    void datetimeDetectionFromSamples()
+    {
+        QByteArray corpus;
+        for (int i = 0; i < 50; ++i)
+            corpus += "{\"ts\":\"2026-07-01T10:00:" + QByteArray::number(10 + i % 40)
+                + "Z\",\"level\":\"info\",\"msg\":\"m" + QByteArray::number(i) + "\"}\n";
+        QTemporaryDir dir;
+        auto o = openContent(dir, "j.log", corpus);
+        auto future = extractColumns(o.source, o.index, parserById(u"jsonlines"),
+                                     { JsonLinesParser::Timestamp }, false,
+                                     { QTimeZone::utc(), 2026, 7 }, 7);
+        future.waitForFinished();
+        const auto ts = future.result().columns[JsonLinesParser::Timestamp];
+        QCOMPARE(ts->validIntCount(), ts->lineCount());
+        qint64 ms = 0;
+        QVERIFY(ts->intAt(0, &ms));
+        QCOMPARE(ms, QDateTime(QDate(2026, 7, 1), QTime(10, 0, 10),
+                               QTimeZone::utc()).toMSecsSinceEpoch());
+    }
+
+    // Values no codec recognizes: the text lane stays intact, the integer
+    // lane stays empty.
+    void undetectableDatetimeKeepsStrings()
+    {
+        QByteArray corpus;
+        for (int i = 0; i < 20; ++i)
+            corpus += "{\"ts\":\"whenever\",\"msg\":\"m\"}\n";
+        QTemporaryDir dir;
+        auto o = openContent(dir, "u.log", corpus);
+        auto future = extractColumns(o.source, o.index, parserById(u"jsonlines"),
+                                     { JsonLinesParser::Timestamp }, false);
+        future.waitForFinished();
+        const auto ts = future.result().columns[JsonLinesParser::Timestamp];
+        QCOMPARE(ts->validIntCount(), qint64(0));
+        QCOMPARE(QString::fromUtf8(ts->stringAt(0)), QStringLiteral("whenever"));
+        qint64 ms = 0;
+        QVERIFY(!ts->intAt(0, &ms));
     }
 
     void cacheSnapshotAndMissing()
