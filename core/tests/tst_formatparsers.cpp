@@ -71,9 +71,38 @@ private slots:
             << QByteArray("W/PackageManager: unknown package")
             << QStringList{ "", "", "", "Warning", "PackageManager", "unknown package" }
             << int(Severity::Warning) << true;
+        QTest::newRow("process")
+            << QByteArray("I(  258) VoldNativeService::start() completed OK  (vold)")
+            << QStringList{ "", "258", "", "Info", "vold",
+                            "VoldNativeService::start() completed OK" }
+            << int(Severity::Info) << true;
+        // The tag must come from the TRAILING "(tag)", not the first parens
+        // inside the message.
+        QTest::newRow("process-parens-in-message")
+            << QByteArray("I(  258) Vold 3.0 (the awakening) firing up  (vold)")
+            << QStringList{ "", "258", "", "Info", "vold",
+                            "Vold 3.0 (the awakening) firing up" }
+            << int(Severity::Info) << true;
+        // Real logcat tags contain '/' (HAL instances).
+        QTest::newRow("tag-with-slash")
+            << QByteArray("D/FingerprintProvider/default: Adding AIDL configs")
+            << QStringList{ "", "", "", "Debug", "FingerprintProvider/default",
+                            "Adding AIDL configs" }
+            << int(Severity::Debug) << true;
+        // "(10):" inside the message must not be mistaken for a brief PID.
+        QTest::newRow("tag-not-stolen-by-brief")
+            << QByteArray("D/StorageManager: onUserStopped(10): tearing down")
+            << QStringList{ "", "", "", "Debug", "StorageManager",
+                            "onUserStopped(10): tearing down" }
+            << int(Severity::Debug) << true;
+        QTest::newRow("long-header")
+            << QByteArray("[ 06-23 21:46:35.573   258:  258 I/vold     ]")
+            << QStringList{ "06-23 21:46:35.573", "258", "258", "Info",
+                            "vold", "" }
+            << int(Severity::Info) << true;
         QTest::newRow("raw-fallback")
             << QByteArray("plain garbage with no format")
-            << QStringList{ "", "", "", "Unknown", "", "plain garbage with no format" }
+            << QStringList{ "", "", "", "", "", "plain garbage with no format" }
             << int(Severity::None) << false;
         QTest::newRow("empty-message-tag")
             << QByteArray("E/Netd: ")

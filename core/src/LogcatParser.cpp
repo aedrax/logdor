@@ -6,8 +6,14 @@ namespace logdor {
 
 namespace {
 
-// Legacy LogcatEntry regexes, verbatim. Immutable after init; match() is
-// thread-safe.
+// One regex per `logcat -v` variant, tried in specificity order. Immutable
+// after init; match() is thread-safe. Audited against real captures of every
+// variant (logs/logcat_*.log) - deviations from the legacy regexes:
+//  - brief: tag must not contain ':', otherwise brief steals tag-format
+//    lines whose message contains "(123):" and mangles tag/pid.
+//  - process: anchored so the tag comes from the TRAILING "(tag)", not the
+//    first parenthesised text inside the message.
+//  - tag: tags may contain '/' (e.g. "FingerprintProvider/default").
 const QRegularExpression reThreadTime(
     R"((\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+([^:]+):\s*(.*))");
 const QRegularExpression reLong(
@@ -15,13 +21,13 @@ const QRegularExpression reLong(
 const QRegularExpression reTime(
     R"((\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+([VDIWEF])/([^(]+?)\s*\(\s*(\d+)\):\s*(.*))");
 const QRegularExpression reBrief(
-    R"(([VDIWEF])/([^(]+)\(\s*(\d+)\):\s+(.*))");
+    R"(([VDIWEF])/([^(:]+)\(\s*(\d+)\):\s+(.*))");
 const QRegularExpression reProcess(
-    R"(([VDIWEF])\(\s*(\d+)\)\s+(.*?)\s+\(([^)]+)\))");
+    R"(^([VDIWEF])\(\s*(\d+)\)\s+(.*?)\s+\(([^)]+)\)$)");
 const QRegularExpression reThread(
     R"(([VDIWEF])\(\s*(\d+):\s*(\d+)\)\s+(.*))");
 const QRegularExpression reTag(
-    R"(([VDIWEF])/([^/:]+):\s*(.*))");
+    R"(([VDIWEF])/([^:]+):\s*(.*))");
 
 Severity severityFromChar(QChar c)
 {
@@ -45,7 +51,9 @@ QString severityName(Severity s)
     case Severity::Warning: return QStringLiteral("Warning");
     case Severity::Error: return QStringLiteral("Error");
     case Severity::Fatal: return QStringLiteral("Fatal");
-    default: return QStringLiteral("Unknown");
+    // Unstructured lines (raw format, `-v long` message/continuation lines)
+    // show an empty Level, not a wall of "Unknown".
+    default: return QString();
     }
 }
 
@@ -132,7 +140,7 @@ void LogcatParser::parseLine(QByteArrayView raw, ParsedRow& out) const
         out.ok = true;
         return;
     }
-    // Raw fallback: message only, level Unknown (legacy parseRaw).
+    // Raw fallback: message only, empty level.
     setFields(out, {}, {}, {}, Severity::None, {}, text);
     out.ok = false;
 }

@@ -5,10 +5,13 @@
 namespace logdor {
 
 /**
- * Android logcat parser. Ports the legacy LogcatEntry regexes verbatim, tried
- * in the same order (threadtime, long, time, brief, process, thread, tag),
- * with the raw-message fallback last. Field order: Time, PID, TID, Level,
- * Tag, Message.
+ * Android logcat parser covering every `logcat -v` variant: threadtime,
+ * long (entry headers; the message lines that follow fall through to the
+ * fallback), time, brief, process, thread, tag - tried in that order, most
+ * specific first. Unmatched lines (raw format, `-v long` message lines,
+ * "--------- beginning of" markers) keep the full text in Message with an
+ * empty Level and ok=false. Field order: Time, PID, TID, Level, Tag,
+ * Message.
  */
 class LogcatParser : public FormatParser {
 public:
