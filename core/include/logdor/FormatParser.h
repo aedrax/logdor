@@ -26,6 +26,13 @@ struct FieldSchema {
     QString name; // becomes the column header
     FieldType type = FieldType::String;
     FieldHint hint = FieldHint::None;
+    /**
+     * DateTime fields only: how to parse values into UTC epoch milliseconds.
+     * Reserved words "iso8601", "epoch-s", "epoch-ms", "epoch-us", "uptime";
+     * anything else is a Qt date/time pattern (see TimestampParse.h). Empty =
+     * auto-detect from sample values.
+     */
+    QString timeFormat;
 };
 
 struct ParsedRow {

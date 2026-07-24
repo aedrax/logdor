@@ -46,7 +46,10 @@ QList<FieldSchema> ClfParser::schema() const
         { QStringLiteral("Remote Host"), FieldType::String, FieldHint::Identifier },
         { QStringLiteral("Identity"), FieldType::String, FieldHint::None },
         { QStringLiteral("User ID"), FieldType::String, FieldHint::None },
-        { QStringLiteral("Timestamp"), FieldType::DateTime, FieldHint::Timestamp },
+        // The format the reformatted display string uses; the legacy offset
+        // quirk in formatTimestamp() is preserved as-is (display parity).
+        { QStringLiteral("Timestamp"), FieldType::DateTime, FieldHint::Timestamp,
+          QStringLiteral("dd/MMM/yyyy:HH:mm:ss") },
         { QStringLiteral("Method"), FieldType::String, FieldHint::None },
         { QStringLiteral("Path"), FieldType::String, FieldHint::Message },
         { QStringLiteral("Protocol"), FieldType::String, FieldHint::None },

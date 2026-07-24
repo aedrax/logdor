@@ -102,6 +102,14 @@ rsyslog/Ubuntu 24.04+ high-precision timestamps), `dpkg`, `dmesg`,
 golden-tested against real Ubuntu `/var/log` lines in
 `core/tests/tst_systemformats.cpp`.
 
+A `datetime` field may declare `"timeFormat"` — `"iso8601"`,
+`"epoch-s"`/`"epoch-ms"`/`"epoch-us"`, `"uptime"` (monotonic seconds
+since boot, e.g. dmesg/Xorg), or a Qt date/time pattern — so its values
+parse into comparable instants for temporal filtering and sorting (see
+`core/include/logdor/TimestampParse.h`). Omitted formats are
+auto-detected from sample values; year-less formats (RFC 3164, logcat)
+infer the year from the file's modification date.
+
 **Binary logs** (systemd journal, wtmp/btmp/lastlog) have no newline
 record boundaries, so they don't fit the `LineIndex` pipeline; a
 record-index abstraction is future core work. Until then, export to

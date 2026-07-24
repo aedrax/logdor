@@ -3,7 +3,7 @@
     "displayName": "Dpkg (Debian package log)",
     "pattern": "^(?<time>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}) (?<action>startup|status|configure|install|upgrade|remove|purge|trigproc|conffile) (?<detail>.*)$",
     "fields": [
-        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp" },
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "iso8601" },
         { "name": "Action", "capture": "action", "type": "string", "hint": "identifier" },
         { "name": "Details", "capture": "detail", "type": "string", "hint": "message" }
     ],

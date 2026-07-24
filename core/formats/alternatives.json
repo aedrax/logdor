@@ -3,7 +3,7 @@
     "displayName": "update-alternatives Log",
     "pattern": "^update-alternatives (?<time>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}): (?<msg>.*)$",
     "fields": [
-        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp" },
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "iso8601" },
         { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
     ],
     "specificity": 0.9

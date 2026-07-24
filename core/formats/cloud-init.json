@@ -3,7 +3,7 @@
     "displayName": "Cloud-init Log",
     "pattern": "^(?<time>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}) - (?<module>\\S+)\\[(?<level>[A-Z]+)\\]: (?<msg>.*)$",
     "fields": [
-        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp" },
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "iso8601" },
         { "name": "Module", "capture": "module", "type": "string", "hint": "identifier" },
         { "name": "Level", "capture": "level", "type": "string", "hint": "severityname" },
         { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }

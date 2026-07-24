@@ -3,6 +3,7 @@
 #include <logdor/FormatRegistry.h>
 #include <logdor/FormatSpec.h>
 #include <logdor/LineIndexer.h>
+#include <logdor/TimestampParse.h>
 
 #include <QTemporaryDir>
 #include <QTest>
@@ -498,6 +499,58 @@ private slots:
             << "jsonlines"
             << QByteArray("{\"__REALTIME_TIMESTAMP\":\"1784922714673521\",\"PRIORITY\":\"6\","
                           "\"SYSLOG_IDENTIFIER\":\"systemd\",\"MESSAGE\":\"Started ollama.service\"}");
+    }
+
+    void timestampCodecs_data()
+    {
+        QTest::addColumn<QString>("parserId");
+        QTest::addColumn<QString>("sample"); // a golden Time value from above
+
+        QTest::newRow("syslog-iso") << "syslog-iso"
+                                    << "2026-07-19T00:00:02.026813-04:00";
+        QTest::newRow("syslog-rfc3164") << "syslog-rfc3164" << "Jul 24 14:30:01";
+        QTest::newRow("rfc3164-single-digit-day") << "syslog-rfc3164"
+                                                  << "Jul  1 03:04:05";
+        QTest::newRow("dpkg") << "dpkg" << "2026-07-06 12:19:48";
+        QTest::newRow("dmesg-uptime") << "dmesg" << "0.000000";
+        QTest::newRow("cloud-init-comma-ms") << "cloud-init"
+                                             << "2025-04-02 15:33:09,851";
+        QTest::newRow("apport") << "apport" << "2026-07-24 11:58:36,091";
+        QTest::newRow("xorg-uptime") << "xorg" << "26.235";
+        QTest::newRow("alternatives") << "alternatives" << "2026-07-07 06:43:30";
+        QTest::newRow("keyvalue") << "keyvalue" << "2026-07-01T10:00:00Z";
+        QTest::newRow("logcat") << "logcat" << "07-24 06:15:02.123";
+        QTest::newRow("clf") << "clf" << "24/Jul/2026:06:15:02";
+        // JsonLines declares no format; auto-detection must resolve its
+        // journald-normalized ISO output.
+        QTest::newRow("jsonlines-auto") << "jsonlines"
+                                        << "2026-07-24T06:15:02.123Z";
+    }
+
+    // Every bundled timestamp field must yield a codec (declared format or
+    // detection) that parses the real captured values from the golden rows.
+    void timestampCodecs()
+    {
+        QFETCH(QString, parserId);
+        QFETCH(QString, sample);
+
+        const auto parser = parserById(parserId, m_parsers);
+        QVERIFY(parser);
+        const auto schema = parser->schema();
+        const auto field = std::find_if(schema.begin(), schema.end(),
+                                        [](const FieldSchema& f) {
+                                            return f.hint == FieldHint::Timestamp;
+                                        });
+        QVERIFY(field != schema.end());
+        QCOMPARE(field->type, FieldType::DateTime);
+
+        const TimeParseContext ctx { QTimeZone::utc(), 2026, 7 };
+        const TimestampCodec codec = field->timeFormat.isEmpty()
+            ? TimestampCodec::detect({ sample }, ctx)
+            : TimestampCodec::fromFormatString(field->timeFormat, ctx);
+        QVERIFY2(codec.isValid(), qPrintable(field->timeFormat));
+        qint64 ms = 0;
+        QVERIFY2(codec.parse(sample, &ms), qPrintable(sample));
     }
 
     void detection()

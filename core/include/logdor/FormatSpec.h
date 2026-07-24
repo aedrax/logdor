@@ -19,7 +19,8 @@ namespace logdor {
  *   "displayName": "My Format",          // required
  *   "pattern": "^(?<time>\\S+) (?<msg>.*)$",   // required, named captures
  *   "fields": [                          // required, non-empty
- *     { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp" },
+ *     { "name": "Time", "capture": "time", "type": "datetime",
+ *       "hint": "timestamp", "timeFormat": "iso8601" },
  *     { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
  *   ],
  *   "severity": {                        // optional
@@ -34,6 +35,11 @@ namespace logdor {
  * hints: none | numeric | timestamp | severityname | identifier | message
  * severities: none | verbose | debug | info | warning | error | fatal
  *
+ * "timeFormat" (datetime fields only) tells the shell how to parse values
+ * into comparable instants: "iso8601", "epoch-s", "epoch-ms", "epoch-us",
+ * "uptime" (monotonic seconds since boot), or a Qt date/time pattern.
+ * Omitted = auto-detect from sample values.
+ *
  * Exactly one field must carry the "message" hint - it doubles as the
  * fallback column for lines the pattern does not match.
  */
@@ -42,6 +48,7 @@ struct FormatSpecField {
     QString capture;
     FieldType type = FieldType::String;
     FieldHint hint = FieldHint::None;
+    QString timeFormat; // datetime fields only; empty = auto-detect
 };
 
 struct FormatSpec {

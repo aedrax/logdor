@@ -5,7 +5,7 @@
     "fields": [
         { "name": "Level", "capture": "level", "type": "string", "hint": "severityname" },
         { "name": "PID", "capture": "pid", "type": "integer", "hint": "numeric" },
-        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp" },
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "iso8601" },
         { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
     ],
     "severity": {

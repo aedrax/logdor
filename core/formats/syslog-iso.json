@@ -3,7 +3,7 @@
     "displayName": "Syslog (ISO 8601 / rsyslog)",
     "pattern": "^(?<time>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:[+-]\\d{2}:\\d{2}|Z)?) (?<host>\\S+) (?<proc>[^\\[:]+)?(?:\\[(?<pid>\\d+)\\])?: ?(?<msg>.*)$",
     "fields": [
-        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp" },
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "iso8601" },
         { "name": "Host", "capture": "host", "type": "string", "hint": "identifier" },
         { "name": "Process", "capture": "proc", "type": "string", "hint": "identifier" },
         { "name": "PID", "capture": "pid", "type": "integer", "hint": "numeric" },

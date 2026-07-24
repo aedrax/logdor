@@ -135,6 +135,15 @@ std::optional<FormatSpec> parseFormatSpec(const QByteArray& json,
                                   .arg(fieldObject.value(u"hint").toString()));
             field.hint = *hint;
         }
+        if (fieldObject.contains(u"timeFormat")) {
+            field.timeFormat = fieldObject.value(u"timeFormat").toString();
+            if (field.timeFormat.isEmpty())
+                return fail(at("timeFormat")
+                            + QStringLiteral(": must be a non-empty string"));
+            if (field.type != FieldType::DateTime)
+                return fail(at("timeFormat")
+                            + QStringLiteral(": only valid on datetime fields"));
+        }
         if (field.hint == FieldHint::Message)
             ++messageHints;
         spec.fields.append(field);

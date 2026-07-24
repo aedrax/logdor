@@ -15,7 +15,7 @@ QByteArray syslogSpecJson()
             "        \"displayName\": \"Syslog Test\",\n"
             "        \"pattern\": \"^(?<time>[A-Z][a-z]{2}\\\\s+\\\\d{1,2} \\\\d{2}:\\\\d{2}:\\\\d{2}) (?<host>\\\\S+) (?<proc>[^\\\\[:]+)(?:\\\\[(?<pid>\\\\d+)\\\\])?: ?(?<msg>.*)$\",\n"
             "        \"fields\": [\n"
-            "            { \"name\": \"Time\", \"capture\": \"time\", \"type\": \"datetime\", \"hint\": \"timestamp\" },\n"
+            "            { \"name\": \"Time\", \"capture\": \"time\", \"type\": \"datetime\", \"hint\": \"timestamp\", \"timeFormat\": \"MMM d HH:mm:ss\" },\n"
             "            { \"name\": \"Host\", \"capture\": \"host\" },\n"
             "            { \"name\": \"Process\", \"capture\": \"proc\" },\n"
             "            { \"name\": \"PID\", \"capture\": \"pid\", \"type\": \"integer\", \"hint\": \"numeric\" },\n"
@@ -73,6 +73,9 @@ private slots:
 
         QCOMPARE(parser.schema().size(), 5);
         QCOMPARE(parser.schema()[4].hint, FieldHint::Message);
+        // timeFormat flows through to the schema.
+        QCOMPARE(parser.schema()[0].timeFormat, QStringLiteral("MMM d HH:mm:ss"));
+        QCOMPARE(parser.schema()[1].timeFormat, QString());
 
         ParsedRow row;
         parser.parseLine(QByteArrayView(
@@ -152,6 +155,14 @@ private slots:
             << QByteArray("{\"id\":\"x\",\"displayName\":\"x\",\"pattern\":\"(?<m>.*)\",\n"
             "                \"fields\":[{\"name\":\"M\",\"capture\":\"m\"}]}")
             << QString("exactly one field");
+        QTest::newRow("timeformat-on-non-datetime")
+            << QByteArray("{\"id\":\"x\",\"displayName\":\"x\",\"pattern\":\"(?<m>.*)\",\n"
+            "                \"fields\":[{\"name\":\"M\",\"capture\":\"m\",\"hint\":\"message\",\"timeFormat\":\"iso8601\"}]}")
+            << QString("only valid on datetime");
+        QTest::newRow("empty-timeformat")
+            << QByteArray("{\"id\":\"x\",\"displayName\":\"x\",\"pattern\":\"(?<m>.*)\",\n"
+            "                \"fields\":[{\"name\":\"M\",\"capture\":\"m\",\"type\":\"datetime\",\"hint\":\"message\",\"timeFormat\":\"\"}]}")
+            << QString("non-empty");
         QTest::newRow("bad-severity")
             << QByteArray("{\"id\":\"x\",\"displayName\":\"x\",\"pattern\":\"(?<m>.*)\",\n"
             "                \"fields\":[{\"name\":\"M\",\"capture\":\"m\",\"hint\":\"message\"}],\n"

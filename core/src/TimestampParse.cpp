@@ -79,10 +79,11 @@ bool takeSpaces(QStringView s, qsizetype& pos) // one or more
 }
 
 // ".frac" => milliseconds (first three digits) + the granularity it implies.
+// ISO 8601 permits a comma decimal separator (cloud-init, apport, ...).
 bool takeFraction(QStringView s, qsizetype& pos, int* msecOut, qint64* granOut)
 {
     const qsizetype start = pos;
-    if (!takeChar(s, pos, u'.'))
+    if (!takeChar(s, pos, u'.') && !takeChar(s, pos, u','))
         return false;
     int ms = 0, n = 0;
     while (pos < s.size() && s[pos].isDigit()) {

@@ -23,7 +23,7 @@ QList<FieldSchema> DeclarativeParser::schema() const
     QList<FieldSchema> out;
     out.reserve(m_spec.fields.size());
     for (const FormatSpecField& field : m_spec.fields)
-        out.append({ field.name, field.type, field.hint });
+        out.append({ field.name, field.type, field.hint, field.timeFormat });
     return out;
 }
 

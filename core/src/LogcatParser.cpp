@@ -124,7 +124,8 @@ bool parseStructured(const QString& text, ParsedRow& out)
 QList<FieldSchema> LogcatParser::schema() const
 {
     return {
-        { QStringLiteral("Time"), FieldType::DateTime, FieldHint::Timestamp },
+        { QStringLiteral("Time"), FieldType::DateTime, FieldHint::Timestamp,
+          QStringLiteral("MM-dd HH:mm:ss.zzz") },
         { QStringLiteral("PID"), FieldType::Integer, FieldHint::Numeric },
         { QStringLiteral("TID"), FieldType::Integer, FieldHint::Numeric },
         { QStringLiteral("Level"), FieldType::String, FieldHint::SeverityName },
