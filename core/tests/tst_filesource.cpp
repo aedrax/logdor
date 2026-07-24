@@ -112,23 +112,6 @@ private slots:
         QCOMPARE(buf, content.mid(1234567, buf.size()));
     }
 
-    void ensureContiguousLoadsWholeFile()
-    {
-        QTemporaryDir dir;
-        const QByteArray content = patternedContent(256 * 1024);
-        const QString path = writeFile(dir, "contig.log", content);
-
-        qputenv("LOGDOR_FORCE_BUFFERED", "1");
-        auto src = FileSource::open(path);
-        QVERIFY(src);
-        QVERIFY(!src->isContiguous());
-
-        QString error;
-        QVERIFY(src->ensureContiguous(&error));
-        QVERIFY(src->isContiguous());
-        QCOMPARE(QByteArray(src->data(), qsizetype(src->size())), content);
-        QCOMPARE(src->view(100, 200).toByteArray(), content.mid(100, 200));
-    }
 };
 
 QTEST_APPLESS_MAIN(tst_FileSource)

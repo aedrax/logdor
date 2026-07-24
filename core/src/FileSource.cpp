@@ -3,7 +3,6 @@
 #include <QtEnvironmentVariables>
 
 #include <cstring>
-#include <new>
 
 namespace logdor {
 
@@ -40,8 +39,6 @@ const char* FileSource::data() const
         return "";
     if (m_map)
         return reinterpret_cast<const char*>(m_map);
-    if (!m_heapCopy.isNull())
-        return m_heapCopy.constData();
     return nullptr;
 }
 
@@ -111,37 +108,6 @@ qsizetype FileSource::readInto(quint64 offset, char* dst, qsizetype length) cons
         done += qsizetype(n);
     }
     return done;
-}
-
-bool FileSource::ensureContiguous(QString* error)
-{
-    if (isContiguous())
-        return true;
-
-    try {
-        QByteArray whole;
-        whole.resize(qsizetype(m_size));
-        const qsizetype got = readInto(0, whole.data(), whole.size());
-        if (quint64(got) != m_size) {
-            if (error)
-                *error = QStringLiteral(
-                             "Short read while loading %1 (%2 of %3 bytes)")
-                             .arg(m_file.fileName())
-                             .arg(got)
-                             .arg(m_size);
-            return false;
-        }
-        m_heapCopy = std::move(whole);
-        return true;
-    } catch (const std::bad_alloc&) {
-        if (error)
-            *error = QStringLiteral(
-                         "Not enough memory to load %1 (%2 bytes) without "
-                         "memory mapping")
-                         .arg(m_file.fileName())
-                         .arg(m_size);
-        return false;
-    }
 }
 
 QByteArray FileSource::readUncached(quint64 offset, qsizetype length) const

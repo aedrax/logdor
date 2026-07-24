@@ -19,7 +19,6 @@ public:
     QString description() const override { return tr("Table view for CSV files with header-derived columns."); }
     QWidget* widget() override { return m_viewer; }
 
-    bool wantsCoreSource() const override { return true; }
     void setCoreSource(std::shared_ptr<logdor::FileSource> source,
                        std::shared_ptr<const logdor::LineIndex> index) override;
 
@@ -28,11 +27,7 @@ public:
         m_viewer->setAnnotationHub(hub);
     }
 
-    bool setLogs(const QList<LogEntry>& content) override { Q_UNUSED(content) return true; }
     void setFilter(const FilterOptions& options) override;
-    QList<FieldInfo> availableFields() const override;
-    QSet<int> filteredLines() const override { return {}; }
-    void synchronizeFilteredLines(const QSet<int>& lines) override { Q_UNUSED(lines) }
 
 public slots:
     void onPluginEvent(PluginEvent event, const QVariant& data) override;

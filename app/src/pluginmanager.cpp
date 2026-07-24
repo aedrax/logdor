@@ -163,10 +163,8 @@ QList<PluginInterface*> PluginManager::enabledPlugins() const
                                   std::shared_ptr<const logdor::LineIndex> index)
 {
     Q_ASSERT(QThread::currentThread() == qApp->thread());
-    for (PluginInterface* plugin : enabledPlugins()) {
-        if (plugin->wantsCoreSource())
-            plugin->setCoreSource(source, index);
-    }
+    for (PluginInterface* plugin : enabledPlugins())
+        plugin->setCoreSource(source, index);
 }
 
 void PluginManager::setAnnotationHub(AnnotationHub* hub)

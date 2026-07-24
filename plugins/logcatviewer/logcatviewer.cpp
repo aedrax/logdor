@@ -245,39 +245,9 @@ void LogcatViewer::startTagSuggestionScan()
         }));
 }
 
-bool LogcatViewer::setLogs(const QList<LogEntry>& content)
-{
-    // Legacy path unused: this plugin is fed through setCoreSource().
-    Q_UNUSED(content)
-    return true;
-}
-
 void LogcatViewer::setFilter(const FilterOptions& options)
 {
     m_viewer->applyFilter(options);
-}
-
-QList<FieldInfo> LogcatViewer::availableFields() const
-{
-    return QList<FieldInfo>({
-        { tr("No."), DataType::Integer },
-        { tr("Time"), DataType::DateTime },
-        { tr("PID"), DataType::Integer },
-        { tr("TID"), DataType::Integer },
-        { tr("Level"), DataType::String },
-        { tr("Tag"), DataType::String },
-        { tr("Message"), DataType::String },
-    });
-}
-
-QSet<int> LogcatViewer::filteredLines() const
-{
-    return QSet<int>();
-}
-
-void LogcatViewer::synchronizeFilteredLines(const QSet<int>& lines)
-{
-    Q_UNUSED(lines)
 }
 
 void LogcatViewer::onPluginEvent(PluginEvent event, const QVariant& data)

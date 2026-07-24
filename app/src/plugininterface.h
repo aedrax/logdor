@@ -1,7 +1,6 @@
 #ifndef PLUGININTERFACE_H
 #define PLUGININTERFACE_H
 
-#include <QDateTime>
 #include <QString>
 #include <QWidget>
 #include <QtPlugin>
@@ -11,35 +10,22 @@
 
 #include <memory>
 
-// Forward declarations to avoid circular dependencies
-class PluginDatabaseManager;
 class AnnotationHub;
 
-struct LogEntry {
-    const char* message;
-    size_t length;
-
-    LogEntry(const char* msg = nullptr, size_t len = 0)
-        : message(msg)
-        , length(len)
-    {
-    }
-
-    QString getMessage() const {
-        return QString::fromUtf8(message, static_cast<int>(length));
-    }
-};
-
+/// State of the shared filter bar, fanned out to every enabled plugin.
 struct FilterOptions {
     QString query;
     int contextLinesBefore = 0;
     int contextLinesAfter = 0;
     Qt::CaseSensitivity caseSensitivity = Qt::CaseInsensitive;
     bool invertFilter = false;
-    bool inQueryMode = false;
+    bool inQueryMode = false; // field query language (CompiledQuery)
     bool inRegexMode = false;
 
-    FilterOptions(const QString& q = QString(), int before = 0, int after = 0, Qt::CaseSensitivity cs = Qt::CaseInsensitive, bool invert = false, bool queryMode = false, bool regexMode = false)
+    FilterOptions(const QString& q = QString(), int before = 0, int after = 0,
+                  Qt::CaseSensitivity cs = Qt::CaseInsensitive,
+                  bool invert = false, bool queryMode = false,
+                  bool regexMode = false)
         : query(q)
         , contextLinesBefore(before)
         , contextLinesAfter(after)
@@ -51,74 +37,37 @@ struct FilterOptions {
     }
 };
 
-enum class DataType {
-    String,
-    Integer,
-    DateTime,
-    // Add other data types as needed
-};
-
-struct FieldInfo {
-    QString name;
-    DataType type;
-    QList<QVariant> possibleValues; // For non-basic types or enums
-};
-
+/// Cross-plugin events, fanned out synchronously by PluginManager.
 enum class PluginEvent {
-    Custom,
-    LinesSelected,
-    LinesFiltered,
-    // Add other events as needed
+    LinesSelected, // payload: QList<int> of SOURCE line numbers
 };
 
-// Using Q_DECL_EXPORT to export the functions in the library (Windows)
-// don't need Q_DECL_IMPORT because it's never imported, only loaded at runtime
+/**
+ * A Logdor view plugin. Everything is delivered on the GUI thread; plugins
+ * run their own background work (filter scans etc.) via QFutureWatcher —
+ * see LogViewerWidget, which most viewers simply wrap.
+ */
 class Q_DECL_EXPORT PluginInterface : public QObject {
     Q_OBJECT
 public:
-    // Constructor
-    explicit PluginInterface(QObject* parent = nullptr) : QObject(parent), m_enabled(true) {}
-
-    // Virtual destructor for proper cleanup
-    virtual ~PluginInterface() = default;
-
-    // Get the name of the plugin
-    virtual QString name() const = 0;
-
-    // Get the version of the plugin
-    virtual QString version() const = 0;
-
-    // Get the description of the plugin
-    virtual QString description() const = 0;
-
-    // Get the widget provided by the plugin
-    virtual QWidget* widget() = 0;
-
-    // Enable/disable the plugin
-    virtual void setEnabled(bool enabled) { 
-        if (m_enabled != enabled) {
-            m_enabled = enabled;
-            emit enabledChanged(enabled);
-        }
+    explicit PluginInterface(QObject* parent = nullptr)
+        : QObject(parent)
+    {
     }
 
-    // Check if plugin is enabled
-    virtual bool isEnabled() const { return m_enabled; }
+    ~PluginInterface() override = default;
 
-    // Load logs into the plugin's widget
-    virtual bool setLogs(const QList<LogEntry>& logs) = 0;
+    virtual QString name() const = 0;
+    virtual QString version() const = 0;
+    virtual QString description() const = 0;
 
-    // === Core-source path (Phase 2) =========================================
-    // A plugin returning true is fed via setCoreSource() on the GUI thread
-    // and is EXCLUDED from the legacy setLogs() fan-out (including the
-    // worker-thread background-processing path). setFilter() is still
-    // delivered on the GUI thread; core plugins run their own off-thread
-    // logdor::scanFilter instead of rescanning inline.
-    virtual bool wantsCoreSource() const { return false; }
+    /// The dock widget content. The plugin keeps ownership.
+    virtual QWidget* widget() = 0;
 
-    // Both null => file closed or being replaced: drop every reference now,
-    // the old mapping dies after this returns. Always called on the GUI
-    // thread.
+    /**
+     * The opened file. Both null => file closed or being replaced: drop
+     * every reference now, the old mapping dies after this returns.
+     */
     virtual void setCoreSource(std::shared_ptr<logdor::FileSource> source,
                                std::shared_ptr<const logdor::LineIndex> index)
     {
@@ -126,88 +75,42 @@ public:
         Q_UNUSED(index)
     }
 
-    // Shared annotation state for the current file (notes on lines/ranges).
-    // Called once at startup on the GUI thread; the pointer stays valid for
-    // the application lifetime.
+    /**
+     * Shared annotation state (notes on lines/ranges). Called once at
+     * startup; the pointer stays valid for the application lifetime.
+     */
     virtual void setAnnotationHub(AnnotationHub* hub) { Q_UNUSED(hub) }
 
-    // Apply filter options to the logs
-    virtual void setFilter(const FilterOptions& options) = 0;
+    /// The shared filter bar changed.
+    virtual void setFilter(const FilterOptions& options) { Q_UNUSED(options) }
 
-    // Metadata about fields
-    virtual QList<FieldInfo> availableFields() const = 0;
+    void setEnabled(bool enabled)
+    {
+        if (m_enabled != enabled)
+            m_enabled = enabled;
+    }
 
-    // Communicate filtered lines
-    virtual QSet<int> filteredLines() const = 0; // Returns indices of filtered out lines
-    virtual void synchronizeFilteredLines(const QSet<int>& lines) = 0; // Synchronize with other plugins    
-
-    // Database-aware methods (optional, for backward compatibility)
-    // Plugins can override these to support database storage
-    
-    // Check if plugin supports database storage
-    virtual bool supportsDatabaseStorage() const { return false; }
-    
-    // Get database schema definition for this plugin
-    // Returns empty list if plugin doesn't support database storage
-    virtual QList<FieldInfo> getDatabaseSchema() const { return QList<FieldInfo>(); }
-    
-    // Parse a log entry into a database record
-    // Returns empty list if plugin doesn't support database storage
-    virtual QVariantList parseToDatabaseRecord(const LogEntry& entry, int lineNumber) const { 
-        Q_UNUSED(entry)
-        Q_UNUSED(lineNumber)
-        return QVariantList(); 
-    }
-    
-    // Database manager integration (dependency injection)
-    // Set the database manager for this plugin instance
-    // Returns true if successfully set, false if plugin doesn't support database storage
-    virtual bool setDatabaseManager(PluginDatabaseManager* manager) { 
-        if (supportsDatabaseStorage()) {
-            m_databaseManager = manager;
-            return true;
-        }
-        return false; 
-    }
-    
-    // Plugin lifecycle methods for database operations
-    // Called when database is ready for this plugin
-    virtual bool initializeDatabase() { return true; }
-    
-    // Called when plugin should clean up database resources
-    virtual void cleanupDatabase() { }
-    
-    // Error handling for database operations
-    // Called when a database operation fails
-    virtual void onDatabaseError(const QString& error) { 
-        Q_UNUSED(error)
-        // Default implementation: emit a generic plugin event
-        emit const_cast<PluginInterface*>(this)->pluginEvent(PluginEvent::Custom, 
-            QVariantMap{{"type", "database_error"}, {"message", error}});
-    }
+    bool isEnabled() const { return m_enabled; }
 
 public slots:
-    // Handle plugin events
-    virtual void onPluginEvent(PluginEvent event, const QVariant& data) = 0;
-    
+    /// Events from other plugins (never echoed back to the sender).
+    virtual void onPluginEvent(PluginEvent event, const QVariant& data)
+    {
+        Q_UNUSED(event)
+        Q_UNUSED(data)
+    }
+
 signals:
-    // Signal to notify about plugin events
+    /// Broadcast an event to every other enabled plugin.
     void pluginEvent(PluginEvent event, const QVariant& data);
-    
-    // Signal emitted when plugin enabled state changes
-    void enabledChanged(bool enabled);
 
 protected:
-    bool m_enabled;
-    PluginDatabaseManager* m_databaseManager = nullptr;
-    
-    // Protected getter for database manager (for derived classes)
-    PluginDatabaseManager* databaseManager() const { return m_databaseManager; }
+    bool m_enabled = true;
 };
 
-// Define the plugin interface ID
-// /2.1: setAnnotationHub added (vtable change); stale binaries must fail to load.
-#define PluginInterface_iid "com.logdor.PluginInterface/2.1"
+// /3.0: legacy setLogs pipeline, field metadata, and database API removed;
+// stale binaries must fail to load.
+#define PluginInterface_iid "com.logdor.PluginInterface/3.0"
 Q_DECLARE_INTERFACE(PluginInterface, PluginInterface_iid)
 
 #endif // PLUGININTERFACE_H

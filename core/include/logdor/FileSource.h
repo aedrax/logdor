@@ -47,7 +47,7 @@ public:
     Mode mode() const { return m_mode; }
 
     /// True when the whole file is addressable as one contiguous range.
-    bool isContiguous() const { return m_mode == Mode::Mapped || !m_heapCopy.isNull(); }
+    bool isContiguous() const { return m_mode == Mode::Mapped; }
 
     /// Base pointer of the contiguous range; nullptr unless isContiguous().
     const char* data() const;
@@ -65,13 +65,6 @@ public:
      */
     qsizetype readInto(quint64 offset, char* dst, qsizetype length) const;
 
-    /**
-     * Phase-1 legacy bridge only: in Buffered mode, load the whole file into
-     * one heap block so data()/view() work. Fails (false + @p error) instead
-     * of throwing when the allocation is impossible.
-     */
-    bool ensureContiguous(QString* error = nullptr);
-
     FileSource(const FileSource&) = delete;
     FileSource& operator=(const FileSource&) = delete;
 
@@ -83,7 +76,6 @@ private:
     mutable QFile m_file;
     quint64 m_size = 0;
     const uchar* m_map = nullptr;
-    QByteArray m_heapCopy; // Buffered mode after ensureContiguous()
     Mode m_mode = Mode::Mapped;
 
     mutable QMutex m_ioMutex; // guards m_file and m_blockCache in Buffered mode

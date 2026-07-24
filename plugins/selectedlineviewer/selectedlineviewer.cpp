@@ -24,13 +24,6 @@ void SelectedLineViewer::setCoreSource(std::shared_ptr<logdor::FileSource> sourc
     m_textBrowser->setText(tr("No line selected"));
 }
 
-bool SelectedLineViewer::setLogs(const QList<LogEntry>& content)
-{
-    // Legacy path unused: this plugin is fed through setCoreSource().
-    Q_UNUSED(content)
-    return true;
-}
-
 void SelectedLineViewer::setFilter(const FilterOptions& options)
 {
     Q_UNUSED(options)
@@ -57,17 +50,3 @@ void SelectedLineViewer::onPluginEvent(PluginEvent event, const QVariant& data)
     m_textBrowser->setText(text);
 }
 
-QList<FieldInfo> SelectedLineViewer::availableFields() const
-{
-    return QList<FieldInfo>();
-}
-
-QSet<int> SelectedLineViewer::filteredLines() const
-{
-    return QSet<int>();
-}
-
-void SelectedLineViewer::synchronizeFilteredLines(const QSet<int>& lines)
-{
-    Q_UNUSED(lines)
-}

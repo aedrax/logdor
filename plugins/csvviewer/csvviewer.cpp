@@ -49,20 +49,6 @@ void CsvViewer::setFilter(const FilterOptions& options)
     m_viewer->applyFilter(options);
 }
 
-QList<FieldInfo> CsvViewer::availableFields() const
-{
-    QList<FieldInfo> fields { { tr("No."), DataType::Integer, {} } };
-    if (const auto& parser = m_viewer->model()->parser()) {
-        for (const auto& field : parser->schema())
-            fields.append({ field.name,
-                            field.type == logdor::FieldType::Integer
-                                ? DataType::Integer
-                                : DataType::String,
-                            {} });
-    }
-    return fields;
-}
-
 void CsvViewer::onPluginEvent(PluginEvent event, const QVariant& data)
 {
     if (event == PluginEvent::LinesSelected)
