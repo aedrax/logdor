@@ -45,6 +45,10 @@
      <string>File</string>
     </property>
     <addaction name="actionOpen"/>
+    <addaction name="actionOpenFolder"/>
+    <addaction name="actionSaveAnnotations"/>
+    <addaction name="actionSaveAnnotationsAs"/>
+    <addaction name="separator"/>
    </widget>
    <widget class="QMenu" name="menuPlugins">
     <property name="title">
@@ -67,6 +71,30 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+O</string>
+   </property>
+  </action>
+  <action name="actionOpenFolder">
+   <property name="text">
+    <string>Open Folder...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+O</string>
+   </property>
+  </action>
+  <action name="actionSaveAnnotations">
+   <property name="text">
+    <string>Save Annotations</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="actionSaveAnnotationsAs">
+   <property name="text">
+    <string>Save Annotations As...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+S</string>
    </property>
   </action>
  </widget>

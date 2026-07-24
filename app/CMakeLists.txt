@@ -27,6 +27,10 @@ add_library(logdor_interface SHARED
     src/annotationdialog.cpp
     src/annotationexporter.h
     src/annotationexporter.cpp
+    src/recentitems.h
+    src/recentitems.cpp
+    src/folderview.h
+    src/folderview.cpp
 )
 
 target_link_libraries(logdor_interface PUBLIC
@@ -37,7 +41,7 @@ target_link_libraries(logdor_interface PUBLIC
 )
 
 if(BUILD_TESTING)
-    foreach(t logtablemodel annotationhub logviewerwidget)
+    foreach(t logtablemodel annotationhub logviewerwidget recentitems folderview)
         qt_add_executable(tst_${t} tests/tst_${t}.cpp)
         target_link_libraries(tst_${t} PRIVATE
             logdor_interface Logdor::Core Qt6::Test Qt6::Widgets)

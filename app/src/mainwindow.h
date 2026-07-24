@@ -13,6 +13,7 @@
 #include <logdor/LineIndexer.h>
 #include <memory>
 
+class FolderView;
 class QLabel;
 class QProgressDialog;
 
@@ -33,11 +34,16 @@ public:
     ~MainWindow();
 
     // Open a log file; returns true when indexing was started (completion is
-    // asynchronous). Also used for files passed on the command line.
+    // asynchronous). Also used for files passed on the command line, where a
+    // directory argument opens the folder view instead.
     bool openFile(const QString& fileName);
+
+    // Show the folder dock listing every log under @p dir.
+    void openFolder(const QString& dir);
 
 private slots:
     void onActionOpenTriggered();
+    void onActionOpenFolderTriggered();
     void onFilterChanged();
     void onFocusFilterInput();
     void onIndexingProgress(int permille);
@@ -48,16 +54,29 @@ protected:
 
 private:
     void loadPlugins();
+    // Recents: MRU list of files and folders in QSettings ("recentItems").
+    void addRecentItem(const QString& path);
+    void rebuildRecentMenu();
+    // Route a recents entry: folders open the folder view, files open.
+    void openPath(const QString& path);
     // Annotation persistence (sidecar next to the log, appdata fallback).
     QString annotationSidecarPath() const;
     QString annotationFallbackPath(const logdor::FileIdentity& identity) const;
     logdor::AnnotationSet loadAnnotationSidecars();
-    void flushAnnotationSave();
+    // Returns the path written, empty when nothing was dirty or writing failed.
+    QString flushAnnotationSave();
+    void saveAnnotationsNow();
+    void saveAnnotationsAs();
     void updateNoteCount();
     void importAnnotations();
     void exportAnnotations();
     void saveSettings();
     void loadSettings();
+    // Per-file view state (filter + plugin states), kept for the app run so
+    // cycling between files brings each one back the way it was left.
+    void captureSession();
+    void restoreSession(const QString& fileName);
+    static QString sessionKey(const QString& fileName);
 
     Ui::MainWindow* ui;
     PluginManager* m_pluginManager;
@@ -65,6 +84,10 @@ private:
     QMap<QString, QDockWidget*> m_pluginDocks;
     QMap<QString, QAction*> m_pluginActions;
     QMenu* m_pluginsMenu;
+    QMenu* m_recentMenu = nullptr;
+    // Folder navigation, created lazily on the first Open Folder.
+    FolderView* m_folderView = nullptr;
+    QDockWidget* m_folderDock = nullptr;
     // Current file, owned by the core; viewers hold shared_ptrs into it.
     std::shared_ptr<logdor::FileSource> m_fileSource;
     std::shared_ptr<const logdor::LineIndex> m_lineIndex;
@@ -76,6 +99,12 @@ private:
     QTimer* m_annotationSaveTimer = nullptr;
     QLabel* m_noteCountLabel = nullptr;
     FilterOptions m_filterOptions;
+
+    struct FileSession {
+        FilterOptions filter;
+        QJsonObject pluginStates; // keyed by plugin name
+    };
+    QHash<QString, FileSession> m_sessions; // keyed by canonical file path
 
     // Filter controls
     QLineEdit* m_filterInput;

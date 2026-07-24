@@ -8,6 +8,7 @@
 #include <logdor/Query.h>
 #include <QDockWidget>
 #include <QFileDialog>
+#include <QHBoxLayout>
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QToolBar>
@@ -16,6 +17,9 @@
 #include <QSpinBox>
 #include <QShortcut>
 #include <QRegularExpression>
+#include <QStyle>
+#include "folderview.h"
+#include "recentitems.h"
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -37,16 +41,55 @@ MainWindow::MainWindow(QWidget* parent)
     this->setCentralWidget(nullptr);
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::onActionOpenTriggered);
 
-    // Create filter toolbar
+    // Recents live between Open Folder and the Save actions. Rebuilt eagerly
+    // (not on aboutToShow) so the Ctrl+1..9 shortcuts always work.
+    m_recentMenu = new QMenu(tr("Open Recent"), this);
+    ui->menuFile->insertMenu(ui->actionSaveAnnotations, m_recentMenu);
+    ui->menuFile->insertSeparator(ui->actionSaveAnnotations);
+    rebuildRecentMenu();
+
+    connect(ui->actionSaveAnnotations, &QAction::triggered,
+            this, &MainWindow::saveAnnotationsNow);
+    connect(ui->actionSaveAnnotationsAs, &QAction::triggered,
+            this, &MainWindow::saveAnnotationsAs);
+    connect(ui->actionOpenFolder, &QAction::triggered,
+            this, &MainWindow::onActionOpenFolderTriggered);
+
+    // Cycle through the open folder's files; no-ops until a folder is open.
+    auto* nextFileShortcut =
+        new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_PageDown), this);
+    connect(nextFileShortcut, &QShortcut::activated, this, [this]() {
+        if (m_folderView)
+            m_folderView->selectNext();
+    });
+    auto* previousFileShortcut =
+        new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_PageUp), this);
+    connect(previousFileShortcut, &QShortcut::activated, this, [this]() {
+        if (m_folderView)
+            m_folderView->selectPrevious();
+    });
+
+    // Filter toolbar. Everything lives in one plain row widget instead of
+    // individual toolbar items: QToolBar hides overflowing items behind a
+    // ">>" popup at narrow widths, while a row with a stretch guarantees the
+    // input takes every pixel the fixed controls don't need.
     QToolBar* filterToolBar = addToolBar(tr("Filter"));
+    filterToolBar->setObjectName("FilterToolBar"); // saveState participation
     filterToolBar->setMovable(false);
-    
+
+    QWidget* filterRow = new QWidget(this);
+    filterRow->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    auto* filterRowLayout = new QHBoxLayout(filterRow);
+    filterRowLayout->setContentsMargins(4, 2, 4, 2);
+    filterRowLayout->setSpacing(4);
+
     QLabel* filterLabel = new QLabel(tr("Filter:"), this);
-    filterToolBar->addWidget(filterLabel);
-    
+    filterRowLayout->addWidget(filterLabel);
+
     m_filterInput->setPlaceholderText(tr("Enter filter text..."));
-    filterToolBar->addWidget(m_filterInput);
-    
+    m_filterInput->setMinimumWidth(140);
+    filterRowLayout->addWidget(m_filterInput, /*stretch*/ 1);
+
     // Configure toggle buttons
     auto setupToggleButton = [](QPushButton* button, const QString& tooltip) {
         button->setCheckable(true);
@@ -72,17 +115,17 @@ MainWindow::MainWindow(QWidget* parent)
     };
     
     setupToggleButton(m_caseSensitiveButton, tr("Toggle case sensitive filtering"));
-    filterToolBar->addWidget(m_caseSensitiveButton);
-    
+    filterRowLayout->addWidget(m_caseSensitiveButton);
+
     setupToggleButton(m_invertFilterButton, tr("Show lines that don't match the filter"));
-    filterToolBar->addWidget(m_invertFilterButton);
-    
+    filterRowLayout->addWidget(m_invertFilterButton);
+
     setupToggleButton(m_regexModeButton, tr("Treat filter as a regular expression"));
-    filterToolBar->addWidget(m_regexModeButton);
-    
+    filterRowLayout->addWidget(m_regexModeButton);
+
     setupToggleButton(m_queryModeButton,
                       tr("Field query mode: level:error tag:Wifi* pid>=100 \"free text\""));
-    filterToolBar->addWidget(m_queryModeButton);
+    filterRowLayout->addWidget(m_queryModeButton);
 
     // Query mode and regex mode are mutually exclusive filter languages.
     connect(m_queryModeButton, &QPushButton::toggled, this, [this](bool on) {
@@ -94,25 +137,27 @@ MainWindow::MainWindow(QWidget* parent)
             m_queryModeButton->setChecked(false);
     });
     
-    // Add context line controls
-    filterToolBar->addSeparator();
-    
+    // Context line controls
+    filterRowLayout->addSpacing(8);
+
     QLabel* beforeLabel = new QLabel(tr("Lines Before:"), this);
-    filterToolBar->addWidget(beforeLabel);
-    
+    filterRowLayout->addWidget(beforeLabel);
+
     // m_beforeSpinBox->setRange(0, 10);
     m_beforeSpinBox->setValue(0);
     m_beforeSpinBox->setToolTip(tr("Number of context lines to show before matches"));
-    filterToolBar->addWidget(m_beforeSpinBox);
+    filterRowLayout->addWidget(m_beforeSpinBox);
 
     QLabel* afterLabel = new QLabel(tr("Lines After:"), this);
-    filterToolBar->addWidget(afterLabel);
-    
+    filterRowLayout->addWidget(afterLabel);
+
     // m_afterSpinBox->setRange(0, 10);
     m_afterSpinBox->setValue(0);
     m_afterSpinBox->setToolTip(tr("Number of context lines to show after matches"));
-    filterToolBar->addWidget(m_afterSpinBox);
-    
+    filterRowLayout->addWidget(m_afterSpinBox);
+
+    filterToolBar->addWidget(filterRow);
+
     // Set up filter timer with delay
     m_filterTimer->setSingleShot(true);
     m_filterTimer->setInterval(FILTER_DEBOUNCE_TIMEOUT_MILLISECONDS);
@@ -245,6 +290,78 @@ void MainWindow::loadPlugins()
     }
 }
 
+void MainWindow::addRecentItem(const QString& path)
+{
+    QSettings settings("Logdor", "Logdor");
+    settings.setValue("recentItems",
+                      updatedRecents(
+                          settings.value("recentItems").toStringList(), path));
+    rebuildRecentMenu();
+}
+
+void MainWindow::rebuildRecentMenu()
+{
+    QSettings settings("Logdor", "Logdor");
+    const QStringList stored = settings.value("recentItems").toStringList();
+    const QStringList items = prunedRecents(stored);
+    if (items != stored)
+        settings.setValue("recentItems", items);
+
+    m_recentMenu->clear();
+    m_recentMenu->setEnabled(!items.isEmpty());
+
+    for (int i = 0; i < items.size(); ++i) {
+        const QString& path = items.at(i);
+        const QFileInfo info(path);
+        QAction* action = m_recentMenu->addAction(
+            tr("&%1  %2 - %3")
+                .arg(i + 1)
+                .arg(info.fileName(), QDir::toNativeSeparators(info.path())));
+        if (i < 9)
+            action->setShortcut(QKeySequence(QStringLiteral("Ctrl+%1").arg(i + 1)));
+        action->setIcon(style()->standardIcon(
+            info.isDir() ? QStyle::SP_DirIcon : QStyle::SP_FileIcon));
+        connect(action, &QAction::triggered, this,
+                [this, path]() { openPath(path); });
+    }
+
+    m_recentMenu->addSeparator();
+    QAction* clear = m_recentMenu->addAction(tr("Clear Recent"));
+    clear->setEnabled(!items.isEmpty());
+    connect(clear, &QAction::triggered, this, [this]() {
+        QSettings settings("Logdor", "Logdor");
+        settings.remove("recentItems");
+        rebuildRecentMenu();
+    });
+}
+
+void MainWindow::openPath(const QString& path)
+{
+    if (QFileInfo(path).isDir())
+        openFolder(path);
+    else
+        openFile(path);
+}
+
+void MainWindow::openFolder(const QString& dir)
+{
+    if (!m_folderView) {
+        m_folderView = new FolderView(this);
+        m_folderDock = new QDockWidget(tr("Files"), this);
+        m_folderDock->setObjectName("FolderView"); // saveState participation
+        m_folderDock->setWidget(m_folderView);
+        addDockWidget(Qt::LeftDockWidgetArea, m_folderDock);
+        connect(m_folderView, &FolderView::fileActivated,
+                this, &MainWindow::openFile);
+    }
+    m_folderView->setFolder(dir);
+    m_folderDock->setWindowTitle(
+        tr("Files - %1").arg(QFileInfo(dir).fileName()));
+    m_folderDock->show();
+    m_folderDock->raise();
+    addRecentItem(dir);
+}
+
 void MainWindow::saveSettings()
 {
     QSettings settings("Logdor", "Logdor");
@@ -307,6 +424,17 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 bool MainWindow::openFile(const QString& fileName)
 {
+    // `logdor /var/log` and folder recents route to the folder view.
+    if (QFileInfo(fileName).isDir()) {
+        openFolder(fileName);
+        return true;
+    }
+
+    // Snapshot the outgoing file's view state before teardown wipes it -
+    // viewers clear selection/sort in setCoreSource(nullptr, nullptr).
+    if (!m_currentFileName.isEmpty() && m_lineIndex)
+        captureSession();
+
     // Stop any in-flight indexing. setFuture() below detaches the watcher
     // from the old future, so no stale finished() arrives; the cancelled
     // task keeps the old source alive through its own shared_ptr.
@@ -320,7 +448,7 @@ bool MainWindow::openFile(const QString& fileName)
     m_currentFileName.clear();
     updateNoteCount();
 
-    // Clear plugins' data before dropping the previous mapping — they hold
+    // Clear plugins' data before dropping the previous mapping - they hold
     // shared_ptrs into it.
     m_pluginManager->setCoreSource(nullptr, nullptr);
     m_lineIndex.reset();
@@ -392,8 +520,15 @@ void MainWindow::onIndexingFinished()
     // Every viewer is core-aware: hand out the source and filter. Opening a
     // file costs the line index, nothing else.
     m_pluginManager->setCoreSource(m_fileSource, m_lineIndex);
+    // Revisited files come back the way they were left; first visits keep
+    // the current toolbar filter. setFilter() below applies either in one
+    // shot, and viewers finish their part when their scans land.
+    restoreSession(fileName);
     m_pluginManager->setFilter(m_filterOptions);
     setWindowTitle(tr("Logdor - %1").arg(QFileInfo(fileName).fileName()));
+    addRecentItem(fileName); // success only: failed opens never enter recents
+    if (m_folderView)
+        m_folderView->setCurrentFile(fileName); // no echo: highlight only
 }
 
 QString MainWindow::annotationSidecarPath() const
@@ -449,10 +584,10 @@ logdor::AnnotationSet MainWindow::loadAnnotationSidecars()
     return merged;
 }
 
-void MainWindow::flushAnnotationSave()
+QString MainWindow::flushAnnotationSave()
 {
     if (!m_annotationHub->hasFile() || !m_annotationHub->isDirty())
-        return;
+        return {};
 
     const QByteArray bytes = logdor::saveAnnotations(
         m_annotationHub->set(), m_annotationHub->identity(),
@@ -468,7 +603,7 @@ void MainWindow::flushAnnotationSave()
 
     if (writeTo(annotationSidecarPath())) {
         m_annotationHub->clearDirty();
-        return;
+        return annotationSidecarPath();
     }
     // The log's directory isn't writable: keep notes in the app data dir,
     // keyed by content so they reunite with the log wherever it goes.
@@ -479,11 +614,58 @@ void MainWindow::flushAnnotationSave()
         ui->statusbar->showMessage(
             tr("Log directory is not writable; notes saved to %1").arg(fallback),
             5000);
-    } else {
-        ui->statusbar->showMessage(
-            tr("FAILED to save annotations — check disk space and permissions"),
-            10000);
+        return fallback;
     }
+    ui->statusbar->showMessage(
+        tr("FAILED to save annotations - check disk space and permissions"),
+        10000);
+    return {};
+}
+
+void MainWindow::saveAnnotationsNow()
+{
+    if (!m_annotationHub->hasFile()) {
+        ui->statusbar->showMessage(tr("Open a log file first"), 3000);
+        return;
+    }
+    m_annotationSaveTimer->stop();
+    if (!m_annotationHub->isDirty()) {
+        ui->statusbar->showMessage(tr("No unsaved annotation changes"), 3000);
+        return;
+    }
+    const QString path = flushAnnotationSave();
+    if (!path.isEmpty())
+        ui->statusbar->showMessage(tr("Annotations saved to %1").arg(path), 5000);
+    // Failure already reported by flushAnnotationSave().
+}
+
+void MainWindow::saveAnnotationsAs()
+{
+    // A one-time copy for sharing/backup (pairs with Import). Autosave keeps
+    // targeting the canonical sidecar so annotations still auto-load.
+    if (!m_annotationHub->hasFile()) {
+        ui->statusbar->showMessage(tr("Open a log file first"), 3000);
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(
+        this, tr("Save Annotations As"), annotationSidecarPath(),
+        tr("Logdor annotations (*.logdor.json);;All files (*)"));
+    if (path.isEmpty())
+        return;
+
+    m_annotationSaveTimer->stop();
+    flushAnnotationSave(); // canonical sidecar and the copy never diverge
+
+    const QByteArray bytes = logdor::saveAnnotations(
+        m_annotationHub->set(), m_annotationHub->identity(),
+        QFileInfo(m_currentFileName).fileName());
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly) || (file.write(bytes), !file.commit())) {
+        QMessageBox::warning(this, tr("Save Annotations As"),
+                             tr("Could not write %1").arg(path));
+        return;
+    }
+    ui->statusbar->showMessage(tr("Annotations saved to %1").arg(path), 5000);
 }
 
 void MainWindow::updateNoteCount()
@@ -573,12 +755,64 @@ void MainWindow::exportAnnotations()
     ui->statusbar->showMessage(tr("Exported annotations to %1").arg(path), 5000);
 }
 
+QString MainWindow::sessionKey(const QString& fileName)
+{
+    const QString canonical = QFileInfo(fileName).canonicalFilePath();
+    return canonical.isEmpty() ? fileName : canonical;
+}
+
+void MainWindow::captureSession()
+{
+    FileSession session;
+    session.filter = m_filterOptions;
+    session.pluginStates = m_pluginManager->saveViewStates();
+    m_sessions.insert(sessionKey(m_currentFileName), session);
+}
+
+void MainWindow::restoreSession(const QString& fileName)
+{
+    const auto it = m_sessions.constFind(sessionKey(fileName));
+    if (it == m_sessions.constEnd())
+        return;
+    const FileSession& session = it.value();
+
+    // Write the file's filter back into the toolbar without triggering the
+    // debounce; the caller's setFilter() applies it in one shot.
+    m_filterTimer->stop();
+    const QSignalBlocker blockInput(m_filterInput);
+    const QSignalBlocker blockCase(m_caseSensitiveButton);
+    const QSignalBlocker blockInvert(m_invertFilterButton);
+    const QSignalBlocker blockQuery(m_queryModeButton);
+    const QSignalBlocker blockRegex(m_regexModeButton);
+    const QSignalBlocker blockBefore(m_beforeSpinBox);
+    const QSignalBlocker blockAfter(m_afterSpinBox);
+    m_filterInput->setText(session.filter.query);
+    m_caseSensitiveButton->setChecked(session.filter.caseSensitivity
+                                      == Qt::CaseSensitive);
+    m_invertFilterButton->setChecked(session.filter.invertFilter);
+    m_queryModeButton->setChecked(session.filter.inQueryMode);
+    m_regexModeButton->setChecked(session.filter.inRegexMode);
+    m_beforeSpinBox->setValue(session.filter.contextLinesBefore);
+    m_afterSpinBox->setValue(session.filter.contextLinesAfter);
+    m_filterOptions = session.filter;
+
+    m_pluginManager->restoreViewStates(session.pluginStates);
+}
+
 void MainWindow::onActionOpenTriggered()
 {
     QFileDialog fileDialog(this, tr("Open File"), QString(), tr("All Files (*)"));
     while (fileDialog.exec() == QDialog::Accepted
         && !openFile(fileDialog.selectedFiles().constFirst())) {
     }
+}
+
+void MainWindow::onActionOpenFolderTriggered()
+{
+    const QString dir = QFileDialog::getExistingDirectory(
+        this, tr("Open Folder"));
+    if (!dir.isEmpty())
+        openFolder(dir);
 }
 
 void MainWindow::onFocusFilterInput()
