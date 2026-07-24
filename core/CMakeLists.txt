@@ -41,6 +41,8 @@ qt_add_library(logdor-core STATIC
     src/Annotation.cpp
     include/logdor/AnnotationScan.h
     src/AnnotationScan.cpp
+    include/logdor/CsvParser.h
+    src/CsvParser.cpp
 )
 add_library(Logdor::Core ALIAS logdor-core)
 

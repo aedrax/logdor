@@ -15,6 +15,7 @@ set(LOGDOR_CORE_TESTS
     annotation
     fileidentity
     annotationscan
+    csvparser
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
