@@ -43,6 +43,8 @@ qt_add_library(logdor-core STATIC
     src/AnnotationScan.cpp
     include/logdor/CsvParser.h
     src/CsvParser.cpp
+    include/logdor/JsonLinesParser.h
+    src/JsonLinesParser.cpp
     include/logdor/GeoScan.h
     src/GeoScan.cpp
 )

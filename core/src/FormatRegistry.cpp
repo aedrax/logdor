@@ -2,6 +2,7 @@
 
 #include "logdor/ClfParser.h"
 #include "logdor/FileSource.h"
+#include "logdor/JsonLinesParser.h"
 #include "logdor/LineIndex.h"
 #include "logdor/LogcatParser.h"
 #include "logdor/PlainTextParser.h"
@@ -15,6 +16,7 @@ QList<std::shared_ptr<const FormatParser>> builtinParsers()
     return {
         std::make_shared<const ClfParser>(),
         std::make_shared<const LogcatParser>(),
+        std::make_shared<const JsonLinesParser>(),
         std::make_shared<const PlainTextParser>(),
     };
 }
