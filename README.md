@@ -21,8 +21,9 @@ Logdor provides functionality through a plugin-based architecture. Each plugin s
 - **Logcat Viewer** - Android logcat with level toggles and tag filtering
 - **Hex Dump Viewer** - hex dump of the selected lines
 - **Selected Line Viewer** - focused view of lines selected in other viewers
+- **Map Viewer** - extracts coordinates (decimal, labeled, DMS) from log lines and plots them on an OpenStreetMap map (requires Qt WebEngine and network access for tiles)
 
-Removed in the core migration (all preserved in git history): *Bookmark Viewer* (replaced by Annotations), *Syslog Viewer* (superseded by the bundled `syslog-rfc3164` format spec), *Regex Viewer* (replaced by the Custom Format Viewer), *Map Viewer* and *PGN Viewer* (retired).
+Removed in the core migration (all preserved in git history): *Bookmark Viewer* (replaced by Annotations), *Syslog Viewer* (superseded by the bundled `syslog-rfc3164` format spec), *Regex Viewer* (replaced by the Custom Format Viewer), *PGN Viewer* (retired).
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how it all fits together and how to extend it.
 
