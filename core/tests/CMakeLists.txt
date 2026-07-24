@@ -16,6 +16,7 @@ set(LOGDOR_CORE_TESTS
     fileidentity
     annotationscan
     csvparser
+    geoscan
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
