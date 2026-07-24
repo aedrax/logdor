@@ -1,16 +1,30 @@
 #include <logdor/Query.h>
 
+#include <QDateTime>
 #include <QTest>
 
 using namespace logdor;
 
 namespace {
 
+// Deterministic context: UTC, log written 2026 (kRows are January dates).
+TimeParseContext testCtx()
+{
+    return { QTimeZone::utc(), 2026, 12 };
+}
+
+qint64 utcMs(int mo, int d, int h, int mi, int s = 0, int ms = 0)
+{
+    return QDateTime(QDate(2026, mo, d), QTime(h, mi, s, ms), QTimeZone::utc())
+        .toMSecsSinceEpoch();
+}
+
 // Logcat-shaped schema for most tests.
 QList<FieldSchema> testSchema()
 {
     return {
-        { QStringLiteral("Time"), FieldType::DateTime, FieldHint::Timestamp },
+        { QStringLiteral("Time"), FieldType::DateTime, FieldHint::Timestamp,
+          QStringLiteral("MM-dd HH:mm:ss.zzz") },
         { QStringLiteral("PID"), FieldType::Integer, FieldHint::Numeric },
         { QStringLiteral("TID"), FieldType::Integer, FieldHint::Numeric },
         { QStringLiteral("Level"), FieldType::String, FieldHint::SeverityName },
@@ -31,7 +45,9 @@ ColumnSnapshot buildSnapshot(const QList<TestRow>& rows)
     const auto schema = testSchema();
     QList<ColumnData::Builder> builders;
     for (const auto& field : schema)
-        builders.emplace_back(field.type);
+        builders.emplace_back(field.type,
+                              TimestampCodec::fromFormatString(field.timeFormat,
+                                                               testCtx()));
     auto severity = std::make_shared<std::vector<quint8>>();
 
     for (const TestRow& row : rows) {
@@ -71,7 +87,7 @@ QList<int> matchesOf(const QString& text,
 {
     QueryError localError;
     auto query = CompiledQuery::compile(text, testSchema(), cs, {},
-                                        err ? err : &localError);
+                                        err ? err : &localError, testCtx());
     if (!query)
         return { -1 }; // sentinel: compile failed
     static const ColumnSnapshot snapshot = buildSnapshot(kRows);
@@ -128,10 +144,123 @@ private slots:
         QCOMPARE(matchesOf("level:rror"), QList<int>{ 0 });
     }
 
-    void dateTimeLexicographic()
+    // kRows times: Jan 1 10:00, Jan 2 11:00, Jan 3 12:00, and one invalid.
+    void dateTimeTemporal()
     {
-        QCOMPARE(matchesOf("time>=\"01-02\""), (QList<int>{ 1, 2 }));
-        QCOMPARE(matchesOf("time<\"01-02\""), (QList<int>{ 0, 3 })); // empty sorts first
+        // Date-only literals span the whole local day.
+        QCOMPARE(matchesOf("time=2026-01-02"), QList<int>{ 1 });
+        QCOMPARE(matchesOf("time!=2026-01-02"), (QList<int>{ 0, 2 }));
+        QCOMPARE(matchesOf("time>=2026-01-02"), (QList<int>{ 1, 2 }));
+        QCOMPARE(matchesOf("time<=2026-01-02"), (QList<int>{ 0, 1 })); // thru end
+        QCOMPARE(matchesOf("time>2026-01-02"), QList<int>{ 2 });
+        // The invalid row (3) never matches - unlike the old byte compare.
+        QCOMPARE(matchesOf("time<2026-01-02"), QList<int>{ 0 });
+
+        // Minute granularity: 11:00 is inside "11:00", after it only > it.
+        QCOMPARE(matchesOf("time>\"2026-01-02 11:00\""), QList<int>{ 2 });
+        QCOMPARE(matchesOf("time>=\"2026-01-02 11:00\""), (QList<int>{ 1, 2 }));
+        QCOMPARE(matchesOf("time=\"2026-01-02 11:00\""), QList<int>{ 1 });
+
+        // Cell display text (year-less logcat shape) round-trips.
+        QCOMPARE(matchesOf("time=\"01-02 11:00:00.000\""), QList<int>{ 1 });
+        QCOMPARE(matchesOf("time>=\"01-02 11:00:00.000\""), (QList<int>{ 1, 2 }));
+    }
+
+    void dateTimeTimeOfDay()
+    {
+        // Bare times match the time of ANY day (rows are on different days).
+        QCOMPARE(matchesOf("time<\"11:30\""), (QList<int>{ 0, 1 }));
+        QCOMPARE(matchesOf("time>=11:00"), (QList<int>{ 1, 2 }));
+        QCOMPARE(matchesOf("time=11:00"), QList<int>{ 1 });
+        QCOMPARE(matchesOf("time!=11:00"), (QList<int>{ 0, 2 }));
+    }
+
+    void dateTimeStringFallback()
+    {
+        // Values that are no time literal keep string semantics under
+        // ':'/'='/'!='...
+        QCOMPARE(matchesOf("time:01-02"), QList<int>{ 1 });      // contains
+        QCOMPARE(matchesOf("time:01-0*"), (QList<int>{ 0, 1, 2 })); // wildcard
+        QCOMPARE(matchesOf("time=\"\""), QList<int>{ 3 });       // exact empty
+        // ...but error under ordering operators.
+        QueryError error;
+        QCOMPARE(matchesOf("time>banana", Qt::CaseInsensitive, &error),
+                 QList<int>{ -1 });
+        QVERIFY(error.message.contains("not a date or time"));
+    }
+
+    void dateTimeEpochLiteral()
+    {
+        const qint64 jan2 = utcMs(1, 2, 11, 0); // epoch seconds literal
+        QCOMPARE(matchesOf(QStringLiteral("time>=%1").arg(jan2 / 1000)),
+                 (QList<int>{ 1, 2 }));
+    }
+
+    void atTimePseudoField()
+    {
+        QueryError error;
+        auto query = CompiledQuery::compile(
+            QStringLiteral("@time>=2026-01-02"), testSchema(),
+            Qt::CaseInsensitive, {}, &error, testCtx());
+        QVERIFY2(query, qPrintable(error.message));
+        QCOMPARE(query->referencedColumns(), QList<int>{ 0 }); // Time column
+        QCOMPARE(matchesOf("@time>=2026-01-02"), (QList<int>{ 1, 2 }));
+
+        // No timestamp column anywhere: a normal unknown-field error, which
+        // AllowUnknownFields (the filter-bar tint) degrades to always-true.
+        const QList<FieldSchema> plain {
+            { QStringLiteral("Message"), FieldType::String, FieldHint::Message },
+        };
+        QVERIFY(!CompiledQuery::compile(QStringLiteral("@time>=2026-01-02"),
+                                        plain, Qt::CaseInsensitive, {}, &error,
+                                        testCtx()));
+        QVERIFY(error.message.contains("unknown field"));
+        QVERIFY(CompiledQuery::compile(QStringLiteral("@time>=2026-01-02"),
+                                       plain, Qt::CaseInsensitive,
+                                       QueryOption::AllowUnknownFields, &error,
+                                       testCtx()));
+    }
+
+    void monotonicUptimeField()
+    {
+        const QList<FieldSchema> schema {
+            { QStringLiteral("Time"), FieldType::DateTime, FieldHint::Timestamp,
+              QStringLiteral("uptime") },
+            { QStringLiteral("Message"), FieldType::String, FieldHint::Message },
+        };
+        ColumnSnapshot snapshot;
+        ColumnData::Builder time(FieldType::DateTime,
+                                 TimestampCodec::fromFormatString(
+                                     QStringLiteral("uptime"), testCtx()));
+        for (const char* v : { "1.500", "12345.678", "" })
+            time.append(QString::fromLatin1(v), FieldType::DateTime);
+        snapshot.columns.insert(
+            0, std::make_shared<const ColumnData>(std::move(time).build()));
+
+        const auto matches = [&](const QString& text) {
+            QueryError error;
+            auto query = CompiledQuery::compile(text, schema,
+                                                Qt::CaseInsensitive, {},
+                                                &error, testCtx());
+            if (!query)
+                return QList<int>{ -1 };
+            QList<int> out;
+            for (int i = 0; i < 3; ++i) {
+                if (query->evaluate(i, "", snapshot))
+                    out.append(i);
+            }
+            return out;
+        };
+        QCOMPARE(matches("time>100"), QList<int>{ 1 });
+        QCOMPARE(matches("time<100"), QList<int>{ 0 }); // invalid row excluded
+        QCOMPARE(matches("time=1.5"), QList<int>{ 0 });
+        QCOMPARE(matches("time>=1"), (QList<int>{ 0, 1 })); // second granularity
+        // Calendar literals are meaningless against uptime.
+        QueryError error;
+        QVERIFY(!CompiledQuery::compile(QStringLiteral("time>=2026-01-01"),
+                                        schema, Qt::CaseInsensitive, {}, &error,
+                                        testCtx()));
+        QVERIFY(error.message.contains("seconds since boot"));
     }
 
     void booleanOperatorsAndPrecedence()
@@ -276,6 +405,46 @@ private slots:
                  QStringLiteral("PID!=100"));
         QCOMPARE(buildQueryTerm(pid, "not-a-pid"), QString());
         QCOMPARE(buildQueryTerm(pid, ""), QString());
+    }
+
+    void buildQueryTermOrdering()
+    {
+        const auto time = testSchema()[0]; // DateTime, logcat format
+        // Ordering terms gate on the value parsing as a time literal...
+        QCOMPARE(buildQueryTerm(time, "01-02 11:00:00.000", QueryCmp::Ge,
+                                testCtx()),
+                 QStringLiteral("Time>=\"01-02 11:00:00.000\""));
+        QCOMPARE(buildQueryTerm(time, "garbage", QueryCmp::Ge, testCtx()),
+                 QString());
+        // ...while '='/'!=' keep the permissive string path.
+        QCOMPARE(buildQueryTerm(time, "garbage", QueryCmp::Equals, testCtx()),
+                 QStringLiteral("Time=garbage"));
+
+        const FieldSchema uptime { QStringLiteral("Time"), FieldType::DateTime,
+                                   FieldHint::Timestamp,
+                                   QStringLiteral("uptime") };
+        QCOMPARE(buildQueryTerm(uptime, "12345.678", QueryCmp::Le, testCtx()),
+                 QStringLiteral("Time<=12345.678"));
+        QCOMPARE(buildQueryTerm(uptime, "abc", QueryCmp::Le, testCtx()),
+                 QString());
+
+        const FieldSchema pid { QStringLiteral("PID"), FieldType::Integer,
+                                FieldHint::Numeric };
+        QCOMPARE(buildQueryTerm(pid, "100", QueryCmp::Gt),
+                 QStringLiteral("PID>100"));
+    }
+
+    // Ordering terms built from displayed cell text must compile and behave.
+    void builtOrderingTermsRoundTrip()
+    {
+        const auto time = testSchema()[0];
+        const QString after = buildQueryTerm(time, kRows[1].time, QueryCmp::Ge,
+                                             testCtx());
+        QVERIFY(!after.isEmpty());
+        QCOMPARE(matchesOf(after), (QList<int>{ 1, 2 }));
+        const QString before = buildQueryTerm(time, kRows[1].time, QueryCmp::Le,
+                                              testCtx());
+        QCOMPARE(matchesOf(before), (QList<int>{ 0, 1 }));
     }
 
     // Terms built from a row's displayed values must compile and match that

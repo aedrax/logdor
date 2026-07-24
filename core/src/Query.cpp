@@ -2,6 +2,7 @@
 
 #include "TextMatch_p.h"
 
+#include <QDateTime>
 #include <QRegularExpression>
 
 #include <algorithm>
@@ -115,6 +116,8 @@ struct CompiledQuery::Node {
         StringCmp,    // column bytes vs needle / wildcard regex
         IntCmp,       // column int vs literal
         SeverityCmp,  // severity byte vs literal, enum order
+        DateTimeCmp,  // column epoch ms vs the literal's [lower, upper) range
+        TimeOfDayCmp, // epoch ms -> zone-local ms-of-day vs [lower, upper)
     };
 
     Kind kind;
@@ -123,7 +126,7 @@ struct CompiledQuery::Node {
     // FreeText
     std::optional<detail::Matcher> matcher;
 
-    // StringCmp / IntCmp / SeverityCmp
+    // StringCmp / IntCmp / SeverityCmp / DateTimeCmp / TimeOfDayCmp
     int column = -1;
     CmpOp op = CmpOp::Contains;
     QByteArray needleUtf8;       // pre-lowercased when folded
@@ -133,6 +136,9 @@ struct CompiledQuery::Node {
     std::optional<QRegularExpression> wildcard; // anchored, for '*'/'?'
     qint64 intLiteral = 0;
     quint8 severityLiteral = 0;
+    qint64 lowerMs = 0, upperMs = 0; // DateTimeCmp epoch / TimeOfDayCmp tod
+    std::shared_ptr<const std::vector<std::pair<qint64, qint32>>>
+        todOffsets; // TimeOfDayCmp: zone steps for epoch -> local time of day
 
     bool eval(qint64 line, QByteArrayView raw, const ColumnSnapshot& cols) const
     {
@@ -210,6 +216,43 @@ struct CompiledQuery::Node {
             case CmpOp::Le: return value <= severityLiteral;
             case CmpOp::Gt: return value > severityLiteral;
             case CmpOp::Ge: return value >= severityLiteral;
+            }
+            return false;
+        }
+        case Kind::DateTimeCmp: {
+            qint64 value = 0;
+            if (!cols.columns[column]->intAt(line, &value))
+                return false; // unparseable timestamps never match
+            // The literal is the half-open range [lowerMs, upperMs) at its
+            // own granularity; ordering ops compare against its bounds.
+            switch (op) {
+            case CmpOp::Contains:
+            case CmpOp::Equals: return value >= lowerMs && value < upperMs;
+            case CmpOp::NotEquals: return value < lowerMs || value >= upperMs;
+            case CmpOp::Lt: return value < lowerMs;
+            case CmpOp::Le: return value < upperMs;
+            case CmpOp::Gt: return value >= upperMs;
+            case CmpOp::Ge: return value >= lowerMs;
+            }
+            return false;
+        }
+        case Kind::TimeOfDayCmp: {
+            qint64 value = 0;
+            if (!cols.columns[column]->intAt(line, &value))
+                return false;
+            const qint32 offset
+                = todOffsets ? zoneOffsetAt(*todOffsets, value) : 0;
+            qint64 tod = (value + offset) % 86'400'000;
+            if (tod < 0)
+                tod += 86'400'000;
+            switch (op) {
+            case CmpOp::Contains:
+            case CmpOp::Equals: return tod >= lowerMs && tod < upperMs;
+            case CmpOp::NotEquals: return tod < lowerMs || tod >= upperMs;
+            case CmpOp::Lt: return tod < lowerMs;
+            case CmpOp::Le: return tod < upperMs;
+            case CmpOp::Gt: return tod >= upperMs;
+            case CmpOp::Ge: return tod >= lowerMs;
             }
             return false;
         }
@@ -357,18 +400,40 @@ struct QueryParser {
     const QList<FieldSchema>& schema;
     Qt::CaseSensitivity cs;
     QueryOptions options;
+    const TimeParseContext& timeContext;
     QueryError error;
     QList<int> referencedColumns;
     bool needsSeverity = false;
+    std::shared_ptr<const std::vector<std::pair<qint64, qint32>>> m_todOffsets;
 
     QueryParser(const QString& text, const QList<FieldSchema>& schema,
-                Qt::CaseSensitivity cs, QueryOptions options)
+                Qt::CaseSensitivity cs, QueryOptions options,
+                const TimeParseContext& timeContext)
         : tokenizer(text)
         , schema(schema)
         , cs(cs)
         , options(options)
+        , timeContext(timeContext)
     {
         current = tokenizer.next();
+    }
+
+    // Zone steps shared by every time-of-day term in this query, built once.
+    std::shared_ptr<const std::vector<std::pair<qint64, qint32>>> todOffsets()
+    {
+        if (!m_todOffsets) {
+            const QDate today = QDate::currentDate();
+            const int refYear = timeContext.referenceYear > 0
+                ? timeContext.referenceYear : today.year();
+            const qint64 to = QDateTime(QDate(std::max(refYear, today.year()) + 2,
+                                              1, 1),
+                                        QTime(0, 0), QTimeZone::utc())
+                                  .toMSecsSinceEpoch();
+            m_todOffsets = std::make_shared<
+                const std::vector<std::pair<qint64, qint32>>>(
+                zoneOffsetTable(timeContext.assumedZone, 0, to));
+        }
+        return m_todOffsets;
     }
 
     void advance() { current = tokenizer.next(); }
@@ -563,6 +628,19 @@ struct QueryParser {
                 break;
             }
         }
+        // Reserved pseudo-field: the schema's first timestamp column, so
+        // shell affordances (the time-range picker) can emit one term that
+        // fits every viewer regardless of what its column is called.
+        if (column < 0 && normalized == u"@time") {
+            for (int i = 0; i < schema.size() && column < 0; ++i) {
+                if (schema[i].hint == FieldHint::Timestamp)
+                    column = i;
+            }
+            for (int i = 0; i < schema.size() && column < 0; ++i) {
+                if (schema[i].type == FieldType::DateTime)
+                    column = i;
+            }
+        }
         if (column < 0) {
             if (options.testFlag(QueryOption::AllowUnknownFields))
                 return makeNode(Kind::AlwaysTrue);
@@ -601,7 +679,19 @@ struct QueryParser {
             return node;
         }
 
-        // String / DateTime.
+        if (field.type == FieldType::DateTime) {
+            if (auto node = dateTimeTerm(at, field, column, op, value)) {
+                if (!referencedColumns.contains(column))
+                    referencedColumns.append(column);
+                return node;
+            }
+            if (error.isError())
+                return nullptr;
+            // Value is no recognizable time literal: ':'/'='/'!=' keep the
+            // string semantics below (contains/wildcard/exact on the text).
+        }
+
+        // String / unparseable DateTime.
         auto node = makeNode(Kind::StringCmp);
         node->op = op;
         node->column = column;
@@ -624,6 +714,81 @@ struct QueryParser {
             referencedColumns.append(column);
         return node;
     }
+
+    // Temporal term for a DateTime column, or nullptr: with error set when
+    // the literal is unusable, without to fall back to string semantics.
+    std::unique_ptr<Node> dateTimeTerm(const Token& at, const FieldSchema& field,
+                                       int column, CmpOp op,
+                                       const QString& value)
+    {
+        const bool ordering = op == CmpOp::Lt || op == CmpOp::Le
+            || op == CmpOp::Gt || op == CmpOp::Ge;
+        const QString trimmed = value.trimmed();
+
+        // Monotonic uptime columns count seconds since boot: the literal is
+        // a plain number of seconds, never a calendar instant.
+        const TimestampCodec codec
+            = TimestampCodec::fromFormatString(field.timeFormat, timeContext);
+        if (codec.isMonotonic()) {
+            qint64 ms = 0;
+            if (!codec.parse(trimmed, &ms)) {
+                if (ordering
+                    || parseTimeLiteral(trimmed, timeContext).kind
+                        != TimeLiteral::Kind::Invalid) {
+                    fail(at, QStringLiteral("field '%1' counts seconds since "
+                                            "boot; use a number like 123.456")
+                                 .arg(field.name));
+                }
+                return nullptr;
+            }
+            auto node = makeNode(Kind::DateTimeCmp);
+            node->op = op;
+            node->column = column;
+            node->lowerMs = ms;
+            node->upperMs = ms + fractionGranularityMs(trimmed);
+            return node;
+        }
+
+        const TimeLiteral literal = parseTimeLiteral(trimmed, timeContext);
+        switch (literal.kind) {
+        case TimeLiteral::Kind::Absolute: {
+            auto node = makeNode(Kind::DateTimeCmp);
+            node->op = op;
+            node->column = column;
+            node->lowerMs = literal.lowerMs;
+            node->upperMs = literal.upperMs;
+            return node;
+        }
+        case TimeLiteral::Kind::TimeOfDay: {
+            auto node = makeNode(Kind::TimeOfDayCmp);
+            node->op = op;
+            node->column = column;
+            node->lowerMs = literal.todLowerMs;
+            node->upperMs = literal.todUpperMs;
+            node->todOffsets = todOffsets();
+            return node;
+        }
+        case TimeLiteral::Kind::Invalid:
+            break;
+        }
+        if (ordering) {
+            fail(at, QStringLiteral(
+                         "field '%1' is a timestamp; '%2' is not a date or time")
+                         .arg(field.name, trimmed));
+        }
+        return nullptr;
+    }
+
+    // Granularity of a plain seconds literal ("123" = that second,
+    // "123.45" = 10 ms), mirroring time-of-day fraction handling.
+    static qint64 fractionGranularityMs(const QString& value)
+    {
+        const qsizetype dot = value.indexOf(u'.');
+        if (dot < 0)
+            return 1000;
+        const qsizetype digits = value.size() - dot - 1;
+        return digits >= 3 ? 1 : digits == 2 ? 10 : 100;
+    }
 };
 
 //=== CompiledQuery ===========================================================
@@ -633,7 +798,8 @@ CompiledQuery::~CompiledQuery() = default;
 
 std::shared_ptr<const CompiledQuery> CompiledQuery::compile(
     const QString& text, const QList<FieldSchema>& schema,
-    Qt::CaseSensitivity cs, QueryOptions options, QueryError* error)
+    Qt::CaseSensitivity cs, QueryOptions options, QueryError* error,
+    const TimeParseContext& timeContext)
 {
     const auto setError = [&](qsizetype pos, qsizetype len, const QString& msg) {
         if (error)
@@ -646,7 +812,7 @@ std::shared_ptr<const CompiledQuery> CompiledQuery::compile(
         return nullptr;
     }
 
-    QueryParser parser(text, schema, cs, options);
+    QueryParser parser(text, schema, cs, options, timeContext);
     auto root = parser.parseOr();
     if (!root || parser.error.isError()) {
         if (parser.error.isError())
@@ -699,6 +865,13 @@ QString quoteQueryValue(const QString& value, bool forceQuote)
 QString buildQueryTerm(const FieldSchema& field, const QString& value,
                        bool exclude)
 {
+    return buildQueryTerm(field, value,
+                          exclude ? QueryCmp::NotEquals : QueryCmp::Equals);
+}
+
+QString buildQueryTerm(const FieldSchema& field, const QString& value,
+                       QueryCmp op, const TimeParseContext& timeContext)
+{
     // The name must survive tokenization intact: spaces are stripped (they
     // are ignored during resolution anyway), and any operator or structural
     // character would split the term in the wrong place.
@@ -715,14 +888,30 @@ QString buildQueryTerm(const FieldSchema& field, const QString& value,
     if (name.isEmpty())
         return {};
 
-    const auto op = exclude ? QStringLiteral("!=") : QStringLiteral("=");
+    static constexpr const char16_t* kOpText[]
+        = { u":", u"=", u"!=", u"<", u"<=", u">", u">=" };
+    const QString opText(kOpText[int(op)]);
+
     if (field.type == FieldType::Integer) {
         const QString trimmed = value.trimmed();
         bool ok = false;
         trimmed.toLongLong(&ok);
-        return ok ? name + op + trimmed : QString();
+        return ok ? name + opText + trimmed : QString();
     }
-    return name + op + quoteQueryValue(value);
+    if (field.type == FieldType::DateTime && op >= QueryCmp::Lt) {
+        // Ordering terms must compile: gate on the value parsing as a time
+        // literal, the same check the query compiler applies.
+        const QString trimmed = value.trimmed();
+        const TimestampCodec codec
+            = TimestampCodec::fromFormatString(field.timeFormat, timeContext);
+        qint64 ms = 0;
+        const bool ok = codec.isMonotonic()
+            ? codec.parse(trimmed, &ms)
+            : parseTimeLiteral(trimmed, timeContext).kind
+                != TimeLiteral::Kind::Invalid;
+        return ok ? name + opText + quoteQueryValue(trimmed) : QString();
+    }
+    return name + opText + quoteQueryValue(value);
 }
 
 } // namespace logdor

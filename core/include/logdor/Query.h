@@ -127,14 +127,28 @@ struct ColumnSnapshot {
  * unparseable rows never match. SeverityName-hinted fields compare severity
  * enum order for named levels.
  *
+ * DateTime fields compare temporally: a value that parses as a date,
+ * time-of-day, or datetime (parseTimeLiteral) becomes a half-open range at
+ * its granularity - "Time=2026-07-01" matches that whole local day,
+ * "Time<=2026-07-01" runs through its end, and a bare "12:30" matches that
+ * minute of ANY day. Rows whose timestamp failed to parse never match.
+ * Values that are no recognizable date or time keep string semantics under
+ * ':'/'='/'!=' and are compile errors under ordering ops. Uptime-format
+ * (monotonic) fields take plain seconds since boot instead of calendar
+ * literals. The pseudo-field "@time" resolves to the schema's first
+ * Timestamp-hinted (else first DateTime) column, so one term fits every
+ * viewer's schema.
+ *
  * Compile once (GUI thread); evaluate() is const and thread-safe.
+ * @p timeContext must match the context the columns were extracted with.
  */
 class CompiledQuery {
 public:
     static std::shared_ptr<const CompiledQuery> compile(
         const QString& text, const QList<FieldSchema>& schema,
         Qt::CaseSensitivity cs, QueryOptions options = {},
-        QueryError* error = nullptr);
+        QueryError* error = nullptr,
+        const TimeParseContext& timeContext = {});
 
     ~CompiledQuery();
 
@@ -165,6 +179,10 @@ private:
 /// token. Barewords pass through unchanged unless @p forceQuote.
 QString quoteQueryValue(const QString& value, bool forceQuote = false);
 
+/// Comparison selector for buildQueryTerm, mirroring the query operators
+/// ":", "=", "!=", "<", "<=", ">", ">=".
+enum class QueryCmp : quint8 { Contains, Equals, NotEquals, Lt, Le, Gt, Ge };
+
 /**
  * Build a "Name=value" ("Name!=value" when @p exclude) term for @p field
  * that compiles against the schema containing it. Empty when the term is
@@ -173,5 +191,14 @@ QString quoteQueryValue(const QString& value, bool forceQuote = false);
  */
 QString buildQueryTerm(const FieldSchema& field, const QString& value,
                        bool exclude = false);
+
+/**
+ * Generalized overload: any comparison operator. DateTime fields with an
+ * ordering op are additionally gated on the value parsing as a time literal
+ * (plain seconds for monotonic uptime fields) under @p timeContext - the
+ * same check compile() applies, so a returned term always compiles.
+ */
+QString buildQueryTerm(const FieldSchema& field, const QString& value,
+                       QueryCmp op, const TimeParseContext& timeContext = {});
 
 } // namespace logdor
