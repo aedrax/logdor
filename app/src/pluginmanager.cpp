@@ -7,15 +7,11 @@
 
 PluginManager::PluginManager(QObject* parent)
     : QObject(parent)
-    , m_databaseManager(nullptr)
 {
-    // Initialize database manager
-    m_databaseManager = new PluginDatabaseManager(this);
 }
 
 PluginManager::~PluginManager()
 {
-    cleanupDatabaseConnections();
     unloadPlugins();
 }
 
@@ -163,45 +159,7 @@ QList<PluginInterface*> PluginManager::enabledPlugins() const
         }
     }
     return result;
-}
-
-bool PluginManager::setLogs(const QList<LogEntry>& logs)
-{
-    // Call the overloaded version with empty file path for backward compatibility
-    return setLogs(logs, QString());
-}
-
-bool PluginManager::setLogs(const QList<LogEntry>& logs, const QString& filePath)
-{
-    // Handle database context management for file-specific operations
-    if (!filePath.isEmpty()) {
-        if (shouldReinitializeDatabase(filePath)) {
-            cleanupDatabaseConnections();
-            m_currentFilePath = filePath;
-            initializeDatabaseForPlugins(filePath);
-            updateFileMetadata(filePath);
-        }
-    } else if (!m_currentFilePath.isEmpty()) {
-        // If no file path provided but we had one before, clean up
-        cleanupDatabaseConnections();
-    }
-    
-    bool success = true;
-    for (PluginInterface* plugin : enabledPlugins()) {
-        // Core-source plugins were already served on the GUI thread; keeping
-        // them out of this fan-out also keeps them off the worker thread when
-        // the background-processing path calls in here.
-        if (plugin->wantsCoreSource())
-            continue;
-        if (!plugin->setLogs(logs)) {
-            qWarning() << "Failed to set logs for plugin:" << plugin->name();
-            success = false;
-        }
-    }
-    return success;
-}
-
-void PluginManager::setCoreSource(std::shared_ptr<logdor::FileSource> source,
+}void PluginManager::setCoreSource(std::shared_ptr<logdor::FileSource> source,
                                   std::shared_ptr<const logdor::LineIndex> index)
 {
     Q_ASSERT(QThread::currentThread() == qApp->thread());
@@ -219,16 +177,7 @@ void PluginManager::setAnnotationHub(AnnotationHub* hub)
                 plugin->setAnnotationHub(hub);
         }
     }
-}
-
-bool PluginManager::anyEnabledLegacyPlugin() const
-{
-    const auto plugins = enabledPlugins();
-    return std::any_of(plugins.begin(), plugins.end(),
-                       [](PluginInterface* p) { return !p->wantsCoreSource(); });
-}
-
-void PluginManager::setFilter(const FilterOptions& options)
+}void PluginManager::setFilter(const FilterOptions& options)
 {
     for (PluginInterface* plugin : enabledPlugins()) {
         plugin->setFilter(options);
@@ -256,139 +205,4 @@ void PluginManager::forwardEventToPlugins(PluginEvent event, const QVariant& dat
             plugin->onPluginEvent(event, data);
         }
     }
-}
-
-void PluginManager::initializeDatabaseForPlugins(const QString& filePath)
-{
-    if (!m_databaseManager || filePath.isEmpty()) {
-        return;
-    }
-    
-    qDebug() << "Initializing database for file:" << filePath;
-    
-    // Initialize database for the file
-    if (!m_databaseManager->initializeForFile(filePath)) {
-        qWarning() << "Failed to initialize database for file:" << filePath;
-        qWarning() << "Database error:" << m_databaseManager->lastError();
-        return;
-    }
-    
-    // Assign database manager to database-capable plugins
-    assignDatabaseToPlugins();
-}
-
-void PluginManager::cleanupDatabaseConnections()
-{
-    if (!m_databaseManager) {
-        return;
-    }
-    
-    qDebug() << "Cleaning up database connections";
-    
-    // Remove database manager from all plugins
-    for (PluginInterface* plugin : plugins()) {
-        if (plugin->supportsDatabaseStorage()) {
-            plugin->setDatabaseManager(nullptr);
-        }
-    }
-    
-    // Close database connection
-    m_databaseManager->closeDatabase();
-    m_currentFilePath.clear();
-}
-
-void PluginManager::assignDatabaseToPlugins()
-{
-    if (!m_databaseManager || !m_databaseManager->isReady()) {
-        return;
-    }
-    
-    qDebug() << "Assigning database manager to database-capable plugins";
-    
-    for (PluginInterface* plugin : plugins()) {
-        if (plugin->supportsDatabaseStorage()) {
-            qDebug() << "Assigning database to plugin:" << plugin->name();
-            
-            if (!plugin->setDatabaseManager(m_databaseManager)) {
-                qWarning() << "Failed to assign database manager to plugin:" << plugin->name();
-                continue;
-            }
-            
-            // Create plugin table if it doesn't exist
-            QList<FieldInfo> schema = plugin->getDatabaseSchema();
-            if (!schema.isEmpty()) {
-                if (!m_databaseManager->createPluginTable(plugin->name(), schema)) {
-                    qWarning() << "Failed to create database table for plugin:" << plugin->name();
-                    qWarning() << "Database error:" << m_databaseManager->lastError();
-                }
-            }
-        }
-    }
-}
-
-bool PluginManager::isDatabaseInitializedForFile(const QString& filePath) const
-{
-    if (!m_databaseManager || filePath.isEmpty()) {
-        return false;
-    }
-    
-    return m_currentFilePath == filePath && m_databaseManager->isReady();
-}
-
-void PluginManager::clearDatabaseCache()
-{
-    qDebug() << "Clearing database cache";
-    cleanupDatabaseConnections();
-}
-
-bool PluginManager::shouldReinitializeDatabase(const QString& filePath) const
-{
-    // Reinitialize if:
-    // 1. No current file path set
-    // 2. Different file path
-    // 3. Database not ready
-    // 4. Database manager not available
-    
-    if (filePath.isEmpty()) {
-        return false;
-    }
-    
-    if (m_currentFilePath.isEmpty()) {
-        return true;
-    }
-    
-    if (filePath != m_currentFilePath) {
-        return true;
-    }
-    
-    if (!m_databaseManager || !m_databaseManager->isReady()) {
-        return true;
-    }
-    
-    return false;
-}
-
-void PluginManager::updateFileMetadata(const QString& filePath)
-{
-    if (!m_databaseManager || !m_databaseManager->isReady() || filePath.isEmpty()) {
-        return;
-    }
-    
-    qDebug() << "Updating file metadata for:" << filePath;
-    
-    // Get file information
-    QFileInfo fileInfo(filePath);
-    if (!fileInfo.exists()) {
-        qWarning() << "File does not exist:" << filePath;
-        return;
-    }
-    
-    qint64 fileSize = fileInfo.size();
-    QDateTime lastModified = fileInfo.lastModified();
-    
-    // Update file metadata in database
-    // This would typically be done through the DatabaseManager
-    // For now, we'll just log the information
-    qDebug() << "File size:" << fileSize << "bytes";
-    qDebug() << "Last modified:" << lastModified.toString(Qt::ISODate);
 }

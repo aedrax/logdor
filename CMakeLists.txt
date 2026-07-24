@@ -7,7 +7,7 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.27)
     set(CMAKE_LINK_LIBRARIES_ONLY_TARGETS ON)
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent Sql)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent)
 
 qt_standard_project_setup(REQUIRES 6.8)
 

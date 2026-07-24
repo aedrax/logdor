@@ -9,28 +9,12 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Concurrent Sql)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Concurrent)
 
 # Create plugin interface library
 add_library(logdor_interface SHARED
     src/plugininterface.h
     src/plugininterface.cpp
-    src/regexpluginbase.h
-    src/regexpluginbase.cpp
-    src/regextablemodel.h
-    src/regextablemodel.cpp
-    src/databasemanager.h
-    src/databasemanager.cpp
-    src/plugindatabasemanager.h
-    src/plugindatabasemanager.cpp
-    src/parallellogparser.h
-    src/parallellogparser.cpp
-    src/filechunker.h
-    src/filechunker.cpp
-    src/databaseconnectionpool.h
-    src/databaseconnectionpool.cpp
-    src/searchtokenizer.h
-    src/searchtokenizer.cpp
     src/logtablemodel.h
     src/logtablemodel.cpp
     src/logviewerwidget.h
@@ -50,7 +34,6 @@ target_link_libraries(logdor_interface PUBLIC
     Qt6::Core
     Qt6::Widgets
     Qt6::Concurrent
-    Qt6::Sql
 )
 
 if(BUILD_TESTING)
@@ -72,16 +55,6 @@ set(PROJECT_SOURCES
     src/mainwindow.ui
     src/pluginmanager.cpp
     src/pluginmanager.h
-    src/backgroundtaskmanager.cpp
-    src/backgroundtaskmanager.h
-    src/progresstracker.cpp
-    src/progresstracker.h
-    src/progressdialog.cpp
-    src/progressdialog.h
-    src/pluginprocessingtask.cpp
-    src/pluginprocessingtask.h
-    src/legacybridge.cpp
-    src/legacybridge.h
     resources/resources.qrc
 )
 
