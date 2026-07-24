@@ -15,6 +15,7 @@
 #include <optional>
 
 class QLabel;
+class QMenu;
 class QTableView;
 
 /**
@@ -71,6 +72,8 @@ public:
 
 signals:
     void linesSelected(const QList<int>& sourceLines);
+    /// Ask the shell to add @p term to the filter bar as a field query.
+    void filterTermRequested(const QString& term);
     void filterApplied(qint64 matchCount, qint64 elapsedMs);
     void queryError(const QString& message, int position);
 
@@ -86,6 +89,7 @@ private slots:
     void onContextMenuRequested(const QPoint& pos);
 
 private:
+    void addFilterActions(QMenu* menu, const QModelIndex& clicked);
     void startScan();
     void startSort();
     // ensureColumns for the current m_sortColumn, then sort (shared by
