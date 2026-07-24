@@ -19,6 +19,7 @@ set(LOGDOR_CORE_TESTS
     geoscan
     systemformats
     jsonlinesparser
+    timestampparse
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)

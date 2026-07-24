@@ -47,6 +47,8 @@ qt_add_library(logdor-core STATIC
     src/JsonLinesParser.cpp
     include/logdor/GeoScan.h
     src/GeoScan.cpp
+    include/logdor/TimestampParse.h
+    src/TimestampParse.cpp
 )
 add_library(Logdor::Core ALIAS logdor-core)
 
