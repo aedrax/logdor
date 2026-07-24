@@ -31,6 +31,9 @@ public:
 
     void setFilter(const FilterOptions& options) override;
 
+    QJsonObject saveViewState() const override;
+    void restoreViewState(const QJsonObject& state) override;
+
 public slots:
     void onPluginEvent(PluginEvent event, const QVariant& data) override;
 

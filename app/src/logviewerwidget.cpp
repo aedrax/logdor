@@ -5,6 +5,7 @@
 
 #include <QFontMetrics>
 #include <QHeaderView>
+#include <QJsonArray>
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QMenu>
@@ -86,6 +87,8 @@ void LogViewerWidget::setCoreSource(std::shared_ptr<FileSource> source,
     clearSortIndicator();
     m_statusStrip->hide();
     m_lastSelection.clear();
+    m_pendingRestore.reset(); // a stale restore must never hit the new file
+    m_pendingScrollLine = -1;
     m_syncing = true;
     m_model->setSource(m_source, m_index, m_parser);
     m_syncing = false;
@@ -347,7 +350,9 @@ void LogViewerWidget::onScanFinished()
     m_model->setRowSet(result.rows); // clears any sort order
     m_syncing = false;
 
-    if (m_sortColumn >= 0) {
+    if (m_pendingRestore) {
+        applyPendingRestore();
+    } else if (m_sortColumn >= 0) {
         // Row set changed under an active sort: re-sort, then restore
         // selection when the order lands.
         startSort();
@@ -355,6 +360,7 @@ void LogViewerWidget::onScanFinished()
         m_syncing = true;
         restoreSelectionSilently();
         m_syncing = false;
+        applyPendingScroll();
     }
 
     emit filterApplied(result.matchCount, result.elapsedMs);
@@ -385,6 +391,13 @@ void LogViewerWidget::onHeaderClicked(int section)
         m_sortOrder = Qt::AscendingOrder;
     }
     m_view->horizontalHeader()->setSortIndicator(m_sortColumn, m_sortOrder);
+    requestSort();
+}
+
+void LogViewerWidget::requestSort()
+{
+    if (!m_parser || m_sortColumn < 0)
+        return;
 
     if (m_sortColumn == 0) {
         // The No. column: natural or reversed-natural, no keys needed.
@@ -421,6 +434,7 @@ void LogViewerWidget::startSort()
         m_model->setRowOrder(std::move(order));
         restoreSelectionSilently();
         m_syncing = false;
+        applyPendingScroll();
         return;
     }
 
@@ -452,6 +466,101 @@ void LogViewerWidget::onSortFinished()
     m_model->setRowOrder(std::move(result.order));
     restoreSelectionSilently();
     m_syncing = false;
+    applyPendingScroll();
+}
+
+//=== Per-file view state =====================================================
+
+QJsonObject LogViewerWidget::saveViewState() const
+{
+    QJsonObject state;
+    if (!m_lastSelection.isEmpty()) {
+        QJsonArray selection;
+        for (int line : m_lastSelection)
+            selection.append(line);
+        state.insert(QStringLiteral("selection"), selection);
+    }
+    if (m_sortColumn >= 0) {
+        state.insert(QStringLiteral("sortColumn"), m_sortColumn);
+        state.insert(QStringLiteral("sortOrder"), int(m_sortOrder));
+    }
+    const QModelIndex top = m_view->indexAt(QPoint(0, 0));
+    if (top.isValid()) {
+        const qint64 line = m_model->sourceLineForRow(top.row());
+        if (line >= 0)
+            state.insert(QStringLiteral("firstVisibleLine"), double(line));
+    }
+    return state;
+}
+
+void LogViewerWidget::restoreViewState(const QJsonObject& state)
+{
+    PendingViewState pending;
+    pending.sortColumn = state.value(QLatin1String("sortColumn")).toInt(-1);
+    pending.sortOrder = Qt::SortOrder(
+        state.value(QLatin1String("sortOrder")).toInt(int(Qt::AscendingOrder)));
+
+    QList<int> selection;
+    const QJsonArray lines = state.value(QLatin1String("selection")).toArray();
+    for (const QJsonValue& line : lines)
+        selection.append(line.toInt());
+    // restoreSelectionSilently() re-applies this after every row-set swap.
+    m_lastSelection = selection;
+
+    m_pendingScrollLine =
+        qint64(state.value(QLatin1String("firstVisibleLine")).toDouble(-1));
+    m_pendingRestore = pending;
+}
+
+void LogViewerWidget::applyPendingRestore()
+{
+    const PendingViewState pending = *m_pendingRestore;
+    m_pendingRestore.reset();
+
+    m_syncing = true;
+    restoreSelectionSilently();
+    m_syncing = false;
+
+    if (pending.sortColumn >= 0) {
+        m_sortColumn = pending.sortColumn;
+        m_sortOrder = pending.sortOrder;
+        m_view->horizontalHeader()->setSortIndicator(m_sortColumn, m_sortOrder);
+        requestSort(); // scroll follows in onSortFinished
+        return;
+    }
+    applyPendingScroll();
+}
+
+void LogViewerWidget::applyPendingScroll()
+{
+    if (m_pendingScrollLine < 0)
+        return;
+    int row = m_model->rowForSourceLine(m_pendingScrollLine);
+    if (row < 0 && !m_model->hasRowOrder())
+        row = nearestRowForSourceLine(m_pendingScrollLine);
+    if (row >= 0)
+        m_view->scrollTo(m_model->index(row, 0),
+                         QAbstractItemView::PositionAtTop);
+    m_pendingScrollLine = -1;
+}
+
+int LogViewerWidget::nearestRowForSourceLine(qint64 line) const
+{
+    // Natural order only: row positions are ascending in source line, so the
+    // first row at-or-after the target is the nearest survivor.
+    const logdor::RowSet& rows = m_model->rowSet();
+    if (rows.size() == 0)
+        return -1;
+    qint64 lo = 0;
+    qint64 hi = rows.size() - 1;
+    while (lo < hi) {
+        const qint64 mid = lo + (hi - lo) / 2;
+        if (rows.sourceLine(mid) < line)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return int(lo);
 }
 
 //=== Selection sync ==========================================================

@@ -9,7 +9,10 @@
 #include <logdor/SortScan.h>
 
 #include <QFutureWatcher>
+#include <QJsonObject>
 #include <QWidget>
+
+#include <optional>
 
 class QLabel;
 class QTableView;
@@ -48,13 +51,23 @@ public:
 
     /**
      * Restrict visible rows to @p sortedLines (ANDed with the filter and any
-     * extra predicate) — the PluginEvent::LinesConstrained mechanism. Null or
+     * extra predicate) - the PluginEvent::LinesConstrained mechanism. Null or
      * empty lifts the restriction. Cleared automatically on a new file.
      */
     void setLineConstraint(std::shared_ptr<const std::vector<qint32>> sortedLines);
 
     LogTableModel* model() const { return m_model; }
     QTableView* tableView() const { return m_view; }
+
+    /**
+     * Per-file view state: selection, sort column/order, and the source line
+     * at the top of the viewport (a raw scroll offset would be meaningless -
+     * row sets rebuild asynchronously). restoreViewState() stashes the state
+     * and applies it when the next scan lands; if the saved top line is
+     * filtered out, scrolling settles on the nearest surviving row.
+     */
+    QJsonObject saveViewState() const;
+    void restoreViewState(const QJsonObject& state);
 
 signals:
     void linesSelected(const QList<int>& sourceLines);
@@ -75,6 +88,12 @@ private slots:
 private:
     void startScan();
     void startSort();
+    // ensureColumns for the current m_sortColumn, then sort (shared by
+    // header clicks and view-state restore).
+    void requestSort();
+    void applyPendingRestore();
+    void applyPendingScroll();
+    int nearestRowForSourceLine(qint64 line) const;
     // Ensure the given columns/severity are cached; returns true when an
     // extraction was started (completion continues the pending work).
     bool ensureColumns(const QList<int>& columns, bool needsSeverity);
@@ -107,6 +126,14 @@ private:
 
     QList<int> m_lastSelection; // source lines, restored after row-set swaps
     bool m_syncing = false;     // echo-loop guard
+
+    // View-state restore, pending until the next scan lands.
+    struct PendingViewState {
+        int sortColumn = -1;
+        Qt::SortOrder sortOrder = Qt::AscendingOrder;
+    };
+    std::optional<PendingViewState> m_pendingRestore;
+    qint64 m_pendingScrollLine = -1; // applied once the final row order lands
     AnnotationHub* m_annotationHub = nullptr;
 };
 

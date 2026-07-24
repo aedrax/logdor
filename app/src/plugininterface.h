@@ -1,6 +1,7 @@
 #ifndef PLUGININTERFACE_H
 #define PLUGININTERFACE_H
 
+#include <QJsonObject>
 #include <QString>
 #include <QWidget>
 #include <QtPlugin>
@@ -42,7 +43,7 @@ enum class PluginEvent {
     LinesSelected, // payload: QList<int> of SOURCE line numbers
 
     /**
-     * Restrict every viewer to a set of source lines — e.g. the Map Viewer
+     * Restrict every viewer to a set of source lines - e.g. the Map Viewer
      * broadcasting the lines inside a drawn area. Payload: sorted
      * QList<int>; an EMPTY list lifts the restriction. Viewers AND this
      * with their own filters; a new file clears it implicitly.
@@ -52,7 +53,7 @@ enum class PluginEvent {
 
 /**
  * A Logdor view plugin. Everything is delivered on the GUI thread; plugins
- * run their own background work (filter scans etc.) via QFutureWatcher —
+ * run their own background work (filter scans etc.) via QFutureWatcher -
  * see LogViewerWidget, which most viewers simply wrap.
  */
 class Q_DECL_EXPORT PluginInterface : public QObject {
@@ -92,6 +93,17 @@ public:
     /// The shared filter bar changed.
     virtual void setFilter(const FilterOptions& options) { Q_UNUSED(options) }
 
+    /**
+     * Per-file view state (selection, sort, scroll, plugin chrome), captured
+     * by the shell before a file switch and handed back when the file
+     * returns. restoreViewState() arrives after setCoreSource(valid) but
+     * before setFilter() for that file; async-dependent parts (selection,
+     * scroll, sort) should apply once the plugin's own scans complete.
+     * Unknown keys must be ignored. GUI thread only.
+     */
+    virtual QJsonObject saveViewState() const { return {}; }
+    virtual void restoreViewState(const QJsonObject& state) { Q_UNUSED(state) }
+
     void setEnabled(bool enabled)
     {
         if (m_enabled != enabled)
@@ -118,7 +130,8 @@ protected:
 
 // /3.0: legacy setLogs pipeline, field metadata, and database API removed;
 // stale binaries must fail to load.
-#define PluginInterface_iid "com.logdor.PluginInterface/3.0"
+// /3.1: save/restoreViewState for per-file session retention.
+#define PluginInterface_iid "com.logdor.PluginInterface/3.1"
 Q_DECLARE_INTERFACE(PluginInterface, PluginInterface_iid)
 
 #endif // PLUGININTERFACE_H

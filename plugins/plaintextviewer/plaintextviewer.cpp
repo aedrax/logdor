@@ -89,6 +89,32 @@ void PlainTextViewer::setFilter(const FilterOptions& options)
     m_viewer->applyFilter(options);
 }
 
+QJsonObject PlainTextViewer::saveViewState() const
+{
+    QJsonObject state = m_viewer->saveViewState();
+    // By display name, so catalog reordering can't select the wrong format;
+    // auto-detect (index 0) stays the unsaved default.
+    if (m_formatCombo->currentIndex() > 0)
+        state.insert(QStringLiteral("format"), m_formatCombo->currentText());
+    return state;
+}
+
+void PlainTextViewer::restoreViewState(const QJsonObject& state)
+{
+    const QString format = state.value(QLatin1String("format")).toString();
+    const int comboIndex = format.isEmpty() ? -1 : m_formatCombo->findText(format);
+    if (comboIndex > 0 && comboIndex - 1 < m_parsers.size()) {
+        m_updatingCombo = true;
+        m_formatCombo->setCurrentIndex(comboIndex);
+        m_updatingCombo = false;
+        // Set the parser directly - the shell's setFilter() follows this
+        // call and runs the scan, so applyFormatSelection()'s extra
+        // re-filter would only waste a scan.
+        m_viewer->setParser(m_parsers[comboIndex - 1]);
+    }
+    m_viewer->restoreViewState(state);
+}
+
 void PlainTextViewer::onPluginEvent(PluginEvent event, const QVariant& data)
 {
     if (event == PluginEvent::LinesSelected) {

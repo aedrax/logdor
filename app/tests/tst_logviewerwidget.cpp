@@ -3,7 +3,9 @@
 #include <logdor/FormatRegistry.h>
 #include <logdor/LineIndexer.h>
 
+#include <QHeaderView>
 #include <QSignalSpy>
+#include <QTableView>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -90,6 +92,84 @@ private slots:
             QVERIFY(spy.wait(5000));
         }
         QCOMPARE(widget.model()->rowCount(), 20);
+    }
+
+    void viewStateRoundTrip()
+    {
+        QTemporaryDir dir;
+        QByteArray content;
+        for (int i = 0; i < 50; ++i)
+            content += "line " + QByteArray::number(i) + "\n";
+        auto o = openContent(dir, "r.log", content);
+
+        LogViewerWidget widget;
+        widget.setParser(parserById(u"plaintext"));
+        widget.setCoreSource(o.source, o.index);
+        {
+            QSignalSpy spy(&widget, &LogViewerWidget::filterApplied);
+            widget.applyFilter(FilterOptions());
+            QVERIFY(spy.wait(5000));
+        }
+
+        // Select two lines and sort by No. descending.
+        widget.selectSourceLines({ 7, 8 });
+        auto* header = widget.tableView()->horizontalHeader();
+        emit header->sectionClicked(0); // ascending (natural, synchronous)
+        emit header->sectionClicked(0); // descending
+        QTRY_VERIFY(widget.model()->hasRowOrder());
+        QCOMPARE(widget.model()->sourceLineForRow(0), qint64(49));
+
+        const QJsonObject state = widget.saveViewState();
+        QVERIFY(state.contains(QLatin1String("selection")));
+        QCOMPARE(state.value(QLatin1String("sortColumn")).toInt(), 0);
+
+        // Close the file: everything view-related is wiped.
+        widget.setCoreSource(nullptr, nullptr);
+        QCOMPARE(widget.model()->rowCount(), 0);
+
+        // Reopen and restore; the pending state applies when the scan lands.
+        widget.setCoreSource(o.source, o.index);
+        widget.restoreViewState(state);
+        {
+            QSignalSpy spy(&widget, &LogViewerWidget::filterApplied);
+            widget.applyFilter(FilterOptions());
+            QVERIFY(spy.wait(5000));
+        }
+        QTRY_VERIFY(widget.model()->hasRowOrder()); // sort restored
+        QCOMPARE(widget.model()->sourceLineForRow(0), qint64(49));
+
+        QList<int> selected;
+        const auto rows = widget.tableView()->selectionModel()->selectedRows();
+        for (const QModelIndex& index : rows)
+            selected.append(int(widget.model()->sourceLineForRow(index.row())));
+        std::sort(selected.begin(), selected.end());
+        QCOMPARE(selected, QList<int>({ 7, 8 }));
+    }
+
+    void staleRestoreClearedByNewFile()
+    {
+        QTemporaryDir dir;
+        auto a = openContent(dir, "a.log", QByteArray("x\ny\nz\n"));
+        auto b = openContent(dir, "b.log", QByteArray("1\n2\n3\n4\n"));
+
+        LogViewerWidget widget;
+        widget.setParser(parserById(u"plaintext"));
+        widget.setCoreSource(a.source, a.index);
+
+        QJsonObject state;
+        state.insert(QStringLiteral("sortColumn"), 0);
+        state.insert(QStringLiteral("sortOrder"), int(Qt::DescendingOrder));
+        widget.restoreViewState(state);
+
+        // The switch must drop the pending restore before b's first scan.
+        widget.setCoreSource(b.source, b.index);
+        {
+            QSignalSpy spy(&widget, &LogViewerWidget::filterApplied);
+            widget.applyFilter(FilterOptions());
+            QVERIFY(spy.wait(5000));
+        }
+        QVERIFY(!widget.model()->hasRowOrder());
+        QCOMPARE(widget.model()->sourceLineForRow(0), qint64(0));
     }
 
     void constraintClearedOnNewFile()

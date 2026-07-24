@@ -182,6 +182,26 @@ void PluginManager::setAnnotationHub(AnnotationHub* hub)
     }
 }
 
+QJsonObject PluginManager::saveViewStates() const
+{
+    QJsonObject states;
+    for (PluginInterface* plugin : plugins()) {
+        const QJsonObject state = plugin->saveViewState();
+        if (!state.isEmpty())
+            states.insert(plugin->name(), state);
+    }
+    return states;
+}
+
+void PluginManager::restoreViewStates(const QJsonObject& states)
+{
+    for (PluginInterface* plugin : enabledPlugins()) {
+        const QJsonObject state = states.value(plugin->name()).toObject();
+        if (!state.isEmpty())
+            plugin->restoreViewState(state);
+    }
+}
+
 void PluginManager::onPluginEvent(PluginEvent event, const QVariant& data)
 {
     // Get the sender plugin

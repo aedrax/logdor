@@ -14,7 +14,7 @@
 
 /**
  * Interactive format authoring: type a regex with named captures and watch
- * the table re-shape live — each capture becomes a column, `message`/`msg`
+ * the table re-shape live - each capture becomes a column, `message`/`msg`
  * becomes the stretch column, `level`/`severity` gets the standard severity
  * color mapping. "Save as Format..." writes the spec to the user formats
  * directory, making it permanent, shareable, and auto-detectable.
@@ -42,6 +42,17 @@ public:
     }
 
     void setFilter(const FilterOptions& options) override;
+
+    // The regex pattern itself stays global (QSettings) - only table view
+    // state is per-file.
+    QJsonObject saveViewState() const override
+    {
+        return m_viewer->saveViewState();
+    }
+    void restoreViewState(const QJsonObject& state) override
+    {
+        m_viewer->restoreViewState(state);
+    }
 
 public slots:
     void onPluginEvent(PluginEvent event, const QVariant& data) override;

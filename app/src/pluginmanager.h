@@ -39,6 +39,12 @@ public:
     // Set filter for all enabled plugins
     void setFilter(const FilterOptions& options);
 
+    // Per-file view state, keyed by plugin name. Capture reads ALL loaded
+    // plugins (disabled ones return empty objects, which are skipped);
+    // restore fans out to enabled plugins only. GUI thread only.
+    QJsonObject saveViewStates() const;
+    void restoreViewStates(const QJsonObject& states);
+
 private slots:
     // Handle and forward plugin events
     void onPluginEvent(PluginEvent event, const QVariant& data);
