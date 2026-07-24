@@ -2,6 +2,7 @@
 
 #include "annotationdialog.h"
 #include "annotationhub.h"
+#include "timesettings.h"
 
 #include <QFontMetrics>
 #include <QHeaderView>
@@ -60,6 +61,20 @@ LogViewerWidget::LogViewerWidget(QWidget* parent)
             this, &LogViewerWidget::onExtractFinished);
     connect(&m_sortWatcher, &QFutureWatcherBase::finished,
             this, &LogViewerWidget::onSortFinished);
+
+    // Extracted timestamp epochs depend on the assumed zone: rebuild them
+    // and re-apply the filter (the scan landing re-sorts if sorted).
+    connect(&TimeSettings::instance(), &TimeSettings::assumedZoneChanged,
+            this, [this]() {
+                if (!m_source || !m_index)
+                    return;
+                m_timeContext
+                    = TimeSettings::instance().contextForFile(m_source->filePath());
+                m_extractWatcher.cancel();
+                m_sortWatcher.cancel();
+                m_columnCache.clear();
+                applyFilter(m_lastOptions);
+            });
 }
 
 LogViewerWidget::~LogViewerWidget()
@@ -78,6 +93,8 @@ void LogViewerWidget::setCoreSource(std::shared_ptr<FileSource> source,
     m_sortWatcher.cancel();
     m_source = std::move(source);
     m_index = std::move(index);
+    m_timeContext = TimeSettings::instance().contextForFile(
+        m_source ? m_source->filePath() : QString());
     m_columnCache.clear();
     m_lineConstraint.reset(); // constraints don't survive a file switch
     m_activeQuery.reset();
@@ -276,7 +293,7 @@ void LogViewerWidget::applyFilter(const FilterOptions& options)
         QueryError error;
         m_activeQuery = CompiledQuery::compile(
             options.query, m_parser->schema(),
-            options.caseSensitivity, {}, &error);
+            options.caseSensitivity, {}, &error, m_timeContext);
         if (!m_activeQuery) {
             // Keep the previous rows; surface the schema-aware message.
             showStatusStrip(tr("Query error: %1").arg(error.message));
@@ -321,7 +338,8 @@ bool LogViewerWidget::ensureColumns(const QList<int>& columns, bool needsSeverit
         return false;
     m_extractWatcher.cancel();
     m_extractWatcher.setFuture(extractColumns(m_source, m_index, m_parser,
-                                              missing, severityMissing));
+                                              missing, severityMissing,
+                                              m_timeContext));
     return true;
 }
 
@@ -389,9 +407,10 @@ void LogViewerWidget::onScanFinished()
     if (m_pendingRestore) {
         applyPendingRestore();
     } else if (m_sortColumn >= 0) {
-        // Row set changed under an active sort: re-sort, then restore
-        // selection when the order lands.
-        startSort();
+        // Row set changed under an active sort: re-sort (re-extracting the
+        // key column if the cache was invalidated), then restore selection
+        // when the order lands.
+        requestSort();
     } else {
         m_syncing = true;
         restoreSelectionSilently();

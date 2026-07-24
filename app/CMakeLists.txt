@@ -31,6 +31,8 @@ add_library(logdor_interface SHARED
     src/recentitems.cpp
     src/folderview.h
     src/folderview.cpp
+    src/timesettings.h
+    src/timesettings.cpp
 )
 
 target_link_libraries(logdor_interface PUBLIC

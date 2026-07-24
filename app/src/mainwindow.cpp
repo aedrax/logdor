@@ -18,8 +18,12 @@
 #include <QShortcut>
 #include <QRegularExpression>
 #include <QStyle>
+#include <QActionGroup>
+#include <QInputDialog>
+#include <QTimeZone>
 #include "folderview.h"
 #include "recentitems.h"
+#include "timesettings.h"
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -224,6 +228,49 @@ MainWindow::MainWindow(QWidget* parent)
     connect(importAction, &QAction::triggered, this, &MainWindow::importAnnotations);
     QAction* exportAction = ui->menuFile->addAction(tr("Export Annotations..."));
     connect(exportAction, &QAction::triggered, this, &MainWindow::exportAnnotations);
+
+    // Zone-less timestamps (RFC3164 syslog, logcat, ...) are read in this
+    // zone; changing it re-extracts every viewer's timestamp columns.
+    ui->menuFile->addSeparator();
+    QMenu* zoneMenu = ui->menuFile->addMenu(tr("Timestamp Time Zone"));
+    auto* zoneGroup = new QActionGroup(this);
+    QAction* systemZone = zoneMenu->addAction(tr("System Default"));
+    QAction* utcZone = zoneMenu->addAction(tr("UTC"));
+    QAction* chooseZone = zoneMenu->addAction(tr("Choose..."));
+    for (QAction* action : { systemZone, utcZone, chooseZone }) {
+        action->setCheckable(true);
+        zoneGroup->addAction(action);
+    }
+    connect(systemZone, &QAction::triggered, this,
+            []() { TimeSettings::instance().setAssumedZoneId({}); });
+    connect(utcZone, &QAction::triggered, this,
+            []() { TimeSettings::instance().setAssumedZoneId("UTC"); });
+    connect(chooseZone, &QAction::triggered, this, [this]() {
+        QStringList ids;
+        for (const QByteArray& id : QTimeZone::availableTimeZoneIds())
+            ids.append(QString::fromUtf8(id));
+        const QString current
+            = QString::fromUtf8(TimeSettings::instance().assumedZoneId());
+        bool ok = false;
+        const QString id = QInputDialog::getItem(
+            this, tr("Timestamp Time Zone"),
+            tr("Read zone-less timestamps as:"), ids,
+            qMax(0, int(ids.indexOf(current))), false, &ok);
+        if (ok && !id.isEmpty())
+            TimeSettings::instance().setAssumedZoneId(id.toUtf8());
+    });
+    connect(zoneMenu, &QMenu::aboutToShow, this,
+            [systemZone, utcZone, chooseZone]() {
+                const QByteArray id = TimeSettings::instance().assumedZoneId();
+                systemZone->setChecked(id.isEmpty());
+                utcZone->setChecked(id == "UTC");
+                const bool custom = !id.isEmpty() && id != "UTC";
+                chooseZone->setChecked(custom);
+                chooseZone->setText(custom
+                                        ? tr("Choose... (%1)")
+                                              .arg(QString::fromUtf8(id))
+                                        : tr("Choose..."));
+            });
 
     // Indexing progress: modal-less, cancellable, only appears past 1 s.
     m_indexProgress = new QProgressDialog(this);

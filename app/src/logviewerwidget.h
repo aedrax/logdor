@@ -119,6 +119,9 @@ private:
     logdor::ColumnCache m_columnCache;
 
     FilterOptions m_lastOptions;
+    // Zone/reference-date for the current file's timestamps; the column
+    // cache is only valid for the context it was extracted with.
+    logdor::TimeParseContext m_timeContext;
     std::shared_ptr<const logdor::CompiledQuery> m_activeQuery;
     std::function<bool(qint64, QByteArrayView)> m_extraPredicate;
     std::shared_ptr<const std::vector<qint32>> m_lineConstraint;
