@@ -276,6 +276,26 @@ void LogViewerWidget::addFilterActions(QMenu* menu, const QModelIndex& clicked)
     connect(menu->addAction(tr("Exclude: %1").arg(label(exclude))),
             &QAction::triggered, this,
             [this, exclude]() { emit filterTermRequested(exclude); });
+
+    // Timestamp cells: range filters from this row's time. The cell text
+    // round-trips as a query literal under the same zone/reference-year
+    // rules the column was extracted with; suppressed when it doesn't parse.
+    if (schema[fieldColumn].type == logdor::FieldType::DateTime) {
+        const QString after = buildQueryTerm(schema[fieldColumn], value,
+                                             logdor::QueryCmp::Ge,
+                                             m_timeContext);
+        if (!after.isEmpty())
+            connect(menu->addAction(tr("Filter: at or after this time")),
+                    &QAction::triggered, this,
+                    [this, after]() { emit filterTermRequested(after); });
+        const QString before = buildQueryTerm(schema[fieldColumn], value,
+                                              logdor::QueryCmp::Le,
+                                              m_timeContext);
+        if (!before.isEmpty())
+            connect(menu->addAction(tr("Filter: at or before this time")),
+                    &QAction::triggered, this,
+                    [this, before]() { emit filterTermRequested(before); });
+    }
 }
 
 //=== Filtering ===============================================================
