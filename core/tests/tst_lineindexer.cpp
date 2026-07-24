@@ -14,7 +14,7 @@ namespace {
 
 struct RefLine {
     qsizetype offset;
-    qsizetype rawLength; // excludes '\n', keeps '\r' — legacy-exact
+    qsizetype rawLength; // excludes '\n', keeps '\r' - legacy-exact
 };
 
 // Reference reimplementation of the legacy MainWindow scan: split on '\n',
@@ -136,7 +136,7 @@ private slots:
     void crlfSplitAcrossChunkBoundary()
     {
         // "ab\r\n..." with chunk size 3: the '\r' is the last byte of chunk 0,
-        // the '\n' the first byte of chunk 1 — the carry byte must preserve
+        // the '\n' the first byte of chunk 1 - the carry byte must preserve
         // CRLF detection.
         const QByteArray content = "ab\r\ncd\r\nef";
         QTemporaryDir dir;

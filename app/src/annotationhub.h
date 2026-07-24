@@ -13,7 +13,7 @@
 
 /**
  * Owner of the current file's annotations, shared by every viewer and the
- * Annotations panel — a note made in one view shows in all of them.
+ * Annotations panel - a note made in one view shows in all of them.
  *
  * GUI-thread only. MainWindow owns the single instance (lifetime = app) and
  * handles persistence timing; the hub stamps ids/timestamps/author and

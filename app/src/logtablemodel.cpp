@@ -203,7 +203,7 @@ QVariant LogTableModel::data(const QModelIndex& index, int role) const
             if (!annotation.tag.isEmpty())
                 meta << QStringLiteral("#") + annotation.tag;
             if (!meta.isEmpty())
-                entry += QStringLiteral("\n— ") + meta.join(QStringLiteral(", "));
+                entry += QStringLiteral("\n- ") + meta.join(QStringLiteral(", "));
             parts << entry;
         }
         return parts.join(QStringLiteral("\n\n"));

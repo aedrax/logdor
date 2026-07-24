@@ -11,7 +11,7 @@
 namespace logdor {
 
 /**
- * A user-writable log format definition — parse any format without
+ * A user-writable log format definition - parse any format without
  * compiling. JSON schema:
  *
  * {
@@ -34,7 +34,7 @@ namespace logdor {
  * hints: none | numeric | timestamp | severityname | identifier | message
  * severities: none | verbose | debug | info | warning | error | fatal
  *
- * Exactly one field must carry the "message" hint — it doubles as the
+ * Exactly one field must carry the "message" hint - it doubles as the
  * fallback column for lines the pattern does not match.
  */
 struct FormatSpecField {
@@ -69,7 +69,7 @@ std::optional<FormatSpec> parseFormatSpec(const QByteArray& json,
 /**
  * Load every *.json in @p dirs (sorted per dir; later dirs win on duplicate
  * ids). Invalid files are skipped and reported. The shell decides the
- * directories — core takes paths as arguments.
+ * directories - core takes paths as arguments.
  */
 QList<FormatSpec> loadFormatSpecs(const QStringList& dirs,
                                   QList<FormatSpecError>* errors = nullptr);

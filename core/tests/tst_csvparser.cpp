@@ -138,7 +138,7 @@ private slots:
     void multiLineQuotedRecordIsDocumentedLimitation()
     {
         // A quoted field with an embedded newline spans two index lines and
-        // renders as two separate rows — same behavior the legacy viewer had.
+        // renders as two separate rows - same behavior the legacy viewer had.
         // The fragments still display (unterminated quote runs to the line
         // end), the record is just split.
         const CsvParser parser({ "a", "b" });

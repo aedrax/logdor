@@ -10,7 +10,7 @@
 /**
  * All available parsers: builtins plus declarative specs from the bundled
  * formats directory (next to the binaries) and the user's data directory
- * (~/.local/share/logdor/formats on Linux — drop a .json there to add a
+ * (~/.local/share/logdor/formats on Linux - drop a .json there to add a
  * format without compiling; user specs override bundled ids). Invalid spec
  * files are skipped and reported via @p warnings. Value-returning by design.
  */

@@ -113,7 +113,7 @@ std::optional<AnnotationFile> loadAnnotations(const QByteArray& json,
     const int version = root.value(u"version").toInt(-1);
     if (version != kSchemaVersion)
         return fail(QStringLiteral(
-            "unsupported version %1 — this file was created by a newer Logdor")
+            "unsupported version %1 - this file was created by a newer Logdor")
                         .arg(version));
 
     AnnotationFile file;

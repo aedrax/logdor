@@ -20,7 +20,7 @@ std::shared_ptr<FileSource> FileSource::open(const QString& path, QString* error
     src->m_size = quint64(src->m_file.size());
 
     // QFile::map(0, 0) fails by contract; an empty file is trivially
-    // "mapped" — data() hands out a valid empty range.
+    // "mapped" - data() hands out a valid empty range.
     if (src->m_size == 0) {
         src->m_mode = Mode::Mapped;
         return src;

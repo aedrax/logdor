@@ -16,7 +16,7 @@ namespace logdor {
  * A user note on a line or contiguous range of lines.
  *
  * Anchoring: `anchorHash` is the SHA-256 (hex) of the first min(len, 256)
- * bytes of the START line's content (LineIndex::lengthOf semantics — no
+ * bytes of the START line's content (LineIndex::lengthOf semantics - no
  * terminator, no trailing CR, so anchors survive CRLF<->LF conversion).
  * `snippet` is a lossy UTF-8 preview for display only, never matching.
  * `orphaned` is derived at load/re-anchor time and never serialized.
@@ -91,7 +91,7 @@ QByteArray saveAnnotations(const AnnotationSet& set, const FileIdentity& identit
 
 /**
  * Union by id; conflicts resolved last-write-wins by modifiedAt, ties by the
- * lexicographically larger id (deterministic). Pure — also serves
+ * lexicographically larger id (deterministic). Pure - also serves
  * "import a colleague's sidecar". v1 has no delete tombstones: merging an
  * older sidecar can resurrect deleted notes (documented limitation).
  */

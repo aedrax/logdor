@@ -15,8 +15,8 @@ namespace logdor {
  * Read-only owner of a log file's bytes.
  *
  * Primary mode memory-maps the whole file (the OS page cache holds the data;
- * nothing is duplicated on the heap). When mapping fails — exotic
- * filesystems, exhausted address space — the source degrades to Buffered
+ * nothing is duplicated on the heap). When mapping fails - exotic
+ * filesystems, exhausted address space - the source degrades to Buffered
  * mode: pread-style 4 MiB block reads behind a small LRU cache, instead of
  * refusing to open the file.
  *
@@ -32,7 +32,7 @@ public:
     enum class Mode { Mapped, Buffered };
 
     static constexpr qsizetype kBlockSize = 4 * 1024 * 1024;
-    static constexpr int kMaxCachedBlocks = 32; // ≤128 MiB resident
+    static constexpr int kMaxCachedBlocks = 32; // <=128 MiB resident
 
     /**
      * Open @p path read-only. Returns nullptr (and sets @p error) only when
@@ -59,7 +59,7 @@ public:
     QByteArray read(quint64 offset, qsizetype length) const;
 
     /**
-     * Copy a range into @p dst without touching the block cache — for large
+     * Copy a range into @p dst without touching the block cache - for large
      * sequential scans (the indexer) that would otherwise evict it.
      * Returns the number of bytes copied (clamped to the file end).
      */

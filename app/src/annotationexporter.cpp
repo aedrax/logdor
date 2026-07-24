@@ -19,7 +19,7 @@ QByteArray exportAnnotationsHtml(const logdor::AnnotationSet& set,
     QString html;
     html += QStringLiteral(
         "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">\n"
-        "<title>%1 — annotations</title>\n<style>\n"
+        "<title>%1 - annotations</title>\n<style>\n"
         "body { font-family: sans-serif; margin: 2em; }\n"
         ".note { border-left: 4px solid #4a90d9; margin: 1.2em 0; padding: 0.4em 1em; }\n"
         ".meta { color: #666; font-size: 0.85em; }\n"
@@ -33,7 +33,7 @@ QByteArray exportAnnotationsHtml(const logdor::AnnotationSet& set,
     for (const logdor::Annotation& annotation : set.annotations()) {
         const QString range = annotation.startLine == annotation.endLine
             ? QStringLiteral("line %1").arg(annotation.startLine + 1)
-            : QStringLiteral("lines %1–%2").arg(annotation.startLine + 1)
+            : QStringLiteral("lines %1-%2").arg(annotation.startLine + 1)
                   .arg(annotation.endLine + 1);
         html += QStringLiteral("<div class=\"note%1\" style=\"%2\">\n")
                     .arg(annotation.orphaned ? QStringLiteral(" orphaned") : QString(),
@@ -46,7 +46,7 @@ QByteArray exportAnnotationsHtml(const logdor::AnnotationSet& set,
                              .replace(QStringLiteral("\n"), QStringLiteral("<br>")));
         QString meta = range;
         if (!annotation.author.isEmpty())
-            meta += QStringLiteral(" — ") + annotation.author.toHtmlEscaped();
+            meta += QStringLiteral(" - ") + annotation.author.toHtmlEscaped();
         if (annotation.modifiedAt.isValid())
             meta += QStringLiteral(", ")
                 + annotation.modifiedAt.toLocalTime().toString(
@@ -55,7 +55,7 @@ QByteArray exportAnnotationsHtml(const logdor::AnnotationSet& set,
             meta += QStringLiteral(" <span class=\"tag\">#%1</span>")
                         .arg(annotation.tag.toHtmlEscaped());
         if (annotation.orphaned)
-            meta += QStringLiteral(" (orphaned — line not found in current file)");
+            meta += QStringLiteral(" (orphaned - line not found in current file)");
         html += QStringLiteral("<div class=\"meta\">%1</div>\n").arg(meta);
 
         QString lines;

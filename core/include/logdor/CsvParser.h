@@ -19,7 +19,7 @@ QStringList parseCsvRecord(QByteArrayView raw);
 
 /**
  * CSV as a FormatParser: the schema comes from the file's header row, so a
- * parser instance is constructed per file (DeclarativeParser precedent —
+ * parser instance is constructed per file (DeclarativeParser precedent -
  * immutable after construction, parseLine is thread-safe).
  *
  * Limitation (same as the legacy viewer): records with embedded newlines in
@@ -32,7 +32,7 @@ public:
     /**
      * Build from the file's first line, sniffing column types over up to 64
      * data lines (a column is Integer when every non-empty sample parses).
-     * nullptr for an empty file — callers fall back to plaintext.
+     * nullptr for an empty file - callers fall back to plaintext.
      */
     static std::shared_ptr<const CsvParser> fromFile(const FileSource& source,
                                                      const LineIndex& index);

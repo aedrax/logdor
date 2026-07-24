@@ -252,7 +252,7 @@ void CustomFormatViewer::saveAsFormat()
         return;
     }
     m_status->setText(
-        tr("Saved to %1 — appears in the Plain Text Viewer's format list on "
+        tr("Saved to %1 - appears in the Plain Text Viewer's format list on "
            "next launch, and can be shared as a file.").arg(path));
 }
 

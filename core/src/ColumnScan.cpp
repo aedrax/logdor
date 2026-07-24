@@ -48,7 +48,7 @@ ChunkShard scanChunk(const FileSource& source, const LineIndex& index,
     for (qint64 line = first; line < end; ++line) {
         // Parsing is much slower than filtering; honor cancel mid-chunk so
         // latency stays bounded by ~4k parses, not a whole super-chunk.
-        // A truncated shard is fine — a cancelled scan discards everything.
+        // A truncated shard is fine - a cancelled scan discards everything.
         if ((line & 4095) == 0 && promise.isCanceled())
             return shard;
         const QByteArrayView raw(base + (index.offsetOf(line) - baseOffset),

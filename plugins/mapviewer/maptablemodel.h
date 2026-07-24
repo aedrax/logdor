@@ -11,8 +11,8 @@
 
 /**
  * The location-event list: one row per coordinate hit currently visible
- * (post-filter). Small by construction — coordinate hits are sparse and the
- * map caps what it plots — so messages are read on demand with no cache.
+ * (post-filter). Small by construction - coordinate hits are sparse and the
+ * map caps what it plots - so messages are read on demand with no cache.
  */
 class MapTableModel : public QAbstractTableModel {
     Q_OBJECT

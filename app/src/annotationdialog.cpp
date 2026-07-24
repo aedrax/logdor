@@ -41,7 +41,7 @@ AnnotationDialog::AnnotationDialog(QWidget* parent)
         swatch->setCheckable(true);
         swatch->setFixedSize(28, 22);
         if (presets[i].isEmpty()) {
-            swatch->setText(QStringLiteral("—"));
+            swatch->setText(QStringLiteral("-"));
             swatch->setToolTip(tr("No color"));
             swatch->setChecked(true);
         } else {

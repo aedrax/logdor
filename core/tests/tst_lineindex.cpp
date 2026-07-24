@@ -128,7 +128,7 @@ private slots:
 
     void wideModeMigrationPreservesOffsets()
     {
-        // Synthetic terminators only — no real multi-GB file needed. A >4 GiB
+        // Synthetic terminators only - no real multi-GB file needed. A >4 GiB
         // line inside the first block forces wide-mode migration mid-build.
         LineIndex idx;
         idx.addTerminator(10, false);                    // line 0: [0,10)

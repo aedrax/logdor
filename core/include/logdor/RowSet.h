@@ -9,7 +9,7 @@ namespace logdor {
 /**
  * Sorted set of visible source lines, mapping model rows to source lines.
  *
- * Two representations: "all" (the identity mapping — O(1) memory, the empty
+ * Two representations: "all" (the identity mapping - O(1) memory, the empty
  * filter on a 10M-line file allocates nothing) and "explicit" (a sorted
  * vector of line numbers). fromLines() collapses to "all" when every line is
  * present. Line numbers are qint32 to match the existing selection-event

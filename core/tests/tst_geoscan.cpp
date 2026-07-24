@@ -99,7 +99,7 @@ private slots:
     void legacyFalsePositiveBehaviorIsPreserved()
     {
         // The legacy simple pattern accepts any in-range "number, number"
-        // pair — e.g. versions. Same tradeoff as the old plugin; the hit
+        // pair - e.g. versions. Same tradeoff as the old plugin; the hit
         // table in the UI keeps it visible. Pin it so a change is deliberate.
         double lat = 0, lon = 0;
         QVERIFY(parse("upgraded from version 1.2, 3.4 build", &lat, &lon));

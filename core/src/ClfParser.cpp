@@ -14,7 +14,7 @@ const QRegularExpression reClf(
 const QRegularExpression reTz("\\s([+-]\\d{4})$");
 
 // Legacy timestamp parse: try "t" timezone format first, then fall back to a
-// manual offset shift (a legacy quirk that ADDS the offset to local time —
+// manual offset shift (a legacy quirk that ADDS the offset to local time -
 // preserved for display parity, not correctness).
 QString formatTimestamp(const QString& timestamp)
 {

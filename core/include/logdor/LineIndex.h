@@ -24,7 +24,7 @@ namespace logdor {
  * each block stores one 64-bit base offset, each line a 32-bit delta from its
  * block base (~4.13 bytes/line). If any delta would overflow 32 bits (a >4 GiB
  * span inside one block), the whole index migrates to a plain 64-bit array
- * ("wide mode") — correctness preserved, memory sacrificed only for
+ * ("wide mode") - correctness preserved, memory sacrificed only for
  * pathological inputs.
  *
  * Build single-threaded via addTerminator()+finalize(), then treat as

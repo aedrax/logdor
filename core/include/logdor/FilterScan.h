@@ -16,8 +16,8 @@ namespace logdor {
 /**
  * Core mirror of the shell's filter bar state (core cannot include app
  * headers). Semantics are legacy-exact: a line is a match when
- * (textMatch XOR invert) — an empty query counts as textMatch=true and
- * ignores invert — AND extraPredicate accepts it. The visible set is the
+ * (textMatch XOR invert) - an empty query counts as textMatch=true and
+ * ignores invert - AND extraPredicate accepts it. The visible set is the
  * union of [match - contextBefore, match + contextAfter] over all matches.
  */
 struct LineFilter {
@@ -31,7 +31,7 @@ struct LineFilter {
     /**
      * Optional structured predicate ANDed with the text decision before
      * context expansion (e.g. logcat level/tag chrome). Runs concurrently on
-     * worker threads — must be thread-safe. @p raw = lengthOf() bytes.
+     * worker threads - must be thread-safe. @p raw = lengthOf() bytes.
      */
     std::function<bool(qint64 line, QByteArrayView raw)> extraPredicate;
 

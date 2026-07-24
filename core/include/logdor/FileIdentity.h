@@ -12,7 +12,7 @@ class FileSource;
  * files to their log independent of path or name.
  *
  * Only the first min(size, 64 KiB) bytes are hashed and size is stored
- * OUTSIDE the hash, so identity survives the common case — the log was
+ * OUTSIDE the hash, so identity survives the common case - the log was
  * appended to. Collisions are acceptable: identity only gates auto-load;
  * every annotation anchor is independently verified by its per-line hash.
  */

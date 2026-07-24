@@ -11,7 +11,7 @@
 
 namespace logdor {
 
-/// A geographic coordinate found on a log line. Plain doubles — core stays
+/// A geographic coordinate found on a log line. Plain doubles - core stays
 /// free of QtPositioning.
 struct GeoPoint {
     qint32 line = -1;

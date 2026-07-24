@@ -333,7 +333,7 @@ void MapViewer::broadcastAreaConstraint()
                 lines.append(point.line); // m_allPoints is line-ascending
         }
         // An empty payload means "lift the restriction", but an area with no
-        // events must show NOTHING — send an impossible line instead.
+        // events must show NOTHING - send an impossible line instead.
         if (lines.isEmpty())
             lines.append(-1);
     }
@@ -363,9 +363,9 @@ void MapViewer::applyVisiblePoints()
         ? tr("No location events")
         : tr("%n location event(s)", nullptr, int(total));
     if (total > kMaxMarkers)
-        status += tr(" — plotting the first %1").arg(kMaxMarkers);
+        status += tr(" - plotting the first %1").arg(kMaxMarkers);
     if (m_hasArea)
-        status += tr(" — area active, all viewers filtered");
+        status += tr(" - area active, all viewers filtered");
     if (m_lastFilter.inQueryMode && !m_lastFilter.query.isEmpty())
         status += tr(" (field queries are not applied to the map)");
     m_status->setText(status);

@@ -35,7 +35,7 @@ QFuture<ColumnScanResult> extractColumns(
 /**
  * Per-widget cache of extracted columns for the CURRENT file. Mutated on the
  * GUI thread only; payloads are immutable shared_ptrs, safe to snapshot into
- * worker threads. Owned by the shell — deliberately not a global.
+ * worker threads. Owned by the shell - deliberately not a global.
  */
 class ColumnCache {
 public:

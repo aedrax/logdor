@@ -22,7 +22,7 @@ struct QueryError {
 
 enum class QueryOption : quint8 {
     None = 0,
-    // Unknown field terms compile to always-true instead of erroring —
+    // Unknown field terms compile to always-true instead of erroring -
     // used for schema-agnostic syntax validation (the filter-bar tint).
     AllowUnknownFields = 1,
 };

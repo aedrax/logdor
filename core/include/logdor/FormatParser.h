@@ -37,7 +37,7 @@ struct ParsedRow {
 /**
  * A log format: a display schema plus a pure per-line parse.
  *
- * Implementations must be stateless and thread-safe — parseLine runs
+ * Implementations must be stateless and thread-safe - parseLine runs
  * concurrently from filter scans and model fills. @p raw excludes the line
  * terminator and any trailing '\r' (LineIndex::lengthOf semantics).
  *

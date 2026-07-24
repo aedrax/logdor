@@ -19,10 +19,10 @@ struct SortResult {
 };
 
 /**
- * Stable ascending sort of the VISIBLE rows by cached column keys —
+ * Stable ascending sort of the VISIBLE rows by cached column keys -
  * Integer/Text read @p keys, Severity reads @p severity (enum order). Ties
  * keep source order; unparseable Integer rows sort first. Descending is the
- * reversed ascending permutation (caller's choice — tie order reverses too,
+ * reversed ascending permutation (caller's choice - tie order reverses too,
  * the standard Qt tradeoff).
  *
  * Runs off-thread; cancellation is honored before and after the sort itself
