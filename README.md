@@ -13,21 +13,18 @@ Logdor is a tool to simplify looking at log files by enabling filtering, color c
 
 Logdor provides functionality through a plugin-based architecture. Each plugin specializes in a specific type of log format or viewing capability:
 
-- [Bookmark Viewer](plugins/bookmarkviewer/README.md) - Save and annotate important log lines for future reference
-- [CLF Viewer](plugins/clfviewer/README.md) - Specialized parser for Apache and NGINX access logs
-- [CSV Viewer](plugins/csvviewer/README.md) - Table view for CSV files with automatic header detection
-- [Hexdump Viewer](plugins/hexdumpviewer/README.md) - View binary files in hexadecimal format
-- [Logcat Viewer](plugins/logcatviewer/README.md) - Android logcat format viewer with color-coded log levels
-- [Map Viewer](plugins/mapviewer/README.md) - Interactive map display for log entries containing coordinates
-- [PGN Viewer](plugins/pgnviewer/README.md) - Interactive chess game viewer for PGN files
-- [Plain Text Viewer](plugins/plaintextviewer/README.md) - Basic text file viewer with essential features
-- [Regex Viewer](plugins/regexviewer/README.md) - Pattern matching with regular expressions and highlighting
-- [Selected Line Viewer](plugins/selectedlineviewer/README.md) - Focused view of lines selected from other viewers
-- [Syslog Viewer](plugins/syslogviewer/README.md) - Parser for system log files with facility and severity highlighting
+- **Plain Text Viewer** - the generic viewer for any format, with auto-detection and a format selector (all built-in and user-defined formats)
+- **Annotations** - every note on the open log in one panel: jump, edit, re-anchor, share
+- **Custom Format Viewer** - author log formats interactively with a live regex; save them as shareable format specs
+- **CSV Viewer** - table view for CSV files with header-derived, type-sniffed columns
+- **CLF Viewer** - Apache/NGINX access logs
+- **Logcat Viewer** - Android logcat with level toggles and tag filtering
+- **Hex Dump Viewer** - hex dump of the selected lines
+- **Selected Line Viewer** - focused view of lines selected in other viewers
 
-## Features
+Removed in the core migration (all preserved in git history): *Bookmark Viewer* (replaced by Annotations), *Syslog Viewer* (superseded by the bundled `syslog-rfc3164` format spec), *Regex Viewer* (replaced by the Custom Format Viewer), *Map Viewer* and *PGN Viewer* (retired).
 
-For detailed information about each plugin's features, please visit the individual plugin README files linked above.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how it all fits together and how to extend it.
 
 ## Architecture
 
