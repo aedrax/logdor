@@ -23,7 +23,7 @@ Registries are value-returning free functions.
 | Bytes | `FileSource` | mmap-first read-only file owner; buffered 4 MiB LRU fallback when mapping fails; `shared_ptr` lifetime so cancelled background work can outlive a file switch |
 | Lines | `LineIndex`, `buildLineIndex` | block-delta line offsets (~4 B/line); cancellable off-thread scan with permille progress |
 | Parsing | `FormatParser`, `PlainTextParser`/`LogcatParser`/`ClfParser`/`CsvParser`/`JsonLinesParser`, `DeclarativeParser` + `FormatSpec`, `FormatRegistry` | schema + stateless thread-safe per-line parse; JSON-defined formats; sample-scored auto-detection |
-| Filtering | `RowSet`, `scanFilter`, `CompiledQuery`, `ColumnScan`/`ColumnCache` | chunk-parallel cancellable scans; field-query language over extracted columns; empty filter costs zero bytes |
+| Filtering | `RowSet`, `scanFilter`, `CompiledQuery`, `ColumnScan`/`ColumnCache`, `TimestampParse` | chunk-parallel cancellable scans; field-query language over extracted columns (temporal comparison on datetime fields via per-column codecs parsing to UTC epoch ms); empty filter costs zero bytes |
 | Sorting | `sortRows` | stable off-thread sort of visible rows by cached keys |
 | Annotations | `Annotation`/`AnnotationSet`, `FileIdentity`, `AnnotationScan` | versioned sidecar JSON, LWW merge, content-hash identity, bounded re-anchoring |
 
@@ -42,7 +42,9 @@ Nothing in the shell ever blocks on file size.
   autosave hooks), `AnnotationDialog`, `annotationexporter`,
   `formatcatalog` (builtins + spec directories), `FolderView` (recursive
   file tree for Open Folder; hides sidecars, debounced selection-follow,
-  wrap-around next/previous), `recentitems` (pure recents-list policy).
+  wrap-around next/previous), `recentitems` (pure recents-list policy),
+  `TimeSettings` (assumed zone for zone-less timestamps + per-file
+  reference dates; viewers re-extract timestamp columns when it changes).
 - `logdor` (executable): `MainWindow` owns the open flow (non-blocking
   index build), the filter bar, annotation persistence
   (`<log>.logdor.json` sidecars, app-data fallback, import/export,

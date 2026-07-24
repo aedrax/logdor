@@ -5,6 +5,10 @@
 //
 // Cold = one-pass column extraction (parse-bound). Warm = query evaluation
 // over the cached columns. Both gated separately.
+//
+// Temporal terms work too - e.g. --query "time>=\"01-01 10:00:00.000\"" or
+// --query "time<12:30" on a logcat file. DateTimeCmp is an integer compare
+// (IntCmp-class throughput); TimeOfDayCmp adds a binary search per row.
 
 #include <logdor/ColumnScan.h>
 #include <logdor/FilterScan.h>
