@@ -211,7 +211,12 @@ private slots:
         QVERIFY2(errors.isEmpty(),
                  qPrintable(errors.isEmpty() ? QString()
                                              : errors.first().message));
-        QCOMPARE(specs.size(), 2); // syslog-rfc3164 + keyvalue
+        QStringList ids;
+        for (const auto& spec : specs)
+            ids.append(spec.id);
+        for (const char* required : { "syslog-rfc3164", "syslog-iso", "keyvalue",
+                                      "dpkg", "dmesg" })
+            QVERIFY2(ids.contains(QLatin1StringView(required)), required);
     }
 };
 

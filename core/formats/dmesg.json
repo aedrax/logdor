@@ -1,0 +1,10 @@
+{
+    "id": "dmesg",
+    "displayName": "Kernel ring buffer (dmesg)",
+    "pattern": "^\\[\\s*(?<time>\\d+\\.\\d+)\\]\\s(?<msg>.*)$",
+    "fields": [
+        { "name": "Time", "capture": "time", "type": "string", "hint": "timestamp" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
+    ],
+    "specificity": 0.9
+}
