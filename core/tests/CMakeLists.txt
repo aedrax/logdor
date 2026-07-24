@@ -17,6 +17,8 @@ set(LOGDOR_CORE_TESTS
     annotationscan
     csvparser
     geoscan
+    systemformats
+    jsonlinesparser
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
