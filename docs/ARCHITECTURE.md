@@ -2,7 +2,7 @@
 
 Logdor follows **Functional Core, Imperative Shell**: everything that parses,
 indexes, filters, sorts, or anchors lives in `core/` (`logdor-core`), a
-static library that links **QtCore and QtConcurrent only — never
+static library that links **QtCore and QtConcurrent only - never
 QtGui/QtWidgets**. The Qt Widgets application in `app/` + `plugins/` is a
 thin shell that translates gestures into core calls and core results into
 pixels. A future TUI reuses the core unchanged.
@@ -28,8 +28,8 @@ Registries are value-returning free functions.
 | Annotations | `Annotation`/`AnnotationSet`, `FileIdentity`, `AnnotationScan` | versioned sidecar JSON, LWW merge, content-hash identity, bounded re-anchoring |
 
 **Threading contract**: every potentially slow core operation returns a
-`QFuture<T>` from a `QPromise`-based task — cancellable, with permille
-progress — and is consumed on the GUI thread through a `QFutureWatcher`.
+`QFuture<T>` from a `QPromise`-based task - cancellable, with permille
+progress - and is consumed on the GUI thread through a `QFutureWatcher`.
 Nothing in the shell ever blocks on file size.
 
 ## The shell
@@ -37,15 +37,23 @@ Nothing in the shell ever blocks on file size.
 - `logdor_interface` (shared lib): `PluginInterface` (below),
   `LogTableModel` + `LogViewerWidget` (the one generic lazy view: parses
   only visible rows behind an 8k-row LRU, off-thread filter/query/sort,
-  annotation markers, echo-guarded selection sync), `AnnotationHub` (one
-  per app: shared note state + autosave hooks), `AnnotationDialog`,
-  `annotationexporter`, `formatcatalog` (builtins + spec directories).
+  annotation markers, echo-guarded selection sync, per-file view-state
+  save/restore), `AnnotationHub` (one per app: shared note state +
+  autosave hooks), `AnnotationDialog`, `annotationexporter`,
+  `formatcatalog` (builtins + spec directories), `FolderView` (recursive
+  file tree for Open Folder; hides sidecars, debounced selection-follow,
+  wrap-around next/previous), `recentitems` (pure recents-list policy).
 - `logdor` (executable): `MainWindow` owns the open flow (non-blocking
   index build), the filter bar, annotation persistence
-  (`<log>.logdor.json` sidecars, app-data fallback, import/export), and
-  the plugin docks. `PluginManager` loads plugins and fans out
-  `setCoreSource`/`setFilter`/`setAnnotationHub` and the `LinesSelected`
-  event (never echoed to the sender).
+  (`<log>.logdor.json` sidecars, app-data fallback, import/export,
+  explicit Save / Save-As), the recents menu (`recentItems` in
+  QSettings), **per-file sessions** (an in-memory map of filter +
+  per-plugin view state, captured before a file switch and replayed when
+  the file returns - annotations need no session, sidecars already
+  persist them), and the plugin docks. `PluginManager` loads plugins and
+  fans out `setCoreSource`/`setFilter`/`setAnnotationHub`/
+  `saveViewState`/`restoreViewState` and the `LinesSelected` event
+  (never echoed to the sender).
 
 ## Plugin API v3 (`app/src/plugininterface.h`)
 
@@ -55,14 +63,18 @@ QWidget* widget();
 void setCoreSource(shared_ptr<FileSource>, shared_ptr<const LineIndex>);
 void setAnnotationHub(AnnotationHub*);
 void setFilter(const FilterOptions&);
+QJsonObject saveViewState();                  // per-file session capture
+void restoreViewState(const QJsonObject&);    // after setCoreSource, before setFilter
 slots:   void onPluginEvent(PluginEvent, const QVariant&);
 signals: void pluginEvent(PluginEvent, const QVariant&);   // LinesSelected
 ```
 
 Everything is delivered on the GUI thread. Plugins run their own
-background work — most just wrap `LogViewerWidget`, which already does.
-The iid (`com.logdor.PluginInterface/3.0`) is bumped on any interface
-change so stale binaries fail to load instead of crashing.
+background work - most just wrap `LogViewerWidget`, which already does
+(including view-state capture: selection, sort, top-of-viewport source
+line; restores apply when the plugin's own scans land). The iid
+(`com.logdor.PluginInterface/3.1`) is bumped on any interface change so
+stale binaries fail to load instead of crashing.
 
 ## Annotation sidecars
 
@@ -73,24 +85,24 @@ logs still match); each note anchors to the SHA-256 of its line's first
 256 bytes plus a display snippet. On load, anchors are verified
 off-thread; moved lines are found by a bounded nearest-first search
 (rotation's uniform shift is detected and fast-pathed); unmatched notes
-are flagged *orphaned*, never dropped. Merging (auto or File → Import)
+are flagged *orphaned*, never dropped. Merging (auto or File -> Import)
 is a union by UUID with last-write-wins by modification time.
 
 ## Extending Logdor
 
-**A new format without compiling** — drop a JSON spec into
+**A new format without compiling** - drop a JSON spec into
 `~/.local/share/logdor/formats/` (see `core/formats/*.json` for the
 schema), or build it interactively in the **Custom Format Viewer** and
 click *Save as Format*. Specs participate in auto-detection and appear
 in the Plain Text Viewer's format list.
 
-**A new C++ parser** — implement `FormatParser` (stateless, thread-safe
+**A new C++ parser** - implement `FormatParser` (stateless, thread-safe
 `parseLine`; fill every schema field even on mismatch; keep
 `matchesStructure` honest for detection) and add it to
 `builtinParsers()` in `core/src/FormatRegistry.cpp`. Golden-test it like
 `core/tests/tst_formatparsers.cpp`.
 
-**A new view plugin** — copy `plugins/csvviewer/` (the smallest full
+**A new view plugin** - copy `plugins/csvviewer/` (the smallest full
 example): subclass `PluginInterface`, wrap a `LogViewerWidget`, forward
 `setCoreSource`/`setFilter`/`setAnnotationHub`, and wire
 `linesSelected`/`selectSourceLines` for cross-view selection sync.
@@ -99,7 +111,7 @@ example): subclass `PluginInterface`, wrap a `LogViewerWidget`, forward
 
 `ctest -L unit` runs every suite (core + app, offscreen). Benchmarks are
 opt-in (`-DLOGDOR_ENABLE_BENCH=ON`, label `bench`) and gate indexing
-throughput (≥1 GB/s warm), filter throughput (≥800 MB/s substring),
-field-query extraction (≥50 MB/s) and warm queries (≤500 ms on ~9M
+throughput (>=1 GB/s warm), filter throughput (>=800 MB/s substring),
+field-query extraction (>=50 MB/s) and warm queries (<=500 ms on ~9M
 lines), and cancellation latencies. Annotation paths have no benchmark
 by design: counts are human-scale and re-anchoring is bounded.

@@ -31,38 +31,62 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how it all fits together an
 
 Logdor is split into two layers:
 
-- **`core/` (`logdor-core`)** — the non-GUI functional core: file access
+- **`core/` (`logdor-core`)** - the non-GUI functional core: file access
   (`FileSource`, mmap with buffered fallback), line indexing (`LineIndex`,
   ~4 bytes/line), cancellable background index building (`buildLineIndex`),
   format parsers (`FormatParser`: plaintext, Android logcat, Apache CLF,
-  plus user-writable **declarative JSON format specs** — drop a `.json` into
+  plus user-writable **declarative JSON format specs** - drop a `.json` into
   `~/.local/share/logdor/formats` to parse a new format without compiling),
   sample-based auto-detection, off-thread filtering (`scanFilter` over a
   `RowSet`), a **field query language** (`level:error tag:Wifi* pid>=100
-  "free text"` with AND/OR/NOT — toggle the `Q` button), and off-thread
-  column sorting. It links QtCore/QtConcurrent only — never
-  QtGui/QtWidgets — enforced by a configure-time link check and CTest
+  "free text"` with AND/OR/NOT - toggle the `Q` button), and off-thread
+  column sorting. It links QtCore/QtConcurrent only - never
+  QtGui/QtWidgets - enforced by a configure-time link check and CTest
   guards, so a future TUI can reuse it.
-- **`app/` + `plugins/`** — the Qt Widgets shell and viewer plugins. Ported
+- **`app/` + `plugins/`** - the Qt Widgets shell and viewer plugins. Ported
   plugins (plaintext, selected-line, CLF, logcat) are thin wrappers over one
   shared schema-driven lazy view (`LogViewerWidget`/`LogTableModel`) that
   parses only visible rows; opening a file costs the line index, not the file
   size (a 1 GB / 10M-line file adds ~44 MB of owned memory).
 
+## Working with multiple logs
+
+**File -> Open Folder...** (Ctrl+Shift+O) opens a folder as a recursive file
+tree in a dock; click a file (or cycle with Ctrl+PgUp/Ctrl+PgDn) to jump
+between logs. Each file keeps its annotations (sidecars, see below) and its
+view state - filter, selection, sort, scroll, even per-viewer chrome like
+logcat level/tag filters - for the whole session, so cycling back picks up
+exactly where you left off. **File -> Open Recent** remembers the last ten
+files and folders (Ctrl+1...Ctrl+9).
+
+### Keyboard shortcuts
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+O | Open file |
+| Ctrl+Shift+O | Open folder |
+| Ctrl+1 ... Ctrl+9 | Open a recent file/folder |
+| Ctrl+PgDn / Ctrl+PgUp | Next / previous file in the open folder |
+| Ctrl+S | Save annotations now |
+| Ctrl+Shift+S | Save annotations to a chosen file (one-time copy) |
+| Ctrl+L | Focus the filter input |
+
 ## Annotations
 
 Right-click any line (or selection) in a viewer to add a note with an
-optional color and tag; the **Annotations** panel lists every note — click
-to jump all viewers there. Notes are saved automatically to a sidecar file
+optional color and tag; the **Annotations** panel lists every note - click
+to jump all viewers there. Notes are saved automatically (Ctrl+S forces a
+save immediately; Ctrl+Shift+S writes a copy wherever you like without
+retargeting the autosave) to a sidecar file
 next to the log (`<logfile>.logdor.json`; app-data fallback when the
 directory is read-only) keyed by content, so they survive restarts, log
-growth, renames, and — via content re-anchoring — log rotation (notes whose
+growth, renames, and - via content re-anchoring - log rotation (notes whose
 lines vanish are flagged orphaned, never dropped). **Share** by sending the
 sidecar: a colleague drops it next to their copy of the log, or uses
-File → Import Annotations to merge it (conflicts resolve by most-recent
-edit). File → Export Annotations produces a self-contained HTML report or
+File -> Import Annotations to merge it (conflicts resolve by most-recent
+edit). File -> Export Annotations produces a self-contained HTML report or
 CSV. No benchmarks gate this path by design: annotation counts are
-human-scale and re-anchoring is bounded (≤32 MiB per note, off-thread,
+human-scale and re-anchoring is bounded (<=32 MiB per note, off-thread,
 cancellable).
 
 ## Building from Source
@@ -104,5 +128,5 @@ bundled `loggen` tool on first run):
 cmake -B build -DLOGDOR_ENABLE_BENCH=ON   # add -DLOGDOR_BENCH_LARGE=ON for the 5 GiB corpus
 ctest --test-dir build -L bench --output-on-failure
 ```
-Gates: ≥1000 MB/s warm indexing throughput, ≤4.5 bytes/line index memory,
-≤100 ms cancellation latency.
+Gates: >=1000 MB/s warm indexing throughput, <=4.5 bytes/line index memory,
+<=100 ms cancellation latency.
