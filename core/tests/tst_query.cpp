@@ -221,6 +221,86 @@ private slots:
         QVERIFY(!bad);
     }
 
+    void quoteQueryValueEscaping()
+    {
+        QCOMPARE(quoteQueryValue("bareword"), QStringLiteral("bareword"));
+        // Op chars and backslashes survive barewords; only the first op in a
+        // term splits it, and the value sits after the operator.
+        QCOMPARE(quoteQueryValue("a=b"), QStringLiteral("a=b"));
+        QCOMPARE(quoteQueryValue("back\\slash"), QStringLiteral("back\\slash"));
+        QCOMPARE(quoteQueryValue("has space"), QStringLiteral("\"has space\""));
+        QCOMPARE(quoteQueryValue("(paren)"), QStringLiteral("\"(paren)\""));
+        QCOMPARE(quoteQueryValue("say \"hi\""),
+                 QStringLiteral("\"say \\\"hi\\\"\""));
+        QCOMPARE(quoteQueryValue("a \\ \"b\""),
+                 QStringLiteral("\"a \\\\ \\\"b\\\"\""));
+        QCOMPARE(quoteQueryValue(""), QStringLiteral("\"\""));
+        QCOMPARE(quoteQueryValue("bareword", true),
+                 QStringLiteral("\"bareword\""));
+    }
+
+    void buildQueryTermBasics()
+    {
+        const FieldSchema tag { QStringLiteral("Tag"), FieldType::String,
+                                FieldHint::Identifier };
+        QCOMPARE(buildQueryTerm(tag, "WifiService"),
+                 QStringLiteral("Tag=WifiService"));
+        QCOMPARE(buildQueryTerm(tag, "WifiService", true),
+                 QStringLiteral("Tag!=WifiService"));
+        QCOMPARE(buildQueryTerm(tag, "foo bar"),
+                 QStringLiteral("Tag=\"foo bar\""));
+        QCOMPARE(buildQueryTerm(tag, ""), QStringLiteral("Tag=\"\""));
+
+        // Spaces are stripped from the name (resolution ignores them anyway).
+        const FieldSchema spaced { QStringLiteral("Status Code"),
+                                   FieldType::String, FieldHint::None };
+        QCOMPARE(buildQueryTerm(spaced, "404"),
+                 QStringLiteral("StatusCode=404"));
+
+        // Names that cannot survive tokenization are inexpressible.
+        const FieldSchema opName { QStringLiteral("a=b"), FieldType::String,
+                                   FieldHint::None };
+        QCOMPARE(buildQueryTerm(opName, "x"), QString());
+        const FieldSchema blank { QStringLiteral("  "), FieldType::String,
+                                  FieldHint::None };
+        QCOMPARE(buildQueryTerm(blank, "x"), QString());
+    }
+
+    void buildQueryTermIntegers()
+    {
+        const FieldSchema pid { QStringLiteral("PID"), FieldType::Integer,
+                                FieldHint::Numeric };
+        QCOMPARE(buildQueryTerm(pid, "100"), QStringLiteral("PID=100"));
+        QCOMPARE(buildQueryTerm(pid, " 100 "), QStringLiteral("PID=100"));
+        QCOMPARE(buildQueryTerm(pid, "100", true),
+                 QStringLiteral("PID!=100"));
+        QCOMPARE(buildQueryTerm(pid, "not-a-pid"), QString());
+        QCOMPARE(buildQueryTerm(pid, ""), QString());
+    }
+
+    // Terms built from a row's displayed values must compile and match that
+    // row (and the exclude form must not) - proves the builder agrees with
+    // the tokenizer and evaluator, including quoting of spaced values.
+    void builtTermsRoundTrip()
+    {
+        const auto schema = testSchema();
+        const TestRow& row = kRows.first();
+        const QStringList values = { row.time, row.pid,  row.tid,
+                                     row.level, row.tag, row.message };
+        for (int i = 0; i < schema.size(); ++i) {
+            const QString include = buildQueryTerm(schema[i], values[i]);
+            QVERIFY2(!include.isEmpty(), qPrintable(schema[i].name));
+            const QList<int> matched = matchesOf(include);
+            QVERIFY2(!matched.contains(-1), qPrintable(include)); // compiled
+            QVERIFY2(matched.contains(0), qPrintable(include));
+
+            const QString exclude = buildQueryTerm(schema[i], values[i], true);
+            const QList<int> unmatched = matchesOf(exclude);
+            QVERIFY2(!unmatched.contains(-1), qPrintable(exclude));
+            QVERIFY2(!unmatched.contains(0), qPrintable(exclude));
+        }
+    }
+
     void referencedColumnsAndSeverity()
     {
         QueryError error;

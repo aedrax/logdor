@@ -150,4 +150,17 @@ private:
     friend struct QueryParser;
 };
 
+/// Quote/escape @p value so it round-trips the query tokenizer as one value
+/// token. Barewords pass through unchanged unless @p forceQuote.
+QString quoteQueryValue(const QString& value, bool forceQuote = false);
+
+/**
+ * Build a "Name=value" ("Name!=value" when @p exclude) term for @p field
+ * that compiles against the schema containing it. Empty when the term is
+ * inexpressible: the field's space-stripped name is empty or contains query
+ * metacharacters, or an Integer field's value is not a number.
+ */
+QString buildQueryTerm(const FieldSchema& field, const QString& value,
+                       bool exclude = false);
+
 } // namespace logdor

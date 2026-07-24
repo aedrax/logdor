@@ -672,4 +672,47 @@ bool CompiledQuery::evaluate(qint64 line, QByteArrayView raw,
     return m_root->eval(line, raw, columns);
 }
 
+//=== Term building ===========================================================
+
+QString quoteQueryValue(const QString& value, bool forceQuote)
+{
+    const bool bareSafe = !forceQuote && !value.isEmpty()
+        && std::none_of(value.begin(), value.end(), Tokenizer::isWordEnd);
+    if (bareSafe)
+        return value;
+    QString escaped = value;
+    escaped.replace(u'\\', QStringLiteral("\\\\"));
+    escaped.replace(u'"', QStringLiteral("\\\""));
+    return u'"' + escaped + u'"';
+}
+
+QString buildQueryTerm(const FieldSchema& field, const QString& value,
+                       bool exclude)
+{
+    // The name must survive tokenization intact: spaces are stripped (they
+    // are ignored during resolution anyway), and any operator or structural
+    // character would split the term in the wrong place.
+    QString name;
+    name.reserve(field.name.size());
+    for (QChar c : field.name) {
+        if (c.isSpace())
+            continue;
+        static const QString kMeta = QStringLiteral(":=!<>()\"");
+        if (kMeta.contains(c))
+            return {};
+        name += c;
+    }
+    if (name.isEmpty())
+        return {};
+
+    const auto op = exclude ? QStringLiteral("!=") : QStringLiteral("=");
+    if (field.type == FieldType::Integer) {
+        const QString trimmed = value.trimmed();
+        bool ok = false;
+        trimmed.toLongLong(&ok);
+        return ok ? name + op + trimmed : QString();
+    }
+    return name + op + quoteQueryValue(value);
+}
+
 } // namespace logdor
