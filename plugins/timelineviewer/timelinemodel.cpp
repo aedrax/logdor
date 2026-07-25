@@ -57,6 +57,28 @@ void TimelineModel::setMerged(
     endResetModel();
 }
 
+int TimelineModel::rowForTime(qint64 utcMs) const
+{
+    const auto epochOf = [this](const TimelineRow& row) {
+        qint64 ms = 0;
+        const auto file = m_files.value(row.fileId);
+        if (file)
+            file->timeData->intAt(row.line, &ms);
+        return ms;
+    };
+    size_t lo = 0, hi = m_order.size();
+    while (lo < hi) {
+        const size_t mid = lo + (hi - lo) / 2;
+        if (epochOf(m_order[mid]) < utcMs)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    if (lo == m_order.size())
+        return -1;
+    return m_descending ? int(m_order.size() - 1 - lo) : int(lo);
+}
+
 void TimelineModel::setDescending(bool descending)
 {
     if (m_descending == descending)

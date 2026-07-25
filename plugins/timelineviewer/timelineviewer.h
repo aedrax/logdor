@@ -4,6 +4,7 @@
 #include "../../app/src/plugininterface.h"
 #include "timelinefile.h"
 
+#include <logdor/HistogramScan.h>
 #include <logdor/TimelineMerge.h>
 
 #include <QFutureWatcher>
@@ -13,6 +14,7 @@
 #include <memory>
 #include <vector>
 
+class HistogramStrip;
 class QLabel;
 class QListWidget;
 class QListWidgetItem;
@@ -65,6 +67,9 @@ private:
     void scheduleMerge();
     void refreshFileList();
     void refreshStatus();
+    // Two async rounds over the enabled Ready files: auto-range scans for
+    // the shared span, then explicit-range scans summed into one strip.
+    void refreshHistogram();
 
     template <typename T, typename Handler>
     void watchFuture(QFuture<T> future, Handler onFinished);
@@ -85,6 +90,11 @@ private:
     QFutureWatcher<logdor::TimelineMergeResult> m_mergeWatcher;
     qint64 m_mergeElapsedMs = 0;
     int m_filterGeneration = 0; // discards stale per-file scan results
+
+    HistogramStrip* m_histogramStrip = nullptr;
+    int m_histogramGeneration = 0;
+    int m_histogramPending = 0;
+    logdor::HistogramResult m_histogramSum;
     QSet<QFutureWatcherBase*> m_pendingWatchers;
     bool m_updatingList = false;
 };

@@ -44,6 +44,10 @@ public:
     void setDescending(bool descending);
     bool isDescending() const { return m_descending; }
 
+    /// First presentation row whose event time is at or past @p utcMs
+    /// (binary search - the stored order is time-ascending); -1 when none.
+    int rowForTime(qint64 utcMs) const;
+
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     int columnCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role) const override;

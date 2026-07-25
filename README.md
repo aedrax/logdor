@@ -69,6 +69,11 @@ logcat level/tag filters - for the whole session, so cycling back picks up
 exactly where you left off. **File -> Open Recent** remembers the last ten
 files and folders (Ctrl+1...Ctrl+9).
 
+Right-click any log view and enable **Show Timeline** for a severity-colored
+histogram of the visible rows over time: hover for counts, click to jump to
+that moment, drag to restrict the filter to a time range (Esc clears it).
+The Merged Timeline shows the same strip summed across its files.
+
 **File -> Follow File** (F8) tails the current file: new lines appear as
 they are written (filters keep applying to them), a view scrolled to the
 bottom stays pinned there, and a rotated or truncated file reloads

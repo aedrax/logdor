@@ -3,6 +3,7 @@
 #include "timelinemodel.h"
 
 #include "../../app/src/formatcatalog.h"
+#include "../../app/src/histogramstrip.h"
 #include "../../app/src/timesettings.h"
 
 #include <logdor/ColumnScan.h>
@@ -89,11 +90,26 @@ TimelineViewer::TimelineViewer(QObject* parent)
     m_table->horizontalHeader()->setSectionResizeMode(
         QHeaderView::Interactive);
 
+    m_histogramStrip = new HistogramStrip();
+
     auto* layout = new QVBoxLayout(m_widget);
     layout->addLayout(toolbar);
     layout->addWidget(m_fileList);
+    layout->addWidget(m_histogramStrip);
     layout->addWidget(m_table, /*stretch=*/1);
     layout->addWidget(m_statusLabel);
+
+    connect(m_histogramStrip, &HistogramStrip::timeRangeSelected,
+            this, &PluginInterface::timeRangeRequested);
+    connect(m_histogramStrip, &HistogramStrip::timeClicked, this,
+            [this](qint64 utcMs) {
+                const int row = m_model->rowForTime(utcMs);
+                if (row < 0)
+                    return;
+                m_table->scrollTo(m_model->index(row, 0),
+                                  QAbstractItemView::PositionAtCenter);
+                m_table->selectRow(row);
+            });
 
     connect(newestFirstButton, &QPushButton::toggled, this,
             [this](bool checked) { m_model->setDescending(checked); });
@@ -153,6 +169,7 @@ TimelineViewer::TimelineViewer(QObject* parent)
         m_model->setMerged(std::move(result.order), std::move(filesById));
         refreshFileList();
         refreshStatus();
+        refreshHistogram();
     });
 }
 
@@ -427,10 +444,86 @@ void TimelineViewer::scheduleMerge()
     if (inputs.empty()) {
         m_model->clearMerged();
         m_mergeElapsedMs = 0;
+        ++m_histogramGeneration; // invalidate in-flight histogram rounds
+        m_histogramStrip->clearHistogram();
         refreshStatus();
         return;
     }
     m_mergeWatcher.setFuture(mergeTimeline(std::move(inputs)));
+}
+
+void TimelineViewer::refreshHistogram()
+{
+    const int generation = ++m_histogramGeneration;
+
+    struct Input {
+        logdor::RowSet rows;
+        std::shared_ptr<const ColumnData> time;
+        std::shared_ptr<const std::vector<quint8>> severity;
+    };
+    std::vector<Input> inputs;
+    for (const auto& file : std::as_const(m_files)) {
+        if (file->state == TimelineFile::State::Ready && file->enabled)
+            inputs.push_back({ file->visibleRows, file->timeData,
+                               file->severity });
+    }
+    if (inputs.empty()) {
+        m_histogramStrip->clearHistogram();
+        return;
+    }
+
+    // Round 1: auto-range scans establish the shared span.
+    auto span = std::make_shared<std::pair<qint64, qint64>>(0, -1);
+    m_histogramPending = int(inputs.size());
+    for (const Input& input : inputs) {
+        watchFuture(
+            scanHistogram(input.rows, input.time, nullptr, { 0, 0, 1 }),
+            [this, generation, span, inputs](const HistogramResult& result) {
+                if (generation != m_histogramGeneration)
+                    return;
+                if (result.minMs <= result.maxMs) {
+                    if (span->first > span->second)
+                        *span = { result.minMs, result.maxMs };
+                    else
+                        *span = { std::min(span->first, result.minMs),
+                                  std::max(span->second, result.maxMs) };
+                }
+                if (--m_histogramPending > 0)
+                    return;
+                if (span->first > span->second) {
+                    m_histogramStrip->clearHistogram();
+                    return;
+                }
+
+                // Round 2: one explicit-range scan per file, summed.
+                m_histogramSum = {};
+                m_histogramPending = int(inputs.size());
+                const HistogramRequest request { span->first, span->second,
+                                                 512 };
+                for (const Input& input : inputs) {
+                    watchFuture(
+                        scanHistogram(input.rows, input.time, input.severity,
+                                      request),
+                        [this, generation](const HistogramResult& result) {
+                            if (generation != m_histogramGeneration)
+                                return;
+                            if (m_histogramSum.buckets.empty()) {
+                                m_histogramSum = result;
+                            } else {
+                                for (size_t b = 0;
+                                     b < result.buckets.size(); ++b)
+                                    for (size_t lane = 0; lane < 7; ++lane)
+                                        m_histogramSum.buckets[b][lane]
+                                            += result.buckets[b][lane];
+                                m_histogramSum.invalidRows
+                                    += result.invalidRows;
+                            }
+                            if (--m_histogramPending == 0)
+                                m_histogramStrip->setHistogram(m_histogramSum);
+                        });
+                }
+            });
+    }
 }
 
 void TimelineViewer::refreshFileList()
