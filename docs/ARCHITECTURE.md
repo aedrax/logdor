@@ -134,6 +134,14 @@ example): subclass `PluginInterface`, wrap a `LogViewerWidget`, forward
 `setCoreSource`/`setFilter`/`setAnnotationHub`, and wire
 `linesSelected`/`selectSourceLines` for cross-view selection sync.
 
+**Per-file parsers** (schema or decode state depends on file content:
+`CsvParser`, `NetLogParser`) stay out of `builtinParsers()` - they
+cannot participate in stateless detection - and are constructed by
+their viewer plugin via a `fromFile(source, index)` factory with a
+plaintext fallback. If a third such format appears, a
+`FormatParserFactory` abstraction in core (so the shared format
+selector can offer them too) is the natural next step.
+
 ## Tests and benchmarks
 
 `ctest -L unit` runs every suite (core + app, offscreen). Benchmarks are

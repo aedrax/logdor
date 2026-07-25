@@ -19,6 +19,7 @@ Logdor provides functionality through a plugin-based architecture. Each plugin s
 - **CSV Viewer** - table view for CSV files with header-derived, type-sniffed columns
 - **CLF Viewer** - Apache/NGINX access logs
 - **Logcat Viewer** - Android logcat with level toggles and tag filtering
+- **NetLog Viewer** - Chrome `chrome://net-export` captures with decoded event/source types and tick-to-UTC timestamps
 - **Hex Dump Viewer** - hex dump of the selected lines
 - **Selected Line Viewer** - focused view of lines selected in other viewers
 - **Map Viewer** - extracts coordinates (decimal, labeled, DMS) from log lines and plots them on an OpenStreetMap map (requires Qt WebEngine and network access for tiles)
