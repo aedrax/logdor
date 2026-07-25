@@ -46,6 +46,8 @@ qt_add_library(logdor-core STATIC
     src/JsonLogUtil_p.h
     include/logdor/DockerJsonParser.h
     src/DockerJsonParser.cpp
+    include/logdor/GelfParser.h
+    src/GelfParser.cpp
     include/logdor/JsonLinesParser.h
     src/JsonLinesParser.cpp
     include/logdor/GeoScan.h

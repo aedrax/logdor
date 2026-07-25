@@ -3,6 +3,7 @@
 #include "logdor/ClfParser.h"
 #include "logdor/DockerJsonParser.h"
 #include "logdor/FileSource.h"
+#include "logdor/GelfParser.h"
 #include "logdor/JsonLinesParser.h"
 #include "logdor/LineIndex.h"
 #include "logdor/LogcatParser.h"
@@ -20,6 +21,7 @@ QList<std::shared_ptr<const FormatParser>> builtinParsers()
         // The specific JSON shapes go before the generic one: list order is
         // the stable-sort tiebreak in detectFormat.
         std::make_shared<const DockerJsonParser>(),
+        std::make_shared<const GelfParser>(),
         std::make_shared<const JsonLinesParser>(),
         std::make_shared<const PlainTextParser>(),
     };

@@ -36,7 +36,7 @@ Logdor is split into two layers:
   ~4 bytes/line), cancellable background index building (`buildLineIndex`),
   format parsers (`FormatParser`: plaintext, Android logcat, Apache CLF,
   JSON Lines (`journalctl -o json`, pino/bunyan-style app logs),
-  Docker `json-file` container logs,
+  Docker `json-file` container logs, GELF (Graylog Extended Log Format),
   plus user-writable **declarative JSON format specs** - drop a `.json` into
   `~/.local/share/logdor/formats` to parse a new format without compiling;
   bundled specs cover syslog in both the traditional RFC 3164 and modern

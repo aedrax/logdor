@@ -54,6 +54,7 @@ private slots:
         QVERIFY(parserById(u"logcat"));
         QVERIFY(parserById(u"clf"));
         QVERIFY(parserById(u"docker-json"));
+        QVERIFY(parserById(u"gelf"));
         QVERIFY(!parserById(u"nope"));
         // Fresh instances per call, identity by id.
         QVERIFY(parserById(u"logcat").get() != parserById(u"logcat").get());

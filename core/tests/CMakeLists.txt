@@ -21,6 +21,7 @@ set(LOGDOR_CORE_TESTS
     jsonlinesparser
     timestampparse
     dockerjsonparser
+    gelfparser
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
