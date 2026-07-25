@@ -2,6 +2,7 @@
 
 #include "annotationdialog.h"
 #include "annotationhub.h"
+#include "histogramstrip.h"
 #include "timesettings.h"
 
 #include <QFontMetrics>
@@ -24,9 +25,13 @@ LogViewerWidget::LogViewerWidget(QWidget* parent)
     , m_statusStrip(new QLabel(this))
     , m_model(new LogTableModel(this))
 {
+    m_histogramStrip = new HistogramStrip(this);
+    m_histogramStrip->hide();
+
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
+    layout->addWidget(m_histogramStrip);
     layout->addWidget(m_view);
     layout->addWidget(m_statusStrip);
 
@@ -62,6 +67,34 @@ LogViewerWidget::LogViewerWidget(QWidget* parent)
             this, &LogViewerWidget::onExtractFinished);
     connect(&m_sortWatcher, &QFutureWatcherBase::finished,
             this, &LogViewerWidget::onSortFinished);
+    connect(&m_histogramWatcher, &QFutureWatcherBase::finished, this, [this]() {
+        if (m_histogramWatcher.future().isCanceled())
+            return;
+        m_histogramStrip->setHistogram(m_histogramWatcher.result());
+    });
+    connect(m_histogramStrip, &HistogramStrip::timeRangeSelected,
+            this, &LogViewerWidget::timeRangeRequested);
+    connect(m_histogramStrip, &HistogramStrip::timeClicked, this,
+            [this](qint64 utcMs) {
+                // Jump to the first visible row at or past the clicked time.
+                const int column = histogramTimeColumn();
+                const auto data = column >= 0 ? m_columnCache.column(column)
+                                              : nullptr;
+                if (!data || m_model->hasRowOrder()
+                    || (m_index && data->lineCount() != m_index->lineCount()))
+                    return;
+                const auto& rows = m_model->rowSet();
+                for (qint64 row = 0; row < rows.size(); ++row) {
+                    qint64 ms = 0;
+                    if (data->intAt(rows.sourceLine(row), &ms) && ms >= utcMs) {
+                        const QModelIndex target = m_model->index(int(row), 0);
+                        m_view->scrollTo(target,
+                                         QAbstractItemView::PositionAtCenter);
+                        m_view->selectRow(int(row));
+                        return;
+                    }
+                }
+            });
 
     // Extracted timestamp epochs depend on the assumed zone: rebuild them
     // and re-apply the filter (the scan landing re-sorts if sorted).
@@ -113,8 +146,14 @@ void LogViewerWidget::setCoreSource(std::shared_ptr<FileSource> source,
     m_syncing = true;
     m_model->setSource(m_source, m_index, m_parser);
     m_syncing = false;
+    m_histogramAfterExtract = false;
+    m_histogramWatcher.cancel();
+    m_histogramStrip->clearHistogram();
+    m_histogramStrip->clearBrush();
     if (m_source && m_index && !m_lastOptions.query.isEmpty())
         applyFilter(m_lastOptions);
+    else
+        refreshHistogram();
 }
 
 void LogViewerWidget::extendCoreSource(std::shared_ptr<FileSource> source,
@@ -160,6 +199,7 @@ void LogViewerWidget::extendCoreSource(std::shared_ptr<FileSource> source,
         m_syncing = false;
         if (m_pinnedForExtend)
             m_view->scrollToBottom();
+        refreshHistogram();
         return;
     }
 
@@ -213,6 +253,57 @@ void LogViewerWidget::configureColumns()
     }
 }
 
+int LogViewerWidget::histogramTimeColumn() const
+{
+    if (!m_parser)
+        return -1;
+    const auto schema = m_parser->schema();
+    for (int i = 0; i < schema.size(); ++i) {
+        if (schema[i].hint == FieldHint::Timestamp)
+            return i;
+    }
+    for (int i = 0; i < schema.size(); ++i) {
+        if (schema[i].type == FieldType::DateTime)
+            return i;
+    }
+    return -1;
+}
+
+void LogViewerWidget::setHistogramVisible(bool visible)
+{
+    m_histogramStrip->setVisible(visible);
+    if (visible)
+        refreshHistogram();
+    else
+        m_histogramWatcher.cancel();
+}
+
+void LogViewerWidget::refreshHistogram()
+{
+    if (!m_histogramStrip->isVisibleTo(this) || !m_source || !m_index
+        || !m_parser)
+        return;
+    const int column = histogramTimeColumn();
+    if (column < 0) {
+        m_histogramStrip->clearHistogram(); // renders "No timestamps"
+        return;
+    }
+    const bool wantSeverity = m_parser->colorsBySeverity();
+    if (m_extractWatcher.isRunning()) {
+        // Don't fight an extraction already in flight; rebucket after it.
+        m_histogramAfterExtract = true;
+        return;
+    }
+    if (ensureColumns({ column }, wantSeverity)) {
+        m_histogramAfterExtract = true;
+        return; // continues in onExtractFinished
+    }
+    m_histogramWatcher.cancel();
+    m_histogramWatcher.setFuture(scanHistogram(
+        m_model->rowSet(), m_columnCache.column(column),
+        wantSeverity ? m_columnCache.severity() : nullptr));
+}
+
 void LogViewerWidget::showStatusStrip(const QString& message)
 {
     m_statusStrip->setText(message);
@@ -235,6 +326,14 @@ void LogViewerWidget::onContextMenuRequested(const QPoint& pos)
     QMenu menu(this);
     const QModelIndex clicked = m_view->indexAt(pos);
     addFilterActions(&menu, clicked);
+
+    if (!menu.isEmpty())
+        menu.addSeparator();
+    QAction* timelineAction = menu.addAction(tr("Show Timeline"));
+    timelineAction->setCheckable(true);
+    timelineAction->setChecked(m_histogramStrip->isVisibleTo(this));
+    connect(timelineAction, &QAction::triggered, this,
+            [this](bool on) { setHistogramVisible(on); });
 
     if (m_annotationHub && m_annotationHub->hasFile()) {
         if (!menu.isEmpty())
@@ -424,8 +523,19 @@ void LogViewerWidget::setLineConstraint(
 
 bool LogViewerWidget::ensureColumns(const QList<int>& columns, bool needsSeverity)
 {
-    const QList<int> missing = m_columnCache.missing(columns);
-    const bool severityMissing = needsSeverity && !m_columnCache.hasSeverity();
+    // A cached column shorter than the index is stale - the file grew via a
+    // passthrough extend that doesn't splice the cache. Re-extract it in
+    // full rather than read past its end.
+    QList<int> missing;
+    for (int col : columns) {
+        const auto cached = m_columnCache.column(col);
+        if (!cached || cached->lineCount() != m_index->lineCount())
+            missing.append(col);
+    }
+    const bool severityMissing = needsSeverity
+        && !(m_columnCache.hasSeverity()
+             && qint64(m_columnCache.severity()->size())
+                 == m_index->lineCount());
     if (missing.isEmpty() && !severityMissing)
         return false;
     m_extractWatcher.cancel();
@@ -476,6 +586,10 @@ void LogViewerWidget::onExtractFinished()
         m_sortAfterExtract = false;
         startSort();
     }
+    if (m_histogramAfterExtract) {
+        m_histogramAfterExtract = false;
+        refreshHistogram();
+    }
 }
 
 void LogViewerWidget::startTailScan(qint64 spliceLine)
@@ -512,6 +626,7 @@ void LogViewerWidget::finishTailScan(qint64 spliceLine,
     m_syncing = false;
     if (m_pinnedForExtend)
         m_view->scrollToBottom();
+    refreshHistogram();
 }
 
 void LogViewerWidget::startScan()
@@ -587,6 +702,7 @@ void LogViewerWidget::onScanFinished()
         applyPendingScroll();
     }
 
+    refreshHistogram();
     emit filterApplied(result.matchCount, result.elapsedMs);
 }
 

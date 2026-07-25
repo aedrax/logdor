@@ -79,6 +79,8 @@ CustomFormatViewer::CustomFormatViewer(QObject* parent)
             });
     connect(m_viewer, &LogViewerWidget::filterTermRequested,
             this, &PluginInterface::filterTermRequested);
+    connect(m_viewer, &LogViewerWidget::timeRangeRequested,
+            this, &PluginInterface::timeRangeRequested);
 
     QSettings settings("Logdor", "Logdor");
     m_patternEdit->setText(

@@ -15,6 +15,8 @@ CsvViewer::CsvViewer(QObject* parent)
             });
     connect(m_viewer, &LogViewerWidget::filterTermRequested,
             this, &PluginInterface::filterTermRequested);
+    connect(m_viewer, &LogViewerWidget::timeRangeRequested,
+            this, &PluginInterface::timeRangeRequested);
 }
 
 CsvViewer::~CsvViewer()

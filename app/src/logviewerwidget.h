@@ -6,6 +6,7 @@
 
 #include <logdor/ColumnScan.h>
 #include <logdor/FilterScan.h>
+#include <logdor/HistogramScan.h>
 #include <logdor/SortScan.h>
 
 #include <QFutureWatcher>
@@ -14,6 +15,7 @@
 
 #include <optional>
 
+class HistogramStrip;
 class QLabel;
 class QMenu;
 class QTableView;
@@ -87,6 +89,9 @@ signals:
     void linesSelected(const QList<int>& sourceLines);
     /// Ask the shell to add @p term to the filter bar as a field query.
     void filterTermRequested(const QString& term);
+    /// A histogram brush: restrict the filter to this UTC range; (0, 0)
+    /// clears it (PluginInterface::timeRangeRequested semantics).
+    void timeRangeRequested(qint64 fromUtcMs, qint64 toUtcMs);
     void filterApplied(qint64 matchCount, qint64 elapsedMs);
     void queryError(const QString& message, int position);
 
@@ -120,11 +125,17 @@ private:
     bool ensureColumns(const QList<int>& columns, bool needsSeverity);
     void restoreSelectionSilently();
     void configureColumns();
+    void setHistogramVisible(bool visible);
+    // Re-bucket the strip for the current row set (no-op while hidden);
+    // extracts the time column (and severity) on first use.
+    void refreshHistogram();
+    int histogramTimeColumn() const;
     void showStatusStrip(const QString& message);
     void clearSortIndicator();
 
     QTableView* m_view = nullptr;
     QLabel* m_statusStrip = nullptr;
+    HistogramStrip* m_histogramStrip = nullptr;
     LogTableModel* m_model = nullptr;
     std::shared_ptr<logdor::FileSource> m_source;
     std::shared_ptr<const logdor::LineIndex> m_index;
@@ -133,6 +144,7 @@ private:
     QFutureWatcher<logdor::FilterScanResult> m_scanWatcher;
     QFutureWatcher<logdor::ColumnScanResult> m_extractWatcher;
     QFutureWatcher<logdor::SortResult> m_sortWatcher;
+    QFutureWatcher<logdor::HistogramResult> m_histogramWatcher;
     logdor::ColumnCache m_columnCache;
 
     FilterOptions m_lastOptions;
@@ -145,6 +157,7 @@ private:
 
     bool m_scanAfterExtract = false;
     bool m_sortAfterExtract = false;
+    bool m_histogramAfterExtract = false;
     // Follow-mode extension in flight: which splice line the pending tail
     // scan/extract serves; -1 = none. Pinned = keep the view at the bottom.
     qint64 m_tailScanSplice = -1;
