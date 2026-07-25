@@ -50,6 +50,7 @@ private slots:
     void onFocusFilterInput();
     void onIndexingProgress(int permille);
     void onIndexingFinished();
+    void onAsyncOpenFinished();
     void onFollowToggled(bool on);
     void onFollowExtended(std::shared_ptr<logdor::FileSource> source,
                           std::shared_ptr<const logdor::LineIndex> index,
@@ -82,6 +83,9 @@ private:
     void applyTimeRange(const QStringList& terms);
     void saveSettings();
     void loadSettings();
+    // Kick off buildLineIndex over m_fileSource/m_pendingFileName - the
+    // second stage of openFile (first stage may be an async decompression).
+    void startIndexingCurrentFile();
     // Per-file view state (filter + plugin states), kept for the app run so
     // cycling between files brings each one back the way it was left.
     void captureSession();
@@ -102,6 +106,8 @@ private:
     std::shared_ptr<logdor::FileSource> m_fileSource;
     std::shared_ptr<const logdor::LineIndex> m_lineIndex;
     QFutureWatcher<logdor::IndexingResult>* m_indexWatcher = nullptr;
+    // Async open (decompression) preceding indexing for .gz files.
+    QFutureWatcher<logdor::FileSource::AsyncOpenResult>* m_openWatcher = nullptr;
     QProgressDialog* m_indexProgress = nullptr;
     QString m_pendingFileName;
     QString m_currentFileName;

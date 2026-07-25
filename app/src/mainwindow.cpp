@@ -268,6 +268,14 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_indexWatcher, &QFutureWatcherBase::finished,
             this, &MainWindow::onIndexingFinished);
 
+    // Decompression stage for .gz opens; feeds the same progress dialog.
+    m_openWatcher
+        = new QFutureWatcher<logdor::FileSource::AsyncOpenResult>(this);
+    connect(m_openWatcher, &QFutureWatcherBase::progressValueChanged,
+            this, &MainWindow::onIndexingProgress);
+    connect(m_openWatcher, &QFutureWatcherBase::finished,
+            this, &MainWindow::onAsyncOpenFinished);
+
     // Annotations: one hub for all viewers, autosaved on a short debounce so
     // notes are never lost silently.
     m_annotationHub = new AnnotationHub(this);
@@ -373,6 +381,7 @@ MainWindow::MainWindow(QWidget* parent)
     m_indexProgress->setAutoReset(false);
     m_indexProgress->reset();
     connect(m_indexProgress, &QProgressDialog::canceled, this, [this]() {
+        m_openWatcher->cancel();
         m_indexWatcher->cancel();
     });
 
@@ -623,6 +632,21 @@ bool MainWindow::openFile(const QString& fileName)
     m_lineIndex.reset();
     m_fileSource.reset();
 
+    // Compressed files inflate off-thread first, then chain into the same
+    // indexing flow; failures surface from onAsyncOpenFinished().
+    if (m_openWatcher->isRunning())
+        m_openWatcher->cancel();
+    if (logdor::FileSource::isCompressedFile(fileName)) {
+        m_pendingFileName = fileName;
+        setWindowTitle(tr("Logdor - %1 (Decompressing...)")
+                           .arg(QFileInfo(fileName).fileName()));
+        m_indexProgress->setLabelText(
+            tr("Decompressing %1...").arg(QFileInfo(fileName).fileName()));
+        m_indexProgress->setValue(0);
+        m_openWatcher->setFuture(logdor::FileSource::openAsync(fileName));
+        return true;
+    }
+
     QString error;
     auto source = logdor::FileSource::open(fileName, &error);
     if (!source) {
@@ -636,17 +660,45 @@ bool MainWindow::openFile(const QString& fileName)
 
     m_fileSource = std::move(source);
     m_pendingFileName = fileName;
-    setWindowTitle(tr("Logdor - %1 (Indexing...)").arg(QFileInfo(fileName).fileName()));
-
-    m_indexProgress->setLabelText(
-        tr("Indexing %1...").arg(QFileInfo(fileName).fileName()));
-    m_indexProgress->setValue(0);
-
-    m_indexWatcher->setFuture(logdor::buildLineIndex(m_fileSource));
+    startIndexingCurrentFile();
 
     // true means "open + indexing started"; failures after this point are
     // reported asynchronously from onIndexingFinished().
     return true;
+}
+
+void MainWindow::startIndexingCurrentFile()
+{
+    setWindowTitle(tr("Logdor - %1 (Indexing...)")
+                       .arg(QFileInfo(m_pendingFileName).fileName()));
+    m_indexProgress->setLabelText(
+        tr("Indexing %1...").arg(QFileInfo(m_pendingFileName).fileName()));
+    m_indexProgress->setValue(0);
+    m_indexWatcher->setFuture(logdor::buildLineIndex(m_fileSource));
+}
+
+void MainWindow::onAsyncOpenFinished()
+{
+    if (m_openWatcher->future().isCanceled()) {
+        m_indexProgress->reset();
+        m_indexProgress->hide();
+        m_pendingFileName.clear();
+        setWindowTitle(tr("Logdor"));
+        ui->statusbar->showMessage(tr("Open cancelled"), 3000);
+        return;
+    }
+    const logdor::FileSource::AsyncOpenResult result
+        = m_openWatcher->future().result();
+    if (!result.source) {
+        m_indexProgress->reset();
+        m_indexProgress->hide();
+        m_pendingFileName.clear();
+        setWindowTitle(tr("Logdor"));
+        QMessageBox::warning(this, tr("Error"), result.error);
+        return;
+    }
+    m_fileSource = result.source;
+    startIndexingCurrentFile();
 }
 
 void MainWindow::onIndexingProgress(int permille)
@@ -672,9 +724,13 @@ void MainWindow::onIndexingFinished()
     const logdor::IndexingResult result = m_indexWatcher->future().result();
     m_lineIndex = result.index;
 
+    const char* modeName = "buffered";
+    if (m_fileSource->mode() == logdor::FileSource::Mode::Mapped)
+        modeName = "mapped";
+    else if (m_fileSource->mode() == logdor::FileSource::Mode::Decompressed)
+        modeName = "decompressed";
     qDebug() << "Indexed" << result.lineCount << "lines in" << result.elapsedMs
-             << "ms," << (m_fileSource->mode() == logdor::FileSource::Mode::Mapped
-                              ? "mapped" : "buffered");
+             << "ms," << modeName;
     ui->statusbar->showMessage(tr("Indexed %L1 lines in %2 ms")
                                    .arg(result.lineCount)
                                    .arg(result.elapsedMs),
@@ -699,10 +755,14 @@ void MainWindow::onIndexingFinished()
     if (m_folderView)
         m_folderView->setCurrentFile(fileName); // no echo: highlight only
 
-    m_followAction->setEnabled(true);
+    // Following a decompressed snapshot is meaningless - the on-disk bytes
+    // are not the displayed bytes.
+    m_followAction->setEnabled(m_fileSource->mode()
+                               != logdor::FileSource::Mode::Decompressed);
     if (m_refollowAfterLoad) {
         m_refollowAfterLoad = false;
-        m_followAction->setChecked(true); // rotation reload keeps following
+        if (m_followAction->isEnabled())
+            m_followAction->setChecked(true); // rotation reload keeps following
     }
 }
 
@@ -1013,7 +1073,10 @@ void MainWindow::restoreSession(const QString& fileName)
 
 void MainWindow::onActionOpenTriggered()
 {
-    QFileDialog fileDialog(this, tr("Open File"), QString(), tr("All Files (*)"));
+    QFileDialog fileDialog(this, tr("Open File"), QString(),
+                           tr("Log files (*.log *.txt *.json *.gz);;"
+                              "All Files (*)"));
+    fileDialog.selectNameFilter(tr("All Files (*)"));
     while (fileDialog.exec() == QDialog::Accepted
         && !openFile(fileDialog.selectedFiles().constFirst())) {
     }
