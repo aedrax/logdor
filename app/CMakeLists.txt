@@ -35,6 +35,8 @@ add_library(logdor_interface SHARED
     src/timesettings.cpp
     src/followcontroller.h
     src/followcontroller.cpp
+    src/histogramstrip.h
+    src/histogramstrip.cpp
 )
 
 target_link_libraries(logdor_interface PUBLIC
