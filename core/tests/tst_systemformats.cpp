@@ -47,9 +47,9 @@ QByteArray repeatLines(const QByteArray& line, int count)
 
 // Golden coverage for the system-log format specs shipped in core/formats
 // (syslog-rfc3164, syslog-iso, dpkg, dmesg, apt-history, apt-term,
-// cloud-init, cloud-init-output, apport, xorg, alternatives), using lines
-// captured from real Ubuntu /var/log files, plus detection checks against
-// the full parser list.
+// cloud-init, cloud-init-output, apport, xorg, alternatives, cri), using
+// lines captured from real Ubuntu /var/log files, plus detection checks
+// against the full parser list.
 class tst_SystemFormats : public QObject {
     Q_OBJECT
 
@@ -73,7 +73,7 @@ private slots:
         const QStringList required{ "syslog-rfc3164", "syslog-iso", "dpkg", "dmesg",
                                     "apt-history", "apt-term", "cloud-init",
                                     "cloud-init-output", "apport", "xorg",
-                                    "alternatives" };
+                                    "alternatives", "cri" };
         for (const QString& id : required)
             QVERIFY2(parserById(id, m_parsers), qPrintable(id));
     }
@@ -406,6 +406,35 @@ private slots:
                             "(buildd@lcy02-amd64-004)" }
             << false << int(Severity::None);
 
+        //=== cri: Time, Stream, Tag, Message ================================
+        QTest::newRow("cri-stdout-full")
+            << "cri"
+            << QByteArray("2016-10-06T00:17:09.669794202Z stdout F "
+                          "log content 1")
+            << QStringList{ "2016-10-06T00:17:09.669794202Z", "stdout", "F",
+                            "log content 1" }
+            << true << int(Severity::None);
+        QTest::newRow("cri-stderr-partial")
+            << "cri"
+            << QByteArray("2024-03-15T08:22:45.123456789+02:00 stderr P "
+                          "partial line without newline")
+            << QStringList{ "2024-03-15T08:22:45.123456789+02:00", "stderr", "P",
+                            "partial line without newline" }
+            << true << int(Severity::None);
+        QTest::newRow("cri-empty-message")
+            << "cri"
+            << QByteArray("2016-10-06T00:17:09.669794202Z stdout F ")
+            << QStringList{ "2016-10-06T00:17:09.669794202Z", "stdout", "F", "" }
+            << true << int(Severity::None);
+        QTest::newRow("cri-nonmatch-syslog-iso")
+            << "cri"
+            << QByteArray("2026-07-19T00:00:02.026813-04:00 psorensen2404 systemd[1]: "
+                          "rsyslog.service: Sent signal SIGHUP to main process 2713")
+            << QStringList{ "", "", "",
+                            "2026-07-19T00:00:02.026813-04:00 psorensen2404 systemd[1]: "
+                            "rsyslog.service: Sent signal SIGHUP to main process 2713" }
+            << false << int(Severity::None);
+
         //=== alternatives: Time, Message ====================================
         QTest::newRow("alternatives-install")
             << "alternatives"
@@ -495,6 +524,12 @@ private slots:
             << "alternatives"
             << QByteArray("update-alternatives 2026-07-07 06:43:30: run with "
                           "--install /usr/bin/rview rview /usr/bin/vim.basic 30");
+        // The message's colon makes syslog-iso match too (host=stdout,
+        // proc=F failed); CRI's higher specificity (0.95 vs 0.9) must win.
+        QTest::newRow("cri")
+            << "cri"
+            << QByteArray("2016-10-06T00:17:09.669794202Z stderr F "
+                          "E1006 00:17:09.669 pod: sync error: connection refused");
         QTest::newRow("jsonlines")
             << "jsonlines"
             << QByteArray("{\"__REALTIME_TIMESTAMP\":\"1784922714673521\",\"PRIORITY\":\"6\","
@@ -521,6 +556,8 @@ private slots:
         QTest::newRow("keyvalue") << "keyvalue" << "2026-07-01T10:00:00Z";
         QTest::newRow("logcat") << "logcat" << "07-24 06:15:02.123";
         QTest::newRow("clf") << "clf" << "24/Jul/2026:06:15:02";
+        // RFC3339Nano: iso8601 keeps the first three fractional digits.
+        QTest::newRow("cri-nano") << "cri" << "2016-10-06T00:17:09.669794202Z";
         // JsonLines declares no format; auto-detection must resolve its
         // journald-normalized ISO output.
         QTest::newRow("jsonlines-auto") << "jsonlines"

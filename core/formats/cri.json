@@ -1,0 +1,12 @@
+{
+    "id": "cri",
+    "displayName": "Kubernetes container log (CRI)",
+    "pattern": "^(?<time>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})) (?<stream>stdout|stderr) (?<tag>[FP]) ?(?<msg>.*)$",
+    "fields": [
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "iso8601" },
+        { "name": "Stream", "capture": "stream", "type": "string", "hint": "identifier" },
+        { "name": "Tag", "capture": "tag", "type": "string" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
+    ],
+    "specificity": 0.95
+}

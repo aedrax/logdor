@@ -100,9 +100,10 @@ in the Plain Text Viewer's format list. Bundled specs live in
 `core/formats/`: `syslog-rfc3164`, `syslog-iso` (modern
 rsyslog/Ubuntu 24.04+ high-precision timestamps), `dpkg`, `dmesg`,
 `keyvalue`, `apt-history`, `apt-term`, `cloud-init`,
-`cloud-init-output`, `apport`, `xorg`, and `alternatives` — all
-golden-tested against real Ubuntu `/var/log` lines in
-`core/tests/tst_systemformats.cpp`.
+`cloud-init-output`, `apport`, `xorg`, `alternatives`, and `cri`
+(Kubernetes container logs, `kubectl logs --timestamps` /
+`/var/log/containers`) — all golden-tested against real captured
+lines in `core/tests/tst_systemformats.cpp`.
 
 A `datetime` field may declare `"timeFormat"` — `"iso8601"`,
 `"epoch-s"`/`"epoch-ms"`/`"epoch-us"`, `"uptime"` (monotonic seconds
