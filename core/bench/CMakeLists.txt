@@ -14,6 +14,9 @@ target_link_libraries(bench_query PRIVATE Logdor::Core)
 add_executable(bench_merge bench_merge.cpp)
 target_link_libraries(bench_merge PRIVATE Logdor::Core)
 
+add_executable(bench_tail bench_tail.cpp)
+target_link_libraries(bench_tail PRIVATE Logdor::Core)
+
 set(BENCH_DATA ${CMAKE_BINARY_DIR}/bench-data)
 
 add_test(NAME bench.generate_1g
@@ -50,6 +53,15 @@ add_test(NAME bench.filter_regex_1g
 set_tests_properties(bench.filter_1g bench.filter_regex_1g PROPERTIES
     FIXTURES_REQUIRED benchdata_1g LABELS "bench" TIMEOUT 600)
 
+# Follow-mode growth tick: 8 ticks of +64 KiB on ~10M lines (measured
+# 2026-07: worst extend 38 ms - dominated by the copy-on-extend index copy -
+# and sub-ms tail scan). Must sit far below the 1 s poll interval.
+add_test(NAME bench.tail_1g
+    COMMAND bench_tail ${BENCH_DATA}/plain-1g.log --append-bytes 64K
+            --iterations 8 --max-extend-ms 200 --max-scan-ms 100)
+set_tests_properties(bench.tail_1g PROPERTIES
+    FIXTURES_REQUIRED benchdata_1g LABELS "bench" TIMEOUT 600)
+
 add_test(NAME bench.generate_logcat_1g
     COMMAND loggen --format logcat --bytes 1G --seed 44
             --out ${BENCH_DATA}/logcat-1g.log)
@@ -72,7 +84,7 @@ set_tests_properties(bench.merge_2x1g PROPERTIES
 
 if(NOT LOGDOR_ENABLE_BENCH)
     set_tests_properties(bench.generate_1g bench.index_1g
-        bench.filter_1g bench.filter_regex_1g
+        bench.filter_1g bench.filter_regex_1g bench.tail_1g
         bench.generate_logcat_1g bench.query_1g bench.merge_2x1g
         PROPERTIES DISABLED TRUE)
 endif()

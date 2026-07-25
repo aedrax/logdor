@@ -174,6 +174,8 @@ int main(int argc, char** argv)
         { "long-line-every", "Every Nth line is a long line (0 = never)", "n", "0" },
         { "long-line-bytes", "Length of long lines", "n", "65536" },
         { "empty-line-every", "Every Nth line is empty (0 = never)", "n", "0" },
+        { "append", "Append this many bytes of new lines to --out instead of "
+                    "regenerating it (follow-mode testing)", "n" },
         { "out", "Output file (required)", "file" },
     });
     parser.process(app);
@@ -188,6 +190,17 @@ int main(int argc, char** argv)
     const qint64 emptyEvery = parser.value("empty-line-every").toLongLong();
     const bool crlf = parser.isSet("crlf");
 
+    const bool appendMode = parser.isSet("append");
+    qint64 appendBytes = 0;
+    if (appendMode) {
+        bool okAppend = false;
+        appendBytes = parseBytes(parser.value("append"), &okAppend);
+        if (!okAppend || appendBytes <= 0) {
+            std::fprintf(stderr, "loggen: invalid --append size\n");
+            return 2;
+        }
+    }
+
     if (outPath.isEmpty() || !okBytes || !okSeed || targetBytes <= 0) {
         std::fprintf(stderr, "loggen: --out and a valid --bytes are required\n");
         return 2;
@@ -198,8 +211,9 @@ int main(int argc, char** argv)
     }
 
     // Idempotent: generation is deterministic, so an existing file at or past
-    // the target size is the file we would produce.
-    if (QFileInfo::exists(outPath) && QFileInfo(outPath).size() >= targetBytes) {
+    // the target size is the file we would produce. Append mode always writes.
+    if (!appendMode && QFileInfo::exists(outPath)
+        && QFileInfo(outPath).size() >= targetBytes) {
         std::printf("loggen: %s already exists (%lld bytes), skipping\n",
                     qPrintable(outPath), (long long)QFileInfo(outPath).size());
         return 0;
@@ -207,7 +221,8 @@ int main(int argc, char** argv)
 
     QFileInfo(outPath).dir().mkpath(".");
     QFile out(outPath);
-    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    if (!out.open(appendMode ? (QIODevice::WriteOnly | QIODevice::Append)
+                             : (QIODevice::WriteOnly | QIODevice::Truncate))) {
         std::fprintf(stderr, "loggen: cannot open %s: %s\n",
                      qPrintable(outPath), qPrintable(out.errorString()));
         return 1;
@@ -218,9 +233,10 @@ int main(int argc, char** argv)
     QByteArray buffer;
     buffer.reserve(kFlushThreshold + 2 * 1024 * 1024);
 
+    const qint64 stopAt = appendMode ? appendBytes : targetBytes;
     qint64 written = 0;
     qint64 lineNo = 0;
-    while (written + buffer.size() < targetBytes) {
+    while (written + buffer.size() < stopAt) {
         ++lineNo;
         if (emptyEvery > 0 && lineNo % emptyEvery == 0) {
             // empty line
