@@ -47,8 +47,9 @@ QByteArray repeatLines(const QByteArray& line, int count)
 
 // Golden coverage for the system-log format specs shipped in core/formats
 // (syslog-rfc3164, syslog-iso, dpkg, dmesg, apt-history, apt-term,
-// cloud-init, cloud-init-output, apport, xorg, alternatives, cri, klog),
-// using lines captured from real Ubuntu /var/log files, plus detection
+// cloud-init, cloud-init-output, apport, xorg, alternatives, cri, klog,
+// apache-error, nginx-error, s3-access, cef, leef), using lines captured
+// from real Ubuntu /var/log files or vendor documentation, plus detection
 // checks against the full parser list.
 class tst_SystemFormats : public QObject {
     Q_OBJECT
@@ -73,7 +74,8 @@ private slots:
         const QStringList required{ "syslog-rfc3164", "syslog-iso", "dpkg", "dmesg",
                                     "apt-history", "apt-term", "cloud-init",
                                     "cloud-init-output", "apport", "xorg",
-                                    "alternatives", "cri", "klog" };
+                                    "alternatives", "cri", "klog", "apache-error",
+                                    "nginx-error", "s3-access", "cef", "leef" };
         for (const QString& id : required)
             QVERIFY2(parserById(id, m_parsers), qPrintable(id));
     }
@@ -484,6 +486,175 @@ private slots:
             << QByteArray("update-alternatives: warning: forcing reinstallation")
             << QStringList{ "", "update-alternatives: warning: forcing reinstallation" }
             << false << int(Severity::None);
+
+        //=== apache-error: Time, Module, Level, PID, TID, Client, Message ===
+        // The bracket time is asctime-with-usec plus a trailing year; the
+        // capture keeps ms precision and drops weekday/year so the value fits
+        // the Rfc3164 codec (year inferred from file mtime).
+        QTest::newRow("apache-error-24-notice")
+            << "apache-error"
+            << QByteArray("[Thu Jun 27 11:55:44.569531 2024] [core:notice] "
+                          "[pid 1234:tid 5678] AH00094: Command line: '/usr/sbin/apache2'")
+            << QStringList{ "Jun 27 11:55:44.569", "core", "notice", "1234", "5678",
+                            "", "AH00094: Command line: '/usr/sbin/apache2'" }
+            << true << int(Severity::Info);
+        QTest::newRow("apache-error-24-client")
+            << "apache-error"
+            << QByteArray("[Fri Jun 28 09:02:01.123456 2024] [authz_core:error] "
+                          "[pid 77:tid 88] [client 192.0.2.9:51034] "
+                          "AH01630: client denied by server configuration: /var/www/secret")
+            << QStringList{ "Jun 28 09:02:01.123", "authz_core", "error", "77", "88",
+                            "192.0.2.9:51034",
+                            "AH01630: client denied by server configuration: /var/www/secret" }
+            << true << int(Severity::Error);
+        // Apache 2.2 shape: no module, no pid/tid, second-resolution time.
+        QTest::newRow("apache-error-22-no-module")
+            << "apache-error"
+            << QByteArray("[Thu Jun 27 11:55:44 2024] [error] [client 192.168.1.1] "
+                          "File does not exist: /var/www/favicon.ico")
+            << QStringList{ "Jun 27 11:55:44", "", "error", "", "", "192.168.1.1",
+                            "File does not exist: /var/www/favicon.ico" }
+            << true << int(Severity::Error);
+        QTest::newRow("apache-error-nonmatch")
+            << "apache-error"
+            << QByteArray("AH00558: apache2: Could not reliably determine the "
+                          "server's fully qualified domain name")
+            << QStringList{ "", "", "", "", "", "",
+                            "AH00558: apache2: Could not reliably determine the "
+                            "server's fully qualified domain name" }
+            << false << int(Severity::None);
+
+        //=== nginx-error: Time, Level, PID, TID, Connection, Message ========
+        QTest::newRow("nginx-error-conn")
+            << "nginx-error"
+            << QByteArray("2024/06/27 11:55:44 [error] 1234#5678: *90 open() "
+                          "\"/usr/share/nginx/html/favicon.ico\" failed "
+                          "(2: No such file or directory), client: 192.0.2.1, "
+                          "server: example.com, request: \"GET /favicon.ico HTTP/1.1\"")
+            << QStringList{ "2024/06/27 11:55:44", "error", "1234", "5678", "90",
+                            "open() \"/usr/share/nginx/html/favicon.ico\" failed "
+                            "(2: No such file or directory), client: 192.0.2.1, "
+                            "server: example.com, request: \"GET /favicon.ico HTTP/1.1\"" }
+            << true << int(Severity::Error);
+        QTest::newRow("nginx-error-notice-no-conn")
+            << "nginx-error"
+            << QByteArray("2024/06/27 11:55:40 [notice] 1234#1234: "
+                          "using the \"epoll\" event method")
+            << QStringList{ "2024/06/27 11:55:40", "notice", "1234", "1234", "",
+                            "using the \"epoll\" event method" }
+            << true << int(Severity::Info);
+        QTest::newRow("nginx-error-nonmatch-clf")
+            << "nginx-error"
+            << QByteArray("127.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] "
+                          "\"GET /apache_pb.gif HTTP/1.0\" 200 2326")
+            << QStringList{ "", "", "", "", "",
+                            "127.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] "
+                            "\"GET /apache_pb.gif HTTP/1.0\" 200 2326" }
+            << false << int(Severity::None);
+
+        //=== s3-access: 18 classic fields + Extra (post-2019 tail) ==========
+        // The AWS documentation example line, with the newer trailing fields
+        // lumped into Extra so pre-2019 lines still match.
+        QTest::newRow("s3-access-full-2019")
+            << "s3-access"
+            << QByteArray("79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be "
+                          "awsexamplebucket1 [06/Feb/2019:00:00:38 +0000] 192.0.2.3 "
+                          "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be "
+                          "3E57427F3EXAMPLE REST.GET.VERSIONING - "
+                          "\"GET /awsexamplebucket1?versioning HTTP/1.1\" 200 - 113 - 7 - \"-\" "
+                          "\"S3Console/0.4\" - "
+                          "s9lzHYrFp76ZVxRcpX9+5cjAnEH2ROuNkd2BHfIa6UkFVdtjf5mKR3/eTPFvsiP/XV/VLi31234= "
+                          "SigV2 ECDHE-RSA-AES128-GCM-SHA256 AuthHeader "
+                          "awsexamplebucket1.s3.us-west-1.amazonaws.com TLSV1.1 -")
+            << QStringList{ "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be",
+                            "awsexamplebucket1", "06/Feb/2019:00:00:38 +0000", "192.0.2.3",
+                            "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be",
+                            "3E57427F3EXAMPLE", "REST.GET.VERSIONING", "-",
+                            "GET /awsexamplebucket1?versioning HTTP/1.1", "200", "-",
+                            "113", "-", "7", "-", "-", "S3Console/0.4", "-",
+                            "s9lzHYrFp76ZVxRcpX9+5cjAnEH2ROuNkd2BHfIa6UkFVdtjf5mKR3/eTPFvsiP/XV/VLi31234= "
+                            "SigV2 ECDHE-RSA-AES128-GCM-SHA256 AuthHeader "
+                            "awsexamplebucket1.s3.us-west-1.amazonaws.com TLSV1.1 -" }
+            << true << int(Severity::None);
+        QTest::newRow("s3-access-legacy-18-field")
+            << "s3-access"
+            << QByteArray("79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be "
+                          "awsexamplebucket1 [06/Feb/2019:00:00:38 +0000] 192.0.2.3 "
+                          "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be "
+                          "891CE47D2EXAMPLE REST.GET.LOGGING_STATUS - "
+                          "\"GET /awsexamplebucket1?logging HTTP/1.1\" 200 - 242 - 11 - \"-\" "
+                          "\"S3Console/0.4\" -")
+            << QStringList{ "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be",
+                            "awsexamplebucket1", "06/Feb/2019:00:00:38 +0000", "192.0.2.3",
+                            "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be",
+                            "891CE47D2EXAMPLE", "REST.GET.LOGGING_STATUS", "-",
+                            "GET /awsexamplebucket1?logging HTTP/1.1", "200", "-",
+                            "242", "-", "11", "-", "-", "S3Console/0.4", "-", "" }
+            << true << int(Severity::None);
+        // Combined-format web logs have three tokens before the bracket, S3
+        // exactly two - the differentiator that keeps clf and s3-access apart.
+        QTest::newRow("s3-access-nonmatch-clf")
+            << "s3-access"
+            << QByteArray("127.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] "
+                          "\"GET /apache_pb.gif HTTP/1.0\" 200 2326 "
+                          "\"http://www.example.com/start.html\" \"Mozilla/4.08 [en] (Win98; I ;Nav)\"")
+            << QStringList{ "", "", "", "", "", "", "", "",
+                            "127.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] "
+                            "\"GET /apache_pb.gif HTTP/1.0\" 200 2326 "
+                            "\"http://www.example.com/start.html\" \"Mozilla/4.08 [en] (Win98; I ;Nav)\"",
+                            "", "", "", "", "", "", "", "", "", "" }
+            << false << int(Severity::None);
+
+        //=== cef: Time, Host, CEF Version, Vendor, Product, Product Version,
+        //         Signature ID, Name, Severity, Extensions ==================
+        QTest::newRow("cef-syslog-prefixed")
+            << "cef"
+            << QByteArray("Sep 19 08:26:10 zurich CEF:0|security|threatmanager|1.0|100|"
+                          "worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232")
+            << QStringList{ "Sep 19 08:26:10", "zurich", "0", "security",
+                            "threatmanager", "1.0", "100", "worm successfully stopped",
+                            "10", "src=10.0.0.1 dst=2.1.2.2 spt=1232" }
+            << true << int(Severity::Fatal);
+        // Escaped pipes in header values are kept raw (\| is not unescaped).
+        QTest::newRow("cef-bare-escaped-pipe")
+            << "cef"
+            << QByteArray("CEF:0|Vendor|Product|1.0|42|detected a threat \\| escaped|Low|"
+                          "msg=hello")
+            << QStringList{ "", "", "0", "Vendor", "Product", "1.0", "42",
+                            "detected a threat \\| escaped", "Low", "msg=hello" }
+            << true << int(Severity::Info);
+        QTest::newRow("cef-nonmatch-syslog")
+            << "cef"
+            << QByteArray("Jul 24 14:30:01 ubuntu-server CRON[12345]: (root) CMD (true)")
+            << QStringList{ "", "", "", "", "", "", "", "", "",
+                            "Jul 24 14:30:01 ubuntu-server CRON[12345]: (root) CMD (true)" }
+            << false << int(Severity::None);
+
+        //=== leef: Time, Host, LEEF Version, Vendor, Product, Product Version,
+        //          Event ID, Delimiter, Extensions ==========================
+        // LEEF 1.0: five header pipes, tab-separated extension, no delimiter
+        // field (the optional delim group needs a short pipe-terminated token
+        // without '=', which a key=value extension never provides).
+        QTest::newRow("leef-10-tabs")
+            << "leef"
+            << QByteArray("Jan 18 11:07:53 host1 LEEF:1.0|Microsoft|MSExchange|4.0 SP1|"
+                          "15345|src=192.0.2.0\tdst=172.50.123.1\tsev=5\tcat=anomaly")
+            << QStringList{ "Jan 18 11:07:53", "host1", "1.0", "Microsoft",
+                            "MSExchange", "4.0 SP1", "15345", "",
+                            "src=192.0.2.0\tdst=172.50.123.1\tsev=5\tcat=anomaly" }
+            << true << int(Severity::None);
+        QTest::newRow("leef-20-caret-delim")
+            << "leef"
+            << QByteArray("LEEF:2.0|Lancope|StealthWatch|1.0|41|^|src=10.0.1.8^dst=10.0.0.5")
+            << QStringList{ "", "", "2.0", "Lancope", "StealthWatch", "1.0", "41",
+                            "^", "src=10.0.1.8^dst=10.0.0.5" }
+            << true << int(Severity::None);
+        QTest::newRow("leef-nonmatch")
+            << "leef"
+            << QByteArray("Jul 24 14:30:01 ubuntu-server CRON[12345]: (root) CMD (true)")
+            << QStringList{ "", "", "", "", "", "", "", "",
+                            "Jul 24 14:30:01 ubuntu-server CRON[12345]: (root) CMD (true)" }
+            << false << int(Severity::None);
     }
 
     void golden()
@@ -570,10 +741,48 @@ private slots:
             << "klog"
             << QByteArray("I0203 12:34:56.789012   12345 controller.go:123] "
                           "Starting workers of ReplicaSet controller");
+        // The syslog-iso and jsonlines rows double as the journalctl paths:
+        // `journalctl -o short-iso-precise` emits syslog-iso lines and
+        // `journalctl -o json` emits jsonlines (issue #30).
         QTest::newRow("jsonlines")
             << "jsonlines"
             << QByteArray("{\"__REALTIME_TIMESTAMP\":\"1784922714673521\",\"PRIORITY\":\"6\","
                           "\"SYSLOG_IDENTIFIER\":\"systemd\",\"MESSAGE\":\"Started ollama.service\"}");
+        QTest::newRow("apache-error")
+            << "apache-error"
+            << QByteArray("[Thu Jun 27 11:55:44.569531 2024] [core:notice] "
+                          "[pid 1234:tid 5678] AH00094: Command line: '/usr/sbin/apache2'");
+        QTest::newRow("nginx-error")
+            << "nginx-error"
+            << QByteArray("2024/06/27 11:55:44 [error] 1234#5678: *90 open() "
+                          "\"/usr/share/nginx/html/favicon.ico\" failed "
+                          "(2: No such file or directory), client: 192.0.2.1");
+        QTest::newRow("s3-access")
+            << "s3-access"
+            << QByteArray("79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be "
+                          "awsexamplebucket1 [06/Feb/2019:00:00:38 +0000] 192.0.2.3 "
+                          "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be "
+                          "3E57427F3EXAMPLE REST.GET.VERSIONING - "
+                          "\"GET /awsexamplebucket1?versioning HTTP/1.1\" 200 - 113 - 7 - \"-\" "
+                          "\"S3Console/0.4\" -");
+        // Syslog-prefixed CEF/LEEF lines fully match the syslog specs too
+        // (proc=CEF/LEEF); the 0.95 specificity must out-score them.
+        QTest::newRow("cef")
+            << "cef"
+            << QByteArray("Sep 19 08:26:10 zurich CEF:0|security|threatmanager|1.0|100|"
+                          "worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232");
+        QTest::newRow("leef")
+            << "leef"
+            << QByteArray("Jan 18 11:07:53 host1 LEEF:1.0|Microsoft|MSExchange|4.0 SP1|"
+                          "15345|src=192.0.2.0\tdst=172.50.123.1\tsev=5\tcat=anomaly");
+        // nginx access logs in the default "combined" format are byte-
+        // compatible with Apache combined - the clf builtin owns them
+        // (issue #38 needs no nginx-access spec).
+        QTest::newRow("nginx-access-combined-is-clf")
+            << "clf"
+            << QByteArray("192.0.2.1 - - [27/Jun/2024:11:55:44 +0000] "
+                          "\"GET /index.html HTTP/1.1\" 200 612 \"-\" "
+                          "\"Mozilla/5.0 (X11; Linux x86_64)\"");
     }
 
     void timestampCodecs_data()
@@ -604,6 +813,14 @@ private slots:
         // journald-normalized ISO output.
         QTest::newRow("jsonlines-auto") << "jsonlines"
                                         << "2026-07-24T06:15:02.123Z";
+        // Declared Rfc3164 kind tolerates the ms fraction the capture keeps.
+        QTest::newRow("apache-error") << "apache-error" << "Jun 27 11:55:44.569";
+        QTest::newRow("nginx-error") << "nginx-error" << "2024/06/27 11:55:44";
+        // The Clf kind consumes the trailing zone offset inside the capture.
+        QTest::newRow("s3-access") << "s3-access" << "06/Feb/2019:00:00:38 +0000";
+        // CEF/LEEF declare no format; detection resolves the syslog prefix.
+        QTest::newRow("cef-auto") << "cef" << "Sep 19 08:26:10";
+        QTest::newRow("leef-auto") << "leef" << "Jan 18 11:07:53";
     }
 
     // Every bundled timestamp field must yield a codec (declared format or

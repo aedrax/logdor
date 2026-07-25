@@ -1,0 +1,23 @@
+{
+    "id": "nginx-error",
+    "displayName": "nginx error log",
+    "pattern": "^(?<time>\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2}) \\[(?<level>[a-z]+)\\] (?<pid>\\d+)#(?<tid>\\d+): (?:\\*(?<conn>\\d+) )?(?<msg>.*)$",
+    "fields": [
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "yyyy/MM/dd HH:mm:ss" },
+        { "name": "Level", "capture": "level", "type": "string", "hint": "severityname" },
+        { "name": "PID", "capture": "pid", "type": "integer", "hint": "numeric" },
+        { "name": "TID", "capture": "tid", "type": "integer", "hint": "numeric" },
+        { "name": "Connection", "capture": "conn", "type": "integer", "hint": "numeric" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
+    ],
+    "severity": {
+        "capture": "level",
+        "map": {
+            "emerg": "fatal", "alert": "fatal", "crit": "fatal",
+            "error": "error", "warn": "warning", "notice": "info",
+            "info": "info", "debug": "debug"
+        },
+        "default": "none"
+    },
+    "specificity": 0.95
+}

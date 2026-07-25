@@ -1,0 +1,29 @@
+{
+    "id": "cef",
+    "displayName": "CEF (ArcSight Common Event Format)",
+    "pattern": "^(?:(?<time>[A-Z][a-z]{2}\\s+\\d{1,2} \\d{2}:\\d{2}:\\d{2}|\\d{4}-\\d{2}-\\d{2}T[\\d:.]+(?:Z|[+-]\\d{2}:?\\d{2})?) (?<host>\\S+) (?:(?<proc>\\S+?(?:\\[\\d+\\])?): )?)?CEF:(?<cefver>\\d+)\\|(?<vendor>(?:\\\\.|[^|\\\\])*)\\|(?<product>(?:\\\\.|[^|\\\\])*)\\|(?<pver>(?:\\\\.|[^|\\\\])*)\\|(?<sig>(?:\\\\.|[^|\\\\])*)\\|(?<name>(?:\\\\.|[^|\\\\])*)\\|(?<sev>[^|]*)\\|(?<ext>.*)$",
+    "fields": [
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp" },
+        { "name": "Host", "capture": "host", "type": "string", "hint": "identifier" },
+        { "name": "CEF Version", "capture": "cefver", "type": "integer" },
+        { "name": "Vendor", "capture": "vendor", "type": "string", "hint": "identifier" },
+        { "name": "Product", "capture": "product", "type": "string", "hint": "identifier" },
+        { "name": "Product Version", "capture": "pver", "type": "string" },
+        { "name": "Signature ID", "capture": "sig", "type": "string", "hint": "identifier" },
+        { "name": "Name", "capture": "name", "type": "string" },
+        { "name": "Severity", "capture": "sev", "type": "string", "hint": "severityname" },
+        { "name": "Extensions", "capture": "ext", "type": "string", "hint": "message" }
+    ],
+    "severity": {
+        "capture": "sev",
+        "map": {
+            "0": "info", "1": "info", "2": "info", "3": "info",
+            "4": "warning", "5": "warning", "6": "warning",
+            "7": "error", "8": "error", "9": "fatal", "10": "fatal",
+            "low": "info", "medium": "warning", "high": "error",
+            "very-high": "fatal", "very high": "fatal", "unknown": "none"
+        },
+        "default": "none"
+    },
+    "specificity": 0.95
+}

@@ -1,0 +1,27 @@
+{
+    "id": "apache-error",
+    "displayName": "Apache error log",
+    "pattern": "^\\[[A-Z][a-z]{2} (?<time>[A-Z][a-z]{2}\\s+\\d{1,2} \\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?)\\d* (\\d{4})\\] \\[(?:(?<module>[\\w.-]+):)?(?<level>[a-z]+\\d*)\\] (?:\\[pid (?<pid>\\d+)(?::tid (?<tid>\\d+))?\\] )?(?:\\[client (?<client>[^\\]]+)\\] )?(?<msg>.*)$",
+    "fields": [
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "MMM d HH:mm:ss" },
+        { "name": "Module", "capture": "module", "type": "string", "hint": "identifier" },
+        { "name": "Level", "capture": "level", "type": "string", "hint": "severityname" },
+        { "name": "PID", "capture": "pid", "type": "integer", "hint": "numeric" },
+        { "name": "TID", "capture": "tid", "type": "integer", "hint": "numeric" },
+        { "name": "Client", "capture": "client", "type": "string", "hint": "identifier" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
+    ],
+    "severity": {
+        "capture": "level",
+        "map": {
+            "emerg": "fatal", "alert": "fatal", "crit": "fatal",
+            "error": "error", "warn": "warning", "notice": "info",
+            "info": "info", "debug": "debug",
+            "trace1": "verbose", "trace2": "verbose", "trace3": "verbose",
+            "trace4": "verbose", "trace5": "verbose", "trace6": "verbose",
+            "trace7": "verbose", "trace8": "verbose"
+        },
+        "default": "none"
+    },
+    "specificity": 0.95
+}

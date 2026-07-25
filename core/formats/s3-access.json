@@ -1,0 +1,27 @@
+{
+    "id": "s3-access",
+    "displayName": "Amazon S3 server access log",
+    "pattern": "^(?<owner>\\S+) (?<bucket>\\S+) \\[(?<time>\\d{1,2}/[A-Z][a-z]{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} [+-]\\d{4})\\] (?<ip>\\S+) (?<requester>\\S+) (?<reqid>\\S+) (?<operation>\\S+) (?<key>\\S+) (?:\"(?<request>[^\"]*)\"|-) (?<status>\\d{3}|-) (?<errcode>\\S+) (?<bytes>\\d+|-) (?<objsize>\\d+|-) (?<totaltime>\\d+|-) (?<turnaround>\\d+|-) (?:\"(?<referrer>[^\"]*)\"|-) (?:\"(?<agent>[^\"]*)\"|-) (?<versionid>\\S+)(?: (?<extra>.*))?$",
+    "fields": [
+        { "name": "Bucket Owner", "capture": "owner", "type": "string", "hint": "identifier" },
+        { "name": "Bucket", "capture": "bucket", "type": "string", "hint": "identifier" },
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "dd/MMM/yyyy:HH:mm:ss" },
+        { "name": "Remote IP", "capture": "ip", "type": "string", "hint": "identifier" },
+        { "name": "Requester", "capture": "requester", "type": "string", "hint": "identifier" },
+        { "name": "Request ID", "capture": "reqid", "type": "string", "hint": "identifier" },
+        { "name": "Operation", "capture": "operation", "type": "string", "hint": "identifier" },
+        { "name": "Key", "capture": "key", "type": "string" },
+        { "name": "Request-URI", "capture": "request", "type": "string", "hint": "message" },
+        { "name": "Status", "capture": "status", "type": "integer", "hint": "numeric" },
+        { "name": "Error Code", "capture": "errcode", "type": "string" },
+        { "name": "Bytes Sent", "capture": "bytes", "type": "integer", "hint": "numeric" },
+        { "name": "Object Size", "capture": "objsize", "type": "integer", "hint": "numeric" },
+        { "name": "Total Time", "capture": "totaltime", "type": "integer", "hint": "numeric" },
+        { "name": "Turn-Around Time", "capture": "turnaround", "type": "integer", "hint": "numeric" },
+        { "name": "Referrer", "capture": "referrer", "type": "string" },
+        { "name": "User-Agent", "capture": "agent", "type": "string" },
+        { "name": "Version ID", "capture": "versionid", "type": "string" },
+        { "name": "Extra", "capture": "extra", "type": "string" }
+    ],
+    "specificity": 0.95
+}
