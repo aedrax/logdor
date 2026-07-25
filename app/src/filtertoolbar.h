@@ -52,11 +52,24 @@ public:
 
     void focusInput();
 
+    /// Saved filter presets (QSettings "savedQueries").
+    struct SavedQuery {
+        QString name;
+        FilterOptions options;
+    };
+    static QList<SavedQuery> loadSavedQueries();
+    static void storeSavedQueries(const QList<SavedQuery>& queries);
+
 signals:
     void filterChanged(const FilterOptions& options);
 
 private:
     void emitFilterChanged(); // tints the input, then emits
+    void showSavedQueriesMenu();
+    void saveCurrentFilter();
+    void manageSavedQueries();
+
+    QPushButton* m_savedButton = nullptr;
 
     QLineEdit* m_input = nullptr;
     QPushButton* m_caseSensitiveButton = nullptr;

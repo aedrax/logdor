@@ -4,15 +4,21 @@
 
 #include <QCheckBox>
 #include <QDateTimeEdit>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMenu>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QSettings>
 #include <QSpinBox>
 #include <QTimer>
+#include <QVBoxLayout>
 #include <QWidgetAction>
 
 namespace {
@@ -150,6 +156,15 @@ FilterToolbar::FilterToolbar(QWidget* parent)
                 applyTimeRange({});
             });
 
+    // Saved filter presets.
+    m_savedButton = new QPushButton(tr("★"), this);
+    m_savedButton->setFlat(false);
+    m_savedButton->setFixedSize(32, 24);
+    m_savedButton->setToolTip(tr("Saved filters"));
+    layout->addWidget(m_savedButton);
+    connect(m_savedButton, &QPushButton::clicked,
+            this, &FilterToolbar::showSavedQueriesMenu);
+
     // Query mode and regex mode are mutually exclusive filter languages.
     connect(m_queryModeButton, &QPushButton::toggled, this, [this](bool on) {
         if (on)
@@ -279,6 +294,127 @@ void FilterToolbar::appendTerm(const QString& term)
         m_queryModeButton->setChecked(true);
     }
     emitFilterChanged();
+}
+
+QList<FilterToolbar::SavedQuery> FilterToolbar::loadSavedQueries()
+{
+    QSettings settings("Logdor", "Logdor");
+    QList<SavedQuery> queries;
+    const int count = settings.beginReadArray(QStringLiteral("savedQueries"));
+    for (int i = 0; i < count; ++i) {
+        settings.setArrayIndex(i);
+        SavedQuery saved;
+        saved.name = settings.value("name").toString();
+        saved.options = FilterOptions(
+            settings.value("query").toString(),
+            settings.value("before").toInt(),
+            settings.value("after").toInt(),
+            settings.value("caseSensitive").toBool() ? Qt::CaseSensitive
+                                                     : Qt::CaseInsensitive,
+            settings.value("invert").toBool(),
+            settings.value("queryMode").toBool(),
+            settings.value("regexMode").toBool());
+        if (!saved.name.isEmpty())
+            queries.append(saved);
+    }
+    settings.endArray();
+    return queries;
+}
+
+void FilterToolbar::storeSavedQueries(const QList<SavedQuery>& queries)
+{
+    QSettings settings("Logdor", "Logdor");
+    settings.remove(QStringLiteral("savedQueries"));
+    settings.beginWriteArray(QStringLiteral("savedQueries"), queries.size());
+    for (int i = 0; i < queries.size(); ++i) {
+        settings.setArrayIndex(i);
+        const SavedQuery& saved = queries[i];
+        settings.setValue("name", saved.name);
+        settings.setValue("query", saved.options.query);
+        settings.setValue("queryMode", saved.options.inQueryMode);
+        settings.setValue("regexMode", saved.options.inRegexMode);
+        settings.setValue("caseSensitive",
+                          saved.options.caseSensitivity == Qt::CaseSensitive);
+        settings.setValue("invert", saved.options.invertFilter);
+        settings.setValue("before", saved.options.contextLinesBefore);
+        settings.setValue("after", saved.options.contextLinesAfter);
+    }
+    settings.endArray();
+}
+
+void FilterToolbar::showSavedQueriesMenu()
+{
+    QMenu menu(this);
+    const QList<SavedQuery> queries = loadSavedQueries();
+    for (const SavedQuery& saved : queries) {
+        QAction* action = menu.addAction(
+            QStringLiteral("%1  —  %2").arg(saved.name, saved.options.query));
+        connect(action, &QAction::triggered, this,
+                [this, options = saved.options]() {
+                    // The no-debounce pattern: silently, then one shot.
+                    setOptionsSilently(options);
+                    m_timeRangeTerms.clear(); // a preset replaces everything
+                    emitFilterChanged();
+                });
+    }
+    if (!queries.isEmpty())
+        menu.addSeparator();
+    QAction* save = menu.addAction(tr("Save Current Filter..."));
+    save->setEnabled(!m_input->text().trimmed().isEmpty());
+    connect(save, &QAction::triggered,
+            this, &FilterToolbar::saveCurrentFilter);
+    QAction* manage = menu.addAction(tr("Manage Saved Filters..."));
+    manage->setEnabled(!queries.isEmpty());
+    connect(manage, &QAction::triggered,
+            this, &FilterToolbar::manageSavedQueries);
+    menu.exec(m_savedButton->mapToGlobal(QPoint(0, m_savedButton->height())));
+}
+
+void FilterToolbar::saveCurrentFilter()
+{
+    bool ok = false;
+    const QString name = QInputDialog::getText(
+        this, tr("Save Filter"), tr("Name:"), QLineEdit::Normal,
+        m_input->text().trimmed().left(32), &ok);
+    if (!ok || name.trimmed().isEmpty())
+        return;
+    QList<SavedQuery> queries = loadSavedQueries();
+    queries.removeIf([&name](const SavedQuery& saved) {
+        return saved.name == name.trimmed(); // same name overwrites
+    });
+    queries.append({ name.trimmed(), options() });
+    storeSavedQueries(queries);
+}
+
+void FilterToolbar::manageSavedQueries()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Saved Filters"));
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* list = new QListWidget(&dialog);
+    QList<SavedQuery> queries = loadSavedQueries();
+    for (const SavedQuery& saved : std::as_const(queries))
+        list->addItem(
+            QStringLiteral("%1  —  %2").arg(saved.name, saved.options.query));
+    layout->addWidget(list);
+    auto* removeButton = new QPushButton(tr("Remove"), &dialog);
+    connect(removeButton, &QPushButton::clicked, &dialog,
+            [list, &queries]() {
+                const int row = list->currentRow();
+                if (row < 0)
+                    return;
+                delete list->takeItem(row);
+                queries.removeAt(row);
+                storeSavedQueries(queries);
+            });
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    auto* buttonRow = new QHBoxLayout();
+    buttonRow->addWidget(removeButton);
+    buttonRow->addStretch();
+    buttonRow->addWidget(buttons);
+    layout->addLayout(buttonRow);
+    dialog.exec();
 }
 
 void FilterToolbar::focusInput()
