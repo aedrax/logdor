@@ -76,6 +76,45 @@ ColumnData ColumnData::Builder::build() &&
     return data;
 }
 
+ColumnData ColumnData::appended(const ColumnData& head, qint64 headRows,
+                                const ColumnData& tail)
+{
+    Q_ASSERT(head.m_type == tail.m_type);
+    Q_ASSERT(headRows >= 0 && headRows <= head.m_count);
+
+    ColumnData out;
+    out.m_type = head.m_type;
+    out.m_count = headRows + tail.m_count;
+    out.m_monotonicTime = head.m_monotonicTime;
+
+    if (head.m_type != FieldType::Integer) { // text lane
+        const quint64 headBlobEnd = head.m_offsets[size_t(headRows)];
+        out.m_blob.reserve(qsizetype(headBlobEnd) + tail.m_blob.size());
+        out.m_blob.append(head.m_blob.constData(), qsizetype(headBlobEnd));
+        out.m_blob.append(tail.m_blob);
+        out.m_offsets.reserve(size_t(out.m_count) + 1);
+        out.m_offsets.insert(out.m_offsets.end(), head.m_offsets.begin(),
+                             head.m_offsets.begin() + headRows + 1);
+        for (size_t k = 1; k < tail.m_offsets.size(); ++k)
+            out.m_offsets.push_back(tail.m_offsets[k] + headBlobEnd);
+    }
+    if (head.m_type != FieldType::String) { // integer lane
+        out.m_ints.reserve(size_t(out.m_count));
+        out.m_ints.insert(out.m_ints.end(), head.m_ints.begin(),
+                          head.m_ints.begin() + headRows);
+        out.m_ints.insert(out.m_ints.end(), tail.m_ints.begin(),
+                          tail.m_ints.end());
+        out.m_intValid.reserve(size_t(out.m_count));
+        out.m_intValid.insert(out.m_intValid.end(), head.m_intValid.begin(),
+                              head.m_intValid.begin() + headRows);
+        out.m_intValid.insert(out.m_intValid.end(), tail.m_intValid.begin(),
+                              tail.m_intValid.end());
+        out.m_validIntCount
+            = std::count(out.m_intValid.begin(), out.m_intValid.end(), true);
+    }
+    return out;
+}
+
 size_t ColumnData::memoryUsage() const
 {
     return size_t(m_blob.capacity()) + m_offsets.capacity() * sizeof(quint64)

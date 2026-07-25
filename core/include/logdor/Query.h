@@ -90,6 +90,16 @@ public:
     /// meaningless to compare or merge across files.
     bool isMonotonicTime() const { return m_monotonicTime; }
 
+    /**
+     * Follow-mode splice: @p head's first @p headRows rows followed by all
+     * of @p tail (an extractColumns run limited to the appended lines, which
+     * MUST have used the same codec/context as @p head). headRows is the
+     * first re-extracted line - the old line count, or one less when the old
+     * final line was unterminated and has been re-parsed into @p tail.
+     */
+    static ColumnData appended(const ColumnData& head, qint64 headRows,
+                               const ColumnData& tail);
+
     size_t memoryUsage() const;
 
 private:

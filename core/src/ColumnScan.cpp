@@ -178,15 +178,16 @@ QFuture<ColumnScanResult> extractColumns(
     std::shared_ptr<const LineIndex> index,
     std::shared_ptr<const FormatParser> parser,
     QList<int> columns, bool wantSeverity, TimeParseContext timeContext,
-    qint64 linesPerChunk)
+    qint64 linesPerChunk, qint64 firstLine)
 {
     Q_ASSERT(source && index && parser);
     Q_ASSERT(linesPerChunk > 0);
+    Q_ASSERT(firstLine >= 0);
 
     return QtConcurrent::run([source, index, parser,
                               columns = std::move(columns), wantSeverity,
-                              timeContext = std::move(timeContext),
-                              linesPerChunk](QPromise<ColumnScanResult>& promise) {
+                              timeContext = std::move(timeContext), linesPerChunk,
+                              firstLine](QPromise<ColumnScanResult>& promise) {
         QElapsedTimer timer;
         timer.start();
         promise.setProgressRange(0, 1000);
@@ -200,12 +201,13 @@ QFuture<ColumnScanResult> extractColumns(
             *source, *index, *parser, schema, columns, timeContext);
 
         const qint64 total = index->lineCount();
+        const qint64 first = std::min(firstLine, total);
         const int threads = qMax(1, QThread::idealThreadCount());
         const qint64 superChunk = linesPerChunk * threads;
         QList<ChunkShard> shards;
 
         struct Range { qint64 first, end; };
-        for (qint64 base = 0; base < total; base += superChunk) {
+        for (qint64 base = first; base < total; base += superChunk) {
             if (promise.isCanceled())
                 return;
             const qint64 superEnd = std::min(total, base + superChunk);
@@ -221,12 +223,13 @@ QFuture<ColumnScanResult> extractColumns(
                 }));
             for (auto& shard : chunkShards)
                 shards.append(std::move(shard));
-            promise.setProgressValue(int(superEnd * 1000 / std::max<qint64>(total, 1)));
+            promise.setProgressValue(int((superEnd - first) * 1000
+                                         / std::max<qint64>(total - first, 1)));
         }
 
         ColumnScanResult result = mergeShards(std::move(shards), columns,
                                               columnTypes, columnCodecs,
-                                              wantSeverity, total);
+                                              wantSeverity, total - first);
         result.elapsedMs = timer.elapsed();
         promise.setProgressValue(1000);
         promise.addResult(std::move(result));

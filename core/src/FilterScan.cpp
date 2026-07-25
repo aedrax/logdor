@@ -82,26 +82,38 @@ std::vector<qint32> expandContext(const std::vector<qint32>& matches,
 
 QFuture<FilterScanResult> scanFilter(std::shared_ptr<FileSource> source,
                                      std::shared_ptr<const LineIndex> index,
-                                     LineFilter filter, qint64 linesPerChunk)
+                                     LineFilter filter, qint64 linesPerChunk,
+                                     qint64 firstLine)
 {
     Q_ASSERT(source && index);
     Q_ASSERT(linesPerChunk > 0);
+    Q_ASSERT(firstLine >= 0);
     Q_ASSERT(!filter.fieldQuery
              || filter.columns.covers(filter.fieldQuery->referencedColumns(),
                                       filter.fieldQuery->needsSeverity()));
 
     return QtConcurrent::run([source, index, filter = std::move(filter),
-                              linesPerChunk](QPromise<FilterScanResult>& promise) {
+                              linesPerChunk,
+                              firstLine](QPromise<FilterScanResult>& promise) {
         QElapsedTimer timer;
         timer.start();
         promise.setProgressRange(0, 1000);
 
         const qint64 total = index->lineCount();
+        const qint64 first = std::min(firstLine, total);
         FilterScanResult result;
 
-        if (filter.isPassthrough() || total == 0) {
-            result.rows = RowSet::all(total);
-            result.matchCount = total;
+        if (filter.isPassthrough() || total == first) {
+            if (first == 0) {
+                result.rows = RowSet::all(total);
+            } else {
+                std::vector<qint32> tail;
+                tail.reserve(size_t(total - first));
+                for (qint64 line = first; line < total; ++line)
+                    tail.push_back(qint32(line));
+                result.rows = RowSet::fromLines(std::move(tail), total);
+            }
+            result.matchCount = total - first;
             result.elapsedMs = timer.elapsed();
             promise.setProgressValue(1000);
             promise.addResult(std::move(result));
@@ -115,7 +127,7 @@ QFuture<FilterScanResult> scanFilter(std::shared_ptr<FileSource> source,
         std::vector<qint32> matches;
 
         struct Range { qint64 first, end; };
-        for (qint64 base = 0; base < total; base += superChunk) {
+        for (qint64 base = first; base < total; base += superChunk) {
             if (promise.isCanceled())
                 return;
             const qint64 superEnd = std::min(total, base + superChunk);
@@ -133,7 +145,8 @@ QFuture<FilterScanResult> scanFilter(std::shared_ptr<FileSource> source,
                     }));
             for (const auto& v : chunkMatches)
                 matches.insert(matches.end(), v.begin(), v.end());
-            promise.setProgressValue(int(superEnd * 1000 / total));
+            promise.setProgressValue(
+                int((superEnd - first) * 1000 / (total - first)));
         }
 
         result.matchCount = qint64(matches.size());

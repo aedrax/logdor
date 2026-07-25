@@ -48,6 +48,40 @@ private slots:
         QVERIFY(set.isAll());
         QCOMPARE(set.memoryUsage(), size_t(0));
     }
+
+    void appendedGrowsPassthroughWithoutAllocation()
+    {
+        const RowSet grown = RowSet::appended(RowSet::all(5), 5, { 5, 6, 7 }, 8);
+        QVERIFY(grown.isAll());
+        QCOMPARE(grown.size(), qint64(8));
+        QCOMPARE(grown.memoryUsage(), size_t(0));
+
+        const RowSet unchanged = RowSet::appended(RowSet::all(5), 5, {}, 5);
+        QVERIFY(unchanged.isAll());
+        QCOMPARE(unchanged.size(), qint64(5));
+    }
+
+    void appendedSplicesFilteredHead()
+    {
+        // Splice at 4 keeps head rows below 4 and re-decides the rest: the
+        // unterminated-last-line case where line 4's old verdict is stale.
+        const RowSet head = RowSet::fromLines({ 1, 3, 4 }, 5);
+        const RowSet spliced = RowSet::appended(head, 4, { 6 }, 8);
+        QVERIFY(!spliced.isAll());
+        QCOMPARE(spliced.size(), qint64(3));
+        QCOMPARE(spliced.sourceLine(0), qint64(1));
+        QCOMPARE(spliced.sourceLine(1), qint64(3));
+        QCOMPARE(spliced.sourceLine(2), qint64(6));
+        QCOMPARE(spliced.lineCount(), qint64(8));
+    }
+
+    void appendedCollapsesWhenComplete()
+    {
+        const RowSet head = RowSet::fromLines({ 0, 1 }, 3); // line 2 hidden
+        const RowSet full = RowSet::appended(head, 2, { 2, 3 }, 4);
+        QVERIFY(full.isAll());
+        QCOMPARE(full.size(), qint64(4));
+    }
 };
 
 QTEST_APPLESS_MAIN(tst_RowSet)

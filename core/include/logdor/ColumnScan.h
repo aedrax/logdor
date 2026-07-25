@@ -30,6 +30,12 @@ struct ColumnScanResult {
  * parsed sample values (every chunk uses the same codec). @p timeContext
  * supplies the assumed zone and reference date for zone-less/year-less
  * formats; results are only valid for the context they were extracted with.
+ *
+ * @p firstLine > 0 extracts only [firstLine, lineCount) - follow mode's
+ * tail extract, spliced with ColumnData::appended(). Row i of the result
+ * corresponds to source line firstLine + i. Codec detection still samples
+ * from the FILE START so the tail's codec matches the head column it will
+ * be appended to.
  */
 QFuture<ColumnScanResult> extractColumns(
     std::shared_ptr<FileSource> source,
@@ -37,7 +43,8 @@ QFuture<ColumnScanResult> extractColumns(
     std::shared_ptr<const FormatParser> parser,
     QList<int> columns, bool wantSeverity,
     TimeParseContext timeContext = {},
-    qint64 linesPerChunk = kDefaultFilterChunkLines);
+    qint64 linesPerChunk = kDefaultFilterChunkLines,
+    qint64 firstLine = 0);
 
 /**
  * Per-widget cache of extracted columns for the CURRENT file. Mutated on the

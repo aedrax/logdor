@@ -340,6 +340,59 @@ private slots:
             QCOMPARE(result.rows.sourceLine(row), qint64(expected[int(row)]));
     }
 
+    void tailScanLimitsToFirstLine()
+    {
+        QTemporaryDir dir;
+        const Opened o = openContent(dir, "tail.log", mixedCorpus(40));
+        LineFilter f;
+        f.query = "ERROR"; // matches lines 0, 4, 8, ... 36
+
+        auto future = scanFilter(o.source, o.index, f, 7, /*firstLine=*/20);
+        future.waitForFinished();
+        const FilterScanResult tail = future.result();
+        QCOMPARE(tail.matchCount, qint64(5)); // 20, 24, 28, 32, 36
+        QCOMPARE(tail.rows.size(), qint64(5));
+        QCOMPARE(tail.rows.sourceLine(0), qint64(20));
+        QCOMPARE(tail.rows.sourceLine(4), qint64(36));
+    }
+
+    void tailScanContextReachesBelowFirstLine()
+    {
+        QTemporaryDir dir;
+        const Opened o = openContent(dir, "tailctx.log", mixedCorpus(40));
+        LineFilter f;
+        f.query = "ERROR";
+        f.contextBefore = 2;
+
+        auto future = scanFilter(o.source, o.index, f, 7, /*firstLine=*/20);
+        future.waitForFinished();
+        const FilterScanResult tail = future.result();
+        // First match is 20; its context reaches 18-19, which the caller
+        // may keep or drop when splicing.
+        QCOMPARE(tail.rows.sourceLine(0), qint64(18));
+        QCOMPARE(tail.rows.sourceLine(1), qint64(19));
+        QCOMPARE(tail.rows.sourceLine(2), qint64(20));
+    }
+
+    void tailScanPassthroughYieldsExactTail()
+    {
+        QTemporaryDir dir;
+        const Opened o = openContent(dir, "tailpass.log", mixedCorpus(40));
+        auto future = scanFilter(o.source, o.index, {}, 7, /*firstLine=*/35);
+        future.waitForFinished();
+        const FilterScanResult tail = future.result();
+        QCOMPARE(tail.matchCount, qint64(5));
+        QCOMPARE(tail.rows.size(), qint64(5));
+        QCOMPARE(tail.rows.sourceLine(0), qint64(35));
+        QCOMPARE(tail.rows.sourceLine(4), qint64(39));
+
+        // firstLine at (or past) the end: an empty, well-formed result.
+        auto atEnd = scanFilter(o.source, o.index, {}, 7, 40);
+        atEnd.waitForFinished();
+        QCOMPARE(atEnd.result().rows.size(), qint64(0));
+        QCOMPARE(atEnd.result().matchCount, qint64(0));
+    }
+
     void cancellationProducesNoResult()
     {
         QTemporaryDir dir;

@@ -230,6 +230,57 @@ private slots:
 
     // Uptime codecs mark the column monotonic (ms since boot, not epoch);
     // calendar codecs - declared or detected - must not.
+    void tailExtractSplicesToFullExtract()
+    {
+        // Follow mode's column path: a tail extract from firstLine spliced
+        // via ColumnData::appended() must be indistinguishable from a full
+        // re-extract - text lane, epoch lane, and detected codec included.
+        QTemporaryDir dir;
+        auto o = openContent(dir, "splice.log", logcatCorpus(200));
+        auto parser = parserById(u"logcat");
+        const QList<int> cols { LogcatParser::Time, LogcatParser::Tag,
+                                LogcatParser::Pid };
+        constexpr qint64 kFirst = 150;
+
+        auto fullFuture = extractColumns(o.source, o.index, parser, cols,
+                                         true, {}, 7);
+        fullFuture.waitForFinished();
+        const ColumnScanResult full = fullFuture.result();
+
+        auto tailFuture = extractColumns(o.source, o.index, parser, cols,
+                                         true, {}, 7, kFirst);
+        tailFuture.waitForFinished();
+        const ColumnScanResult tail = tailFuture.result();
+
+        for (int col : cols) {
+            const auto& whole = *full.columns[col];
+            const auto& part = *tail.columns[col];
+            QCOMPARE(part.lineCount(), qint64(200) - kFirst);
+
+            const ColumnData spliced
+                = ColumnData::appended(whole, kFirst, part);
+            QCOMPARE(spliced.lineCount(), whole.lineCount());
+            QCOMPARE(spliced.validIntCount(), whole.validIntCount());
+            QCOMPARE(spliced.isMonotonicTime(), whole.isMonotonicTime());
+            for (qint64 line = 0; line < whole.lineCount(); ++line) {
+                if (col != LogcatParser::Pid)
+                    QCOMPARE(spliced.stringAt(line).toByteArray(),
+                             whole.stringAt(line).toByteArray());
+                if (col != LogcatParser::Tag) {
+                    qint64 a = 0, b = 0;
+                    const bool aValid = spliced.intAt(line, &a);
+                    QCOMPARE(aValid, whole.intAt(line, &b));
+                    if (aValid)
+                        QCOMPARE(a, b);
+                }
+            }
+        }
+        QCOMPARE(qint64(tail.severity->size()), qint64(200) - kFirst);
+        for (qint64 line = kFirst; line < 200; ++line)
+            QCOMPARE((*tail.severity)[size_t(line - kFirst)],
+                     (*full.severity)[size_t(line)]);
+    }
+
     void monotonicTimeFlag()
     {
         const QByteArray uptimeSpec = "{ \"id\": \"up\", \"displayName\": \"Up\","

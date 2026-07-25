@@ -64,10 +64,17 @@ constexpr qint64 kDefaultFilterChunkLines = 256 * 1024;
  * progress, deliver to the GUI thread with a QFutureWatcher and check
  * isCanceled() before result(). Passthrough filters resolve to RowSet::all()
  * without touching the file.
+ *
+ * @p firstLine > 0 limits the scan to [firstLine, lineCount) - follow
+ * mode's tail scan after an index extension. Matches are found only there,
+ * but context expansion may still reach below firstLine; the caller splices
+ * the returned rows onto its previous RowSet. A passthrough filter yields
+ * exactly the tail lines.
  */
 QFuture<FilterScanResult> scanFilter(std::shared_ptr<FileSource> source,
                                      std::shared_ptr<const LineIndex> index,
                                      LineFilter filter,
-                                     qint64 linesPerChunk = kDefaultFilterChunkLines);
+                                     qint64 linesPerChunk = kDefaultFilterChunkLines,
+                                     qint64 firstLine = 0);
 
 } // namespace logdor

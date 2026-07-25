@@ -39,6 +39,15 @@ public:
         return set;
     }
 
+    /**
+     * Follow-mode splice: @p head's rows below @p spliceLine plus
+     * @p tailLines (ascending, all >= spliceLine) over @p newLineCount total
+     * lines. Collapses to all() when the result covers every line, so a
+     * passthrough view stays allocation-free while it grows.
+     */
+    static RowSet appended(const RowSet& head, qint64 spliceLine,
+                           std::vector<qint32> tailLines, qint64 newLineCount);
+
     bool isAll() const noexcept { return m_all; }
     qint64 size() const noexcept { return m_all ? m_lineCount : qint64(m_rows.size()); }
     qint64 lineCount() const noexcept { return m_lineCount; }
