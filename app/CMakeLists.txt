@@ -64,6 +64,8 @@ set(PROJECT_SOURCES
     src/mainwindow.cpp
     src/mainwindow.h
     src/mainwindow.ui
+    src/filtertoolbar.cpp
+    src/filtertoolbar.h
     src/pluginmanager.cpp
     src/pluginmanager.h
     resources/resources.qrc

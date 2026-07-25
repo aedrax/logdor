@@ -7,6 +7,7 @@
 #include <QPushButton>
 #include <QSettings>
 #include "annotationhub.h"
+#include "filtertoolbar.h"
 #include "pluginmanager.h"
 #include <logdor/FileSource.h>
 #include <logdor/LineIndex.h>
@@ -45,7 +46,7 @@ public:
 private slots:
     void onActionOpenTriggered();
     void onActionOpenFolderTriggered();
-    void onFilterChanged();
+    void onFilterChanged(const FilterOptions& options);
     void onFilterTermRequested(const QString& term);
     void onFocusFilterInput();
     void onIndexingProgress(int permille);
@@ -125,16 +126,8 @@ private:
     };
     QHash<QString, FileSession> m_sessions; // keyed by canonical file path
 
-    // Filter controls
-    QLineEdit* m_filterInput;
-    QPushButton* m_caseSensitiveButton;
-    QPushButton* m_invertFilterButton;
-    QPushButton* m_queryModeButton;
-    QPushButton* m_regexModeButton;
-    QSpinBox* m_beforeSpinBox;
-    QSpinBox* m_afterSpinBox;
-    QTimer* m_filterTimer;
-    QStringList m_timeRangeTerms; // @time terms injected by the range picker
+    // The shared filter bar; MainWindow only fans its options out.
+    FilterToolbar* m_filterToolbar;
 };
 
 #endif // MAINWINDOW_H

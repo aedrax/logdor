@@ -35,14 +35,7 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , m_pluginManager(new PluginManager(this))
-    , m_filterInput(new QLineEdit(this))
-    , m_caseSensitiveButton(new QPushButton(tr("Aa"), this))
-    , m_invertFilterButton(new QPushButton(tr("!"), this))
-    , m_queryModeButton(new QPushButton(tr("Q"), this))
-    , m_regexModeButton(new QPushButton(tr(".*"), this))
-    , m_beforeSpinBox(new QSpinBox(this))
-    , m_afterSpinBox(new QSpinBox(this))
-    , m_filterTimer(new QTimer(this))
+    , m_filterToolbar(new FilterToolbar(this))
     , m_pluginsMenu(nullptr)
 {
     ui->setupUi(this);
@@ -79,182 +72,17 @@ MainWindow::MainWindow(QWidget* parent)
             m_folderView->selectPrevious();
     });
 
-    // Filter toolbar. Everything lives in one plain row widget instead of
-    // individual toolbar items: QToolBar hides overflowing items behind a
-    // ">>" popup at narrow widths, while a row with a stretch guarantees the
-    // input takes every pixel the fixed controls don't need.
+    // Filter toolbar. The row widget (FilterToolbar) owns every control:
+    // QToolBar would hide overflowing individual items behind a ">>" popup
+    // at narrow widths, while one row with a stretch guarantees the input
+    // takes every pixel the fixed controls don't need.
     QToolBar* filterToolBar = addToolBar(tr("Filter"));
     filterToolBar->setObjectName("FilterToolBar"); // saveState participation
     filterToolBar->setMovable(false);
+    filterToolBar->addWidget(m_filterToolbar);
+    connect(m_filterToolbar, &FilterToolbar::filterChanged,
+            this, &MainWindow::onFilterChanged);
 
-    QWidget* filterRow = new QWidget(this);
-    filterRow->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    auto* filterRowLayout = new QHBoxLayout(filterRow);
-    filterRowLayout->setContentsMargins(4, 2, 4, 2);
-    filterRowLayout->setSpacing(4);
-
-    QLabel* filterLabel = new QLabel(tr("Filter:"), this);
-    filterRowLayout->addWidget(filterLabel);
-
-    m_filterInput->setPlaceholderText(tr("Enter filter text..."));
-    m_filterInput->setMinimumWidth(140);
-    filterRowLayout->addWidget(m_filterInput, /*stretch*/ 1);
-
-    // Configure toggle buttons
-    auto setupToggleButton = [](QPushButton* button, const QString& tooltip) {
-        button->setCheckable(true);
-        button->setFlat(false);  // Make buttons non-flat for more obvious appearance
-        button->setFixedSize(32, 24);  // Slightly larger
-        button->setToolTip(tooltip);
-        button->setStyleSheet(
-            "QPushButton {"
-            "  border: 1px solid #777777;"  // Visible border
-            "  padding: 2px;"
-            "  border-radius: 3px;"
-            "}"
-            "QPushButton:checked {"
-            "  background-color: #0e639c;"   // VSCode blue when checked
-            "  border: 1px solid #1177bb;"   // Brighter border when checked
-            "  font-weight: bold;"           // Bold text when checked
-            "}"
-            "QPushButton:hover:!checked {"
-            "  background-color: #3e3e3e;"   // Lighter background on hover
-            "  border: 1px solid #999999;"   // Lighter border on hover
-            "}"
-        );
-    };
-    
-    setupToggleButton(m_caseSensitiveButton, tr("Toggle case sensitive filtering"));
-    filterRowLayout->addWidget(m_caseSensitiveButton);
-
-    setupToggleButton(m_invertFilterButton, tr("Show lines that don't match the filter"));
-    filterRowLayout->addWidget(m_invertFilterButton);
-
-    setupToggleButton(m_regexModeButton, tr("Treat filter as a regular expression"));
-    filterRowLayout->addWidget(m_regexModeButton);
-
-    setupToggleButton(m_queryModeButton,
-                      tr("Field query mode: level:error tag:Wifi* pid>=100 \"free text\""));
-    filterRowLayout->addWidget(m_queryModeButton);
-
-    // Time-range picker: a popup with From/To datetime edits that injects
-    // @time>= / @time<= query terms - @time resolves to each viewer's own
-    // timestamp column.
-    auto* timeRangeButton = new QPushButton(tr("Time"), this);
-    timeRangeButton->setFlat(false);
-    timeRangeButton->setFixedSize(44, 24);
-    timeRangeButton->setToolTip(
-        tr("Filter by time range (adds @time terms to the query)"));
-    filterRowLayout->addWidget(timeRangeButton);
-
-    auto* timeMenu = new QMenu(this);
-    auto* timePanel = new QWidget(timeMenu);
-    auto* timeGrid = new QGridLayout(timePanel);
-    timeGrid->setContentsMargins(8, 8, 8, 8);
-    auto* fromCheck = new QCheckBox(tr("From"), timePanel);
-    auto* fromEdit = new QDateTimeEdit(timePanel);
-    auto* toCheck = new QCheckBox(tr("To"), timePanel);
-    auto* toEdit = new QDateTimeEdit(timePanel);
-    for (QDateTimeEdit* edit : { fromEdit, toEdit }) {
-        edit->setDisplayFormat(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
-        edit->setCalendarPopup(true);
-        edit->setEnabled(false);
-    }
-    connect(fromCheck, &QCheckBox::toggled, fromEdit, &QWidget::setEnabled);
-    connect(toCheck, &QCheckBox::toggled, toEdit, &QWidget::setEnabled);
-    auto* applyButton = new QPushButton(tr("Apply"), timePanel);
-    auto* clearButton = new QPushButton(tr("Clear"), timePanel);
-    timeGrid->addWidget(fromCheck, 0, 0);
-    timeGrid->addWidget(fromEdit, 0, 1);
-    timeGrid->addWidget(toCheck, 1, 0);
-    timeGrid->addWidget(toEdit, 1, 1);
-    timeGrid->addWidget(clearButton, 2, 0);
-    timeGrid->addWidget(applyButton, 2, 1);
-    auto* timeAction = new QWidgetAction(timeMenu);
-    timeAction->setDefaultWidget(timePanel);
-    timeMenu->addAction(timeAction);
-
-    connect(timeRangeButton, &QPushButton::clicked, this,
-            [this, timeMenu, timeRangeButton, fromCheck, toCheck, fromEdit,
-             toEdit]() {
-                if (!fromCheck->isChecked() && !toCheck->isChecked()) {
-                    // Fresh defaults: today so far.
-                    const QDateTime now = QDateTime::currentDateTime();
-                    fromEdit->setDateTime(QDateTime(now.date(), QTime(0, 0)));
-                    toEdit->setDateTime(now);
-                }
-                timeMenu->popup(timeRangeButton->mapToGlobal(
-                    QPoint(0, timeRangeButton->height())));
-            });
-    connect(applyButton, &QPushButton::clicked, this,
-            [this, timeMenu, fromCheck, toCheck, fromEdit, toEdit]() {
-                const QString format = QStringLiteral("yyyy-MM-dd HH:mm:ss");
-                QStringList terms;
-                if (fromCheck->isChecked())
-                    terms << QStringLiteral("@time>=")
-                            + logdor::quoteQueryValue(
-                                fromEdit->dateTime().toString(format));
-                if (toCheck->isChecked())
-                    terms << QStringLiteral("@time<=")
-                            + logdor::quoteQueryValue(
-                                toEdit->dateTime().toString(format));
-                timeMenu->hide();
-                applyTimeRange(terms);
-            });
-    connect(clearButton, &QPushButton::clicked, this,
-            [this, timeMenu, fromCheck, toCheck]() {
-                fromCheck->setChecked(false);
-                toCheck->setChecked(false);
-                timeMenu->hide();
-                applyTimeRange({});
-            });
-
-    // Query mode and regex mode are mutually exclusive filter languages.
-    connect(m_queryModeButton, &QPushButton::toggled, this, [this](bool on) {
-        if (on)
-            m_regexModeButton->setChecked(false);
-    });
-    connect(m_regexModeButton, &QPushButton::toggled, this, [this](bool on) {
-        if (on)
-            m_queryModeButton->setChecked(false);
-    });
-    
-    // Context line controls
-    filterRowLayout->addSpacing(8);
-
-    QLabel* beforeLabel = new QLabel(tr("Lines Before:"), this);
-    filterRowLayout->addWidget(beforeLabel);
-
-    // m_beforeSpinBox->setRange(0, 10);
-    m_beforeSpinBox->setValue(0);
-    m_beforeSpinBox->setToolTip(tr("Number of context lines to show before matches"));
-    filterRowLayout->addWidget(m_beforeSpinBox);
-
-    QLabel* afterLabel = new QLabel(tr("Lines After:"), this);
-    filterRowLayout->addWidget(afterLabel);
-
-    // m_afterSpinBox->setRange(0, 10);
-    m_afterSpinBox->setValue(0);
-    m_afterSpinBox->setToolTip(tr("Number of context lines to show after matches"));
-    filterRowLayout->addWidget(m_afterSpinBox);
-
-    filterToolBar->addWidget(filterRow);
-
-    // Set up filter timer with delay
-    m_filterTimer->setSingleShot(true);
-    m_filterTimer->setInterval(FILTER_DEBOUNCE_TIMEOUT_MILLISECONDS);
-    
-    // Connect filter input to timer restart
-    connect(m_filterInput, &QLineEdit::textChanged, m_filterTimer, qOverload<>(&QTimer::start));
-    connect(m_filterTimer, &QTimer::timeout, this, &MainWindow::onFilterChanged);
-    
-    // Connect spin boxes directly since they don't need debouncing
-    connect(m_beforeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
-    connect(m_afterSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onFilterChanged);
-    connect(m_caseSensitiveButton, &QPushButton::toggled, this, &MainWindow::onFilterChanged);
-    connect(m_invertFilterButton, &QPushButton::toggled, this, &MainWindow::onFilterChanged);
-    connect(m_regexModeButton, &QPushButton::toggled, this, &MainWindow::onFilterChanged);
-    connect(m_queryModeButton, &QPushButton::toggled, this, &MainWindow::onFilterChanged);
 
     // Setup Ctrl+L shortcut to focus filter input
     QShortcut* filterShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_L), this);
@@ -551,7 +379,10 @@ void MainWindow::saveSettings()
 void MainWindow::loadSettings()
 {
     QSettings settings("Logdor", "Logdor");
-    
+
+    // Versioned so future layout changes can migrate old settings.
+    settings.setValue("meta/settingsVersion", 1);
+
     // Restore window geometry and state
     if (settings.contains("geometry")) {
         restoreGeometry(settings.value("geometry").toByteArray());
@@ -1050,22 +881,7 @@ void MainWindow::restoreSession(const QString& fileName)
 
     // Write the file's filter back into the toolbar without triggering the
     // debounce; the caller's setFilter() applies it in one shot.
-    m_filterTimer->stop();
-    const QSignalBlocker blockInput(m_filterInput);
-    const QSignalBlocker blockCase(m_caseSensitiveButton);
-    const QSignalBlocker blockInvert(m_invertFilterButton);
-    const QSignalBlocker blockQuery(m_queryModeButton);
-    const QSignalBlocker blockRegex(m_regexModeButton);
-    const QSignalBlocker blockBefore(m_beforeSpinBox);
-    const QSignalBlocker blockAfter(m_afterSpinBox);
-    m_filterInput->setText(session.filter.query);
-    m_caseSensitiveButton->setChecked(session.filter.caseSensitivity
-                                      == Qt::CaseSensitive);
-    m_invertFilterButton->setChecked(session.filter.invertFilter);
-    m_queryModeButton->setChecked(session.filter.inQueryMode);
-    m_regexModeButton->setChecked(session.filter.inRegexMode);
-    m_beforeSpinBox->setValue(session.filter.contextLinesBefore);
-    m_afterSpinBox->setValue(session.filter.contextLinesAfter);
+    m_filterToolbar->setOptionsSilently(session.filter);
     m_filterOptions = session.filter;
 
     m_pluginManager->restoreViewStates(session.pluginStates);
@@ -1092,106 +908,22 @@ void MainWindow::onActionOpenFolderTriggered()
 
 void MainWindow::onFocusFilterInput()
 {
-    m_filterInput->setFocus();
-    m_filterInput->selectAll();
+    m_filterToolbar->focusInput();
 }
 
-void MainWindow::onFilterChanged()
+void MainWindow::onFilterChanged(const FilterOptions& options)
 {
-    // Tint the input by validity: regex mode validates the pattern, query
-    // mode validates syntax only (schema-aware errors surface per viewer).
-    if (m_regexModeButton->isChecked()) {
-        QRegularExpression regex(m_filterInput->text());
-        if (regex.isValid() || m_filterInput->text().isEmpty()) {
-            m_filterInput->setStyleSheet("QLineEdit { background-color: #90EE90; color: black; }"); // Light green
-        } else {
-            m_filterInput->setStyleSheet("QLineEdit { background-color: #FFB6C1; color: black; }"); // Light red
-        }
-    } else if (m_queryModeButton->isChecked() && !m_filterInput->text().isEmpty()) {
-        logdor::QueryError error;
-        const auto query = logdor::CompiledQuery::compile(
-            m_filterInput->text(), {},
-            m_caseSensitiveButton->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive,
-            logdor::QueryOption::AllowUnknownFields, &error);
-        if (query) {
-            m_filterInput->setStyleSheet("QLineEdit { background-color: #90EE90; color: black; }");
-            m_filterInput->setToolTip(QString());
-        } else {
-            m_filterInput->setStyleSheet("QLineEdit { background-color: #FFB6C1; color: black; }");
-            m_filterInput->setToolTip(error.message);
-        }
-    } else {
-        m_filterInput->setStyleSheet("");
-        m_filterInput->setToolTip(QString());
-    }
-
-    FilterOptions options(m_filterInput->text(),
-                         m_beforeSpinBox->value(),
-                         m_afterSpinBox->value(),
-                         m_caseSensitiveButton->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive,
-                         m_invertFilterButton->isChecked(),
-                         m_queryModeButton->isChecked(),
-                         m_regexModeButton->isChecked());
-
     m_filterOptions = options;
-
-    // Apply filter to all enabled plugins with context lines
     m_pluginManager->setFilter(m_filterOptions);
 }
 
 void MainWindow::applyTimeRange(const QStringList& terms)
 {
-    // Replace, never stack: strip the terms this picker injected last time,
-    // leaving anything the user typed alone.
-    QString text = m_filterInput->text();
-    for (const QString& old : std::as_const(m_timeRangeTerms)) {
-        const qsizetype at = text.indexOf(old);
-        if (at < 0)
-            continue; // the user edited it away; nothing to strip
-        qsizetype begin = at, end = at + old.size();
-        if (end < text.size() && text[end] == u' ')
-            ++end; // absorb one separator space
-        else if (begin > 0 && text[begin - 1] == u' ')
-            --begin;
-        text.remove(begin, end - begin);
-    }
-    text = text.trimmed();
-    m_timeRangeTerms = terms;
-
-    m_filterTimer->stop();
-    {
-        const QSignalBlocker blockInput(m_filterInput);
-        m_filterInput->setText(text);
-    }
-    if (terms.isEmpty())
-        onFilterChanged();
-    else
-        onFilterTermRequested(terms.join(u' '));
+    m_filterToolbar->applyTimeRange(terms);
 }
 
 void MainWindow::onFilterTermRequested(const QString& term)
 {
-    QString text = m_filterInput->text().trimmed();
-    if (m_queryModeButton->isChecked()) {
-        text = text.isEmpty() ? term : text + u' ' + term; // implicit AND
-    } else if (!m_regexModeButton->isChecked() && !text.isEmpty()) {
-        // A plain-text filter is equivalent to a quoted free-text term
-        // (raw-line substring match), so it survives the mode switch.
-        text = logdor::quoteQueryValue(text, /*forceQuote=*/true) + u' ' + term;
-    } else {
-        text = term; // empty filter, or regex (no query-language equivalent)
-    }
-
-    // Same no-debounce pattern as restoreSession(): set the widgets silently,
-    // then apply in one shot.
-    m_filterTimer->stop();
-    {
-        const QSignalBlocker blockInput(m_filterInput);
-        const QSignalBlocker blockQuery(m_queryModeButton);
-        const QSignalBlocker blockRegex(m_regexModeButton);
-        m_filterInput->setText(text);
-        m_regexModeButton->setChecked(false);
-        m_queryModeButton->setChecked(true);
-    }
-    onFilterChanged();
+    m_filterToolbar->appendTerm(term);
 }
+
