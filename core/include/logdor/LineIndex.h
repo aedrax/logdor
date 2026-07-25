@@ -92,6 +92,31 @@ public:
         return size_t(line) < m_crlf.size() && m_crlf[size_t(line)];
     }
 
+    /// True when the final line ends with '\n' (follow mode: an appended
+    /// byte then belongs to a NEW line, not to the final one).
+    bool lastLineTerminated() const noexcept { return m_lastLineTerminated; }
+
+    /**
+     * Where an incremental rescan resumes: fileSize() when the last line is
+     * terminated, else the START of the unterminated last line. Those bytes
+     * contain no '\n' by construction, so rescanning them is free of double
+     * counting - and it puts any trailing '\r' back in scan range, keeping
+     * the CRLF check whole across the old end-of-file.
+     */
+    quint64 resumeOffset() const noexcept
+    {
+        return m_count == 0 || m_lastLineTerminated ? m_fileSize
+                                                    : offsetOf(m_count - 1);
+    }
+
+    /**
+     * A copy of @p index reopened for building: finalize() is undone so
+     * addTerminator()/finalize() may append what lies past resumeOffset().
+     * The source index is untouched - concurrent readers keep their
+     * immutable snapshot (copy-on-extend, never in-place growth).
+     */
+    static LineIndex resumedFrom(const LineIndex& index);
+
     /// Bytes of heap memory held by the index structure itself.
     size_t memoryUsage() const noexcept;
 

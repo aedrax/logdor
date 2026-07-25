@@ -22,6 +22,36 @@ static QByteArray rawLine(const QByteArray& data, const LineIndex& idx, qint64 l
     return data.mid(qsizetype(idx.offsetOf(line)), idx.rawLengthOf(line));
 }
 
+// Follow-mode reference: index head alone, resume, then scan only what lies
+// past resumeOffset() of head+tail - the incremental path extendLineIndex
+// will drive.
+static LineIndex extendOf(const QByteArray& head, const QByteArray& tail)
+{
+    const LineIndex base = indexOf(head);
+    LineIndex resumed = LineIndex::resumedFrom(base);
+    const QByteArray all = head + tail;
+    for (qsizetype i = qsizetype(base.resumeOffset()); i < all.size(); ++i) {
+        if (all[i] == '\n')
+            resumed.addTerminator(quint64(i), i > 0 && all[i - 1] == '\r');
+    }
+    resumed.finalize(quint64(all.size()));
+    return resumed;
+}
+
+static void compareIndexes(const LineIndex& actual, const LineIndex& expected)
+{
+    QCOMPARE(actual.lineCount(), expected.lineCount());
+    QCOMPARE(actual.fileSize(), expected.fileSize());
+    QCOMPARE(actual.lastLineTerminated(), expected.lastLineTerminated());
+    QCOMPARE(actual.resumeOffset(), expected.resumeOffset());
+    for (qint64 line = 0; line < expected.lineCount(); ++line) {
+        QCOMPARE(actual.offsetOf(line), expected.offsetOf(line));
+        QCOMPARE(actual.rawLengthOf(line), expected.rawLengthOf(line));
+        QCOMPARE(actual.lengthOf(line), expected.lengthOf(line));
+        QCOMPARE(actual.endsWithCrLf(line), expected.endsWithCrLf(line));
+    }
+}
+
 class tst_LineIndex : public QObject {
     Q_OBJECT
 private slots:
@@ -158,6 +188,52 @@ private slots:
         const LineIndex idx = indexOf(data);
         QVERIFY(!idx.isWide());
         QCOMPARE(idx.lineCount(), 5000);
+    }
+
+    void resumeAccessors()
+    {
+        const LineIndex terminated = indexOf("a\nb\n");
+        QVERIFY(terminated.lastLineTerminated());
+        QCOMPARE(terminated.resumeOffset(), quint64(4));
+
+        const LineIndex unterminated = indexOf("a\nb");
+        QVERIFY(!unterminated.lastLineTerminated());
+        QCOMPARE(unterminated.resumeOffset(), quint64(2)); // start of "b"
+
+        const LineIndex empty = indexOf("");
+        QVERIFY(!empty.lastLineTerminated());
+        QCOMPARE(empty.resumeOffset(), quint64(0));
+
+        const LineIndex oneLine = indexOf("abc");
+        QCOMPARE(oneLine.resumeOffset(), quint64(0)); // rescan whole line
+    }
+
+    void resumedExtendMatchesFreshBuild_data()
+    {
+        QTest::addColumn<QByteArray>("head");
+        QTest::addColumn<QByteArray>("tail");
+        QTest::newRow("terminated head") << QByteArray("a\nb\n")
+                                         << QByteArray("c\nd");
+        QTest::newRow("unterminated line grows") << QByteArray("a\nHAL")
+                                                 << QByteArray("F\nmore\n");
+        QTest::newRow("crlf split at old EOF") << QByteArray("abc\r")
+                                               << QByteArray("\ndef\n");
+        QTest::newRow("empty head") << QByteArray() << QByteArray("a\r\nb");
+        QTest::newRow("zero growth terminated") << QByteArray("a\nb\n")
+                                                << QByteArray();
+        QTest::newRow("zero growth unterminated") << QByteArray("a\nb")
+                                                  << QByteArray();
+        QTest::newRow("newline-only growth") << QByteArray("tail")
+                                             << QByteArray("\n");
+        QTest::newRow("empty lines around boundary")
+            << QByteArray("\n\nx") << QByteArray("\n\n");
+    }
+
+    void resumedExtendMatchesFreshBuild()
+    {
+        QFETCH(QByteArray, head);
+        QFETCH(QByteArray, tail);
+        compareIndexes(extendOf(head, tail), indexOf(head + tail));
     }
 
     void memoryStaysCompact()

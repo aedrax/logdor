@@ -65,6 +65,19 @@ void LineIndex::finalize(quint64 fileSizeBytes)
     m_finalized = true;
 }
 
+LineIndex LineIndex::resumedFrom(const LineIndex& index)
+{
+    LineIndex resumed = index;
+    resumed.m_finalized = false;
+    if (resumed.m_lastLineTerminated) {
+        // finalize() popped the provisional start after the final '\n';
+        // restore it so the next terminator is attributed to the new line.
+        resumed.appendStart(resumed.m_fileSize);
+        resumed.m_lastLineTerminated = false;
+    }
+    return resumed;
+}
+
 void LineIndex::appendStart(quint64 offset)
 {
     if (m_wideMode) {
