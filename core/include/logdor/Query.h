@@ -85,12 +85,18 @@ public:
     /// DateTime column whose values no codec could parse.
     qint64 validIntCount() const { return m_validIntCount; }
 
+    /// True for DateTime columns whose codec is uptime-based: the integer
+    /// lane is ms since boot, not epoch - orderable within one file but
+    /// meaningless to compare or merge across files.
+    bool isMonotonicTime() const { return m_monotonicTime; }
+
     size_t memoryUsage() const;
 
 private:
     FieldType m_type = FieldType::String;
     qint64 m_count = 0;
     qint64 m_validIntCount = 0;
+    bool m_monotonicTime = false;
     QByteArray m_blob;
     std::vector<quint64> m_offsets;
     std::vector<qint64> m_ints;

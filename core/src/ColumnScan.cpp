@@ -67,12 +67,14 @@ ChunkShard scanChunk(const FileSource& source, const LineIndex& index,
 ColumnScanResult mergeShards(QList<ChunkShard>&& shards,
                              const QList<int>& columns,
                              const QList<FieldType>& columnTypes,
+                             const QList<TimestampCodec>& columnCodecs,
                              bool wantSeverity, qint64 totalLines)
 {
     ColumnScanResult result;
 
     for (int i = 0; i < columns.size(); ++i) {
-        ColumnData::Builder merged(columnTypes[i]);
+        // The codec carries the monotonic-time flag into the built column.
+        ColumnData::Builder merged(columnTypes[i], columnCodecs[i]);
         // DateTime columns carry both lanes: text blob + parsed epochs.
         if (columnTypes[i] != FieldType::String) {
             merged.ints.reserve(size_t(totalLines));
@@ -223,7 +225,8 @@ QFuture<ColumnScanResult> extractColumns(
         }
 
         ColumnScanResult result = mergeShards(std::move(shards), columns,
-                                              columnTypes, wantSeverity, total);
+                                              columnTypes, columnCodecs,
+                                              wantSeverity, total);
         result.elapsedMs = timer.elapsed();
         promise.setProgressValue(1000);
         promise.addResult(std::move(result));

@@ -64,6 +64,7 @@ ColumnData ColumnData::Builder::build() &&
     data.m_count = count();
     data.m_validIntCount
         = std::count(intValid.begin(), intValid.end(), true);
+    data.m_monotonicTime = type == FieldType::DateTime && codec.isMonotonic();
     data.m_blob = std::move(blob);
     data.m_offsets = std::move(offsets);
     data.m_ints = std::move(ints);

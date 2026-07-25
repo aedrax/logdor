@@ -1,5 +1,7 @@
 #include <logdor/ColumnScan.h>
+#include <logdor/DeclarativeParser.h>
 #include <logdor/FormatRegistry.h>
+#include <logdor/FormatSpec.h>
 #include <logdor/JsonLinesParser.h>
 #include <logdor/LineIndexer.h>
 #include <logdor/LogcatParser.h>
@@ -224,6 +226,49 @@ private slots:
         QCOMPARE(QString::fromUtf8(ts->stringAt(0)), QStringLiteral("whenever"));
         qint64 ms = 0;
         QVERIFY(!ts->intAt(0, &ms));
+    }
+
+    // Uptime codecs mark the column monotonic (ms since boot, not epoch);
+    // calendar codecs - declared or detected - must not.
+    void monotonicTimeFlag()
+    {
+        const QByteArray uptimeSpec = "{ \"id\": \"up\", \"displayName\": \"Up\","
+            " \"pattern\": \"^(?<t>[0-9.]+) (?<msg>.*)$\","
+            " \"fields\": ["
+            "   { \"name\": \"Time\", \"capture\": \"t\", \"type\": \"datetime\","
+            "     \"hint\": \"timestamp\", \"timeFormat\": \"uptime\" },"
+            "   { \"name\": \"Message\", \"capture\": \"msg\", \"type\": \"string\","
+            "     \"hint\": \"message\" } ] }";
+        auto spec = parseFormatSpec(uptimeSpec, QStringLiteral("test"));
+        QVERIFY(spec.has_value());
+        auto parser = std::make_shared<const DeclarativeParser>(std::move(*spec));
+
+        QByteArray corpus;
+        for (int i = 0; i < 50; ++i)
+            corpus += QByteArray::number(i) + ".500 boot message\n";
+        QTemporaryDir dir;
+        auto o = openContent(dir, "m.log", corpus);
+        auto future = extractColumns(o.source, o.index, parser, { 0 }, false,
+                                     { QTimeZone::utc(), 2026, 7 }, 7);
+        future.waitForFinished();
+        const auto time = future.result().columns[0];
+        QVERIFY(time);
+        QVERIFY(time->isMonotonicTime());
+        QCOMPARE(time->validIntCount(), time->lineCount());
+
+        // Calendar column (detected ISO codec) is not monotonic.
+        QByteArray isoCorpus;
+        for (int i = 0; i < 20; ++i)
+            isoCorpus += "{\"ts\":\"2026-07-01T10:00:00Z\",\"msg\":\"m\"}\n";
+        auto iso = openContent(dir, "iso.log", isoCorpus);
+        auto isoFuture = extractColumns(iso.source, iso.index,
+                                        parserById(u"jsonlines"),
+                                        { JsonLinesParser::Timestamp }, false,
+                                        { QTimeZone::utc(), 2026, 7 }, 7);
+        isoFuture.waitForFinished();
+        QVERIFY(!isoFuture.result()
+                     .columns[JsonLinesParser::Timestamp]
+                     ->isMonotonicTime());
     }
 
     void cacheSnapshotAndMissing()
