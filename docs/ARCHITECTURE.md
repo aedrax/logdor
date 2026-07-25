@@ -45,7 +45,11 @@ Nothing in the shell ever blocks on file size.
   file tree for Open Folder; hides sidecars, debounced selection-follow,
   wrap-around next/previous), `recentitems` (pure recents-list policy),
   `TimeSettings` (assumed zone for zone-less timestamps + per-file
-  reference dates; viewers re-extract timestamp columns when it changes).
+  reference dates; viewers re-extract timestamp columns when it changes),
+  `FollowController` (follow mode: 1 s poll + file-watcher accelerator,
+  reopen-and-identity-match each tick - Grown extends the index
+  incrementally via `extendLineIndex` and fans `coreSourceExtended` out to
+  plugins, rotation triggers a full reload that keeps following).
 - `logdor` (executable): `MainWindow` owns the open flow (non-blocking
   index build), the filter bar, annotation persistence
   (`<log>.logdor.json` sidecars, app-data fallback, import/export,

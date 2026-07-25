@@ -27,6 +27,7 @@
 #include <QTimeZone>
 #include <QWidgetAction>
 #include "folderview.h"
+#include "followcontroller.h"
 #include "recentitems.h"
 #include "timesettings.h"
 
@@ -349,6 +350,20 @@ MainWindow::MainWindow(QWidget* parent)
                                         : tr("Choose..."));
             });
 
+    // Follow mode: tail the current file, extending viewers in place.
+    ui->menuFile->addSeparator();
+    m_followAction = ui->menuFile->addAction(tr("Follow File"));
+    m_followAction->setCheckable(true);
+    m_followAction->setShortcut(QKeySequence(Qt::Key_F8));
+    m_followAction->setEnabled(false); // until a file finishes indexing
+    connect(m_followAction, &QAction::toggled,
+            this, &MainWindow::onFollowToggled);
+    m_followController = new FollowController(this);
+    connect(m_followController, &FollowController::extended,
+            this, &MainWindow::onFollowExtended);
+    connect(m_followController, &FollowController::rotated,
+            this, &MainWindow::onFollowRotated);
+
     // Indexing progress: modal-less, cancellable, only appears past 1 s.
     m_indexProgress = new QProgressDialog(this);
     m_indexProgress->setWindowModality(Qt::NonModal);
@@ -558,6 +573,14 @@ bool MainWindow::openFile(const QString& fileName)
         return true;
     }
 
+    // Following is per-file; a new open (or rotation reload) restarts it.
+    m_followController->stop();
+    {
+        const QSignalBlocker blockFollow(m_followAction);
+        m_followAction->setChecked(false);
+    }
+    m_followAction->setEnabled(false);
+
     // Snapshot the outgoing file's view state before teardown wipes it -
     // viewers clear selection/sort in setCoreSource(nullptr, nullptr).
     if (!m_currentFileName.isEmpty() && m_lineIndex)
@@ -657,6 +680,49 @@ void MainWindow::onIndexingFinished()
     addRecentItem(fileName); // success only: failed opens never enter recents
     if (m_folderView)
         m_folderView->setCurrentFile(fileName); // no echo: highlight only
+
+    m_followAction->setEnabled(true);
+    if (m_refollowAfterLoad) {
+        m_refollowAfterLoad = false;
+        m_followAction->setChecked(true); // rotation reload keeps following
+    }
+}
+
+void MainWindow::onFollowToggled(bool on)
+{
+    if (on && m_fileSource && m_lineIndex && !m_currentFileName.isEmpty()) {
+        m_followController->start(m_currentFileName, m_fileSource,
+                                  m_lineIndex);
+    } else {
+        m_followController->stop();
+    }
+}
+
+void MainWindow::onFollowExtended(std::shared_ptr<logdor::FileSource> source,
+                                  std::shared_ptr<const logdor::LineIndex> index,
+                                  qint64 firstNewLine)
+{
+    // Adopt the grown snapshot as the current file and extend everyone in
+    // place; the old mapping stays alive for any straggling readers.
+    m_fileSource = source;
+    m_lineIndex = index;
+    m_annotationHub->extendFile(source, index);
+    m_pluginManager->extendCoreSource(std::move(source), std::move(index),
+                                      firstNewLine);
+    ui->statusbar->showMessage(tr("Following - %L1 lines")
+                                   .arg(m_lineIndex->lineCount()),
+                               2000);
+}
+
+void MainWindow::onFollowRotated()
+{
+    // The controller already stopped itself. Reload from scratch and pick
+    // follow back up once the fresh index lands.
+    const QString fileName = m_currentFileName;
+    ui->statusbar->showMessage(tr("File rotated - reloading"), 3000);
+    m_refollowAfterLoad = !fileName.isEmpty();
+    if (!fileName.isEmpty() && !openFile(fileName))
+        m_refollowAfterLoad = false;
 }
 
 QString MainWindow::annotationSidecarPath() const

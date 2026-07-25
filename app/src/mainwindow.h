@@ -14,6 +14,7 @@
 #include <memory>
 
 class FolderView;
+class FollowController;
 class QLabel;
 class QProgressDialog;
 
@@ -49,6 +50,11 @@ private slots:
     void onFocusFilterInput();
     void onIndexingProgress(int permille);
     void onIndexingFinished();
+    void onFollowToggled(bool on);
+    void onFollowExtended(std::shared_ptr<logdor::FileSource> source,
+                          std::shared_ptr<const logdor::LineIndex> index,
+                          qint64 firstNewLine);
+    void onFollowRotated();
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -100,6 +106,9 @@ private:
     QString m_pendingFileName;
     QString m_currentFileName;
     AnnotationHub* m_annotationHub = nullptr;
+    FollowController* m_followController = nullptr;
+    QAction* m_followAction = nullptr;
+    bool m_refollowAfterLoad = false; // rotation reload keeps following
     QTimer* m_annotationSaveTimer = nullptr;
     QLabel* m_noteCountLabel = nullptr;
     FilterOptions m_filterOptions;

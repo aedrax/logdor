@@ -33,6 +33,17 @@ public:
     void clear(); // file closed / being replaced
     void startReanchor();
 
+    /// Follow mode: the SAME file grew - swap the pointers. Anchors stay
+    /// valid (lines only appended) and identity is size-independent.
+    void extendFile(std::shared_ptr<logdor::FileSource> source,
+                    std::shared_ptr<const logdor::LineIndex> index)
+    {
+        if (!m_source)
+            return;
+        m_source = std::move(source);
+        m_index = std::move(index);
+    }
+
     const logdor::AnnotationSet& set() const { return m_set; }
     const logdor::FileIdentity& identity() const { return m_identity; }
     bool hasFile() const { return m_source != nullptr; }

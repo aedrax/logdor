@@ -69,6 +69,11 @@ logcat level/tag filters - for the whole session, so cycling back picks up
 exactly where you left off. **File -> Open Recent** remembers the last ten
 files and folders (Ctrl+1...Ctrl+9).
 
+**File -> Follow File** (F8) tails the current file: new lines appear as
+they are written (filters keep applying to them), a view scrolled to the
+bottom stays pinned there, and a rotated or truncated file reloads
+automatically and keeps following.
+
 ### Keyboard shortcuts
 
 | Shortcut | Action |
@@ -80,6 +85,7 @@ files and folders (Ctrl+1...Ctrl+9).
 | Ctrl+S | Save annotations now |
 | Ctrl+Shift+S | Save annotations to a chosen file (one-time copy) |
 | Ctrl+L | Focus the filter input |
+| F8 | Follow the current file (live tail) |
 
 ## Annotations
 
