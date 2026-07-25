@@ -58,6 +58,8 @@ qt_add_library(logdor-core STATIC
     src/ExportScan.cpp
     include/logdor/GrepScan.h
     src/GrepScan.cpp
+    include/logdor/TimeProbe.h
+    src/TimeProbe.cpp
     include/logdor/JsonLinesParser.h
     src/JsonLinesParser.cpp
     include/logdor/GeoScan.h

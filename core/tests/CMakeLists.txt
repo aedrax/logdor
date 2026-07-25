@@ -27,6 +27,7 @@ set(LOGDOR_CORE_TESTS
     histogramscan
     exportscan
     grepscan
+    timeprobe
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
