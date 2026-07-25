@@ -52,6 +52,10 @@ public:
     /// Drag-and-drop of log files onto the timeline widget.
     bool eventFilter(QObject* watched, QEvent* event) override;
 
+public slots:
+    /// AddFileToTimeline (e.g. a folder-search result) adds the file.
+    void onPluginEvent(PluginEvent event, const QVariant& data) override;
+
 private slots:
     void addFilesDialog();
     void addCurrentFile();

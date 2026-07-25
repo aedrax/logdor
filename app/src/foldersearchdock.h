@@ -30,6 +30,8 @@ public:
 signals:
     /// The user activated a match: open @p path and select @p line.
     void openRequested(const QString& path, qint64 line);
+    /// Context menu: add @p path to the Merged Timeline.
+    void addToTimelineRequested(const QString& path);
 
 private:
     void startSearch();

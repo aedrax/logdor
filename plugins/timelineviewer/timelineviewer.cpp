@@ -118,7 +118,12 @@ TimelineViewer::TimelineViewer(QObject* parent)
             });
 
     connect(newestFirstButton, &QPushButton::toggled, this,
-            [this](bool checked) { m_model->setDescending(checked); });
+            [this, newestFirstButton](bool checked) {
+                m_model->setDescending(checked);
+                // The label names the action a click will perform.
+                newestFirstButton->setText(checked ? tr("Oldest First")
+                                                   : tr("Newest First"));
+            });
     connect(&TimeSettings::instance(), &TimeSettings::assumedZoneChanged,
             this, [this]() {
                 // Epochs of zone-less formats depend on the assumed zone:
@@ -278,6 +283,15 @@ void TimelineViewer::applyFilterToFile(
                     file->visibleRows = result.rows;
                     scheduleMerge();
                 });
+}
+
+void TimelineViewer::onPluginEvent(PluginEvent event, const QVariant& data)
+{
+    if (event == PluginEvent::AddFileToTimeline) {
+        const QString path = data.toString();
+        if (!path.isEmpty())
+            addFile(path);
+    }
 }
 
 bool TimelineViewer::eventFilter(QObject* watched, QEvent* event)

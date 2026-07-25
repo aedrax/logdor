@@ -62,6 +62,13 @@ enum class PluginEvent {
      * with their own filters; a new file clears it implicitly.
      */
     LinesConstrained,
+
+    /**
+     * Ask the Merged Timeline to add a file (e.g. from a folder-search
+     * result's context menu). Payload: absolute file path as QString.
+     * Every other plugin ignores it.
+     */
+    AddFileToTimeline,
 };
 
 /**

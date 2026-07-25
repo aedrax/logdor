@@ -456,6 +456,18 @@ void MainWindow::ensureSearchDock()
         m_searchDock->setFolder(QFileInfo(m_currentFileName).absolutePath());
     connect(m_searchDock, &FolderSearchDock::openRequested,
             this, &MainWindow::openFileAtLine);
+    connect(m_searchDock, &FolderSearchDock::addToTimelineRequested, this,
+            [this](const QString& path) {
+                // Reveal the timeline first: showing its dock enables the
+                // plugin, and only enabled plugins receive events.
+                if (QDockWidget* dock
+                    = m_pluginDocks.value(tr("Merged Timeline"))) {
+                    dock->show();
+                    dock->raise();
+                }
+                m_pluginManager->broadcastEvent(
+                    PluginEvent::AddFileToTimeline, path);
+            });
 }
 
 void MainWindow::openFileAtLine(const QString& fileName, qint64 line)

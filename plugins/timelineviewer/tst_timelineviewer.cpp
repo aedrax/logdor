@@ -108,12 +108,28 @@ private slots:
         auto* toggle = m_plugin->widget()->findChild<QPushButton*>(
             QStringLiteral("timelineNewestFirstButton"));
         QVERIFY(toggle);
+        QCOMPARE(toggle->text(), QStringLiteral("Newest First"));
         toggle->click();
         QCOMPARE(m_model->rowCount(), 5);
         QVERIFY(cell(0, 3).contains(QStringLiteral("alpha 4")));
         QVERIFY(cell(4, 3).contains(QStringLiteral("alpha 0")));
+        // The label names the action the next click will perform.
+        QCOMPARE(toggle->text(), QStringLiteral("Oldest First"));
         toggle->click();
         QVERIFY(cell(0, 3).contains(QStringLiteral("alpha 0")));
+        QCOMPARE(toggle->text(), QStringLiteral("Newest First"));
+    }
+
+    void addFileToTimelineEventAddsFile()
+    {
+        // The folder-search route: the shell broadcasts AddFileToTimeline
+        // with a path payload.
+        const QString path = m_dir.filePath("gelf-c.log");
+        writeFile(path,
+                  { R"({"version":"1.1","host":"web2","short_message":"charlie","timestamp":1767225601.5,"level":6})" });
+        m_plugin->onPluginEvent(PluginEvent::AddFileToTimeline, path);
+        QTRY_COMPARE_WITH_TIMEOUT(m_model->rowCount(), 6, 10000);
+        QVERIFY(cell(2, 3).contains(QStringLiteral("charlie"))); // t=1.5s
     }
 
 private:

@@ -7,11 +7,41 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QLocale>
+#include <QMenu>
+#include <QMimeData>
 #include <QPushButton>
 #include <QTreeWidget>
+#include <QUrl>
 #include <QVBoxLayout>
 
 using namespace logdor;
+
+namespace {
+
+// Results are draggable as file URLs, so a row dropped onto the Merged
+// Timeline (or any file-accepting target) adds that file.
+class ResultsTree : public QTreeWidget {
+public:
+    using QTreeWidget::QTreeWidget;
+
+protected:
+    QMimeData* mimeData(const QList<QTreeWidgetItem*>& items) const override
+    {
+        QList<QUrl> urls;
+        for (const QTreeWidgetItem* item : items) {
+            const QString path = item->data(0, Qt::UserRole).toString();
+            if (!path.isEmpty())
+                urls.append(QUrl::fromLocalFile(path));
+        }
+        if (urls.isEmpty())
+            return nullptr;
+        auto* mime = new QMimeData;
+        mime->setUrls(urls);
+        return mime;
+    }
+};
+
+} // namespace
 
 FolderSearchDock::FolderSearchDock(QWidget* parent)
     : QDockWidget(tr("Folder Search"), parent)
@@ -46,9 +76,12 @@ FolderSearchDock::FolderSearchDock(QWidget* parent)
     grid->addLayout(toggles, 2, 2);
     layout->addLayout(grid);
 
-    m_results = new QTreeWidget(body);
+    m_results = new ResultsTree(body);
     m_results->setHeaderHidden(true);
     m_results->setUniformRowHeights(true);
+    m_results->setDragEnabled(true);
+    m_results->setDragDropMode(QAbstractItemView::DragOnly);
+    m_results->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(m_results, /*stretch=*/1);
 
     m_status = new QLabel(body);
@@ -82,6 +115,26 @@ FolderSearchDock::FolderSearchDock(QWidget* parent)
                 const qint64 line = item->data(0, Qt::UserRole + 1).toLongLong();
                 if (!path.isEmpty() && line >= 0)
                     emit openRequested(path, line);
+            });
+    connect(m_results, &QWidget::customContextMenuRequested, this,
+            [this](const QPoint& pos) {
+                QTreeWidgetItem* item = m_results->itemAt(pos);
+                if (!item)
+                    return;
+                const QString path = item->data(0, Qt::UserRole).toString();
+                if (path.isEmpty())
+                    return;
+                const qint64 line = item->data(0, Qt::UserRole + 1).toLongLong();
+                QMenu menu(this);
+                QAction* open = menu.addAction(tr("Open"));
+                QAction* timeline
+                    = menu.addAction(tr("Add to Merged Timeline"));
+                QAction* chosen
+                    = menu.exec(m_results->viewport()->mapToGlobal(pos));
+                if (chosen == open)
+                    emit openRequested(path, std::max<qint64>(line, 0));
+                else if (chosen == timeline)
+                    emit addToTimelineRequested(path);
             });
 }
 
@@ -147,7 +200,9 @@ void FolderSearchDock::onResultsReady(int beginIndex, int endIndex)
                          .arg(result.truncated ? QStringLiteral("+") : QString());
         auto* fileItem = new QTreeWidgetItem(m_results, { label });
         fileItem->setToolTip(0, result.path);
-        fileItem->setData(0, Qt::UserRole, QString()); // not activatable
+        // Path but line -1: draggable and context-menu-able, activation
+        // (which needs a line) stays a no-op on the file row itself.
+        fileItem->setData(0, Qt::UserRole, result.path);
         fileItem->setData(0, Qt::UserRole + 1, -1);
         for (const GrepMatch& match : result.matches) {
             auto* item = new QTreeWidgetItem(
