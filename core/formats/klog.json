@@ -1,0 +1,18 @@
+{
+    "id": "klog",
+    "displayName": "Kubernetes klog / glog",
+    "pattern": "^(?<level>[IWEF])(?<time>\\d{4} \\d{2}:\\d{2}:\\d{2}\\.\\d{6})\\s+(?<tid>\\d+) (?<loc>[^ \\]]+)\\] ?(?<msg>.*)$",
+    "fields": [
+        { "name": "Level", "capture": "level", "type": "string", "hint": "severityname" },
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "MMdd HH:mm:ss.zzzzzz" },
+        { "name": "Thread", "capture": "tid", "type": "integer", "hint": "numeric" },
+        { "name": "Location", "capture": "loc", "type": "string", "hint": "identifier" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
+    ],
+    "severity": {
+        "capture": "level",
+        "map": { "i": "info", "w": "warning", "e": "error", "f": "fatal" },
+        "default": "none"
+    },
+    "specificity": 0.9
+}

@@ -47,9 +47,9 @@ QByteArray repeatLines(const QByteArray& line, int count)
 
 // Golden coverage for the system-log format specs shipped in core/formats
 // (syslog-rfc3164, syslog-iso, dpkg, dmesg, apt-history, apt-term,
-// cloud-init, cloud-init-output, apport, xorg, alternatives, cri), using
-// lines captured from real Ubuntu /var/log files, plus detection checks
-// against the full parser list.
+// cloud-init, cloud-init-output, apport, xorg, alternatives, cri, klog),
+// using lines captured from real Ubuntu /var/log files, plus detection
+// checks against the full parser list.
 class tst_SystemFormats : public QObject {
     Q_OBJECT
 
@@ -73,7 +73,7 @@ private slots:
         const QStringList required{ "syslog-rfc3164", "syslog-iso", "dpkg", "dmesg",
                                     "apt-history", "apt-term", "cloud-init",
                                     "cloud-init-output", "apport", "xorg",
-                                    "alternatives", "cri" };
+                                    "alternatives", "cri", "klog" };
         for (const QString& id : required)
             QVERIFY2(parserById(id, m_parsers), qPrintable(id));
     }
@@ -435,6 +435,42 @@ private slots:
                             "rsyslog.service: Sent signal SIGHUP to main process 2713" }
             << false << int(Severity::None);
 
+        //=== klog: Level, Time, Thread, Location, Message ===================
+        QTest::newRow("klog-info")
+            << "klog"
+            << QByteArray("I0203 12:34:56.789012   12345 controller.go:123] "
+                          "Starting workers of ReplicaSet controller")
+            << QStringList{ "I", "0203 12:34:56.789012", "12345",
+                            "controller.go:123",
+                            "Starting workers of ReplicaSet controller" }
+            << true << int(Severity::Info);
+        QTest::newRow("klog-warning")
+            << "klog"
+            << QByteArray("W0203 12:34:57.000001       7 reflector.go:324] "
+                          "watch of *v1.Pod ended with: too old resource version")
+            << QStringList{ "W", "0203 12:34:57.000001", "7", "reflector.go:324",
+                            "watch of *v1.Pod ended with: too old resource version" }
+            << true << int(Severity::Warning);
+        QTest::newRow("klog-error")
+            << "klog"
+            << QByteArray("E0715 08:00:00.123456 1834547 kubelet.go:2879] "
+                          "Container runtime network not ready")
+            << QStringList{ "E", "0715 08:00:00.123456", "1834547",
+                            "kubelet.go:2879",
+                            "Container runtime network not ready" }
+            << true << int(Severity::Error);
+        QTest::newRow("klog-fatal-empty-message")
+            << "klog"
+            << QByteArray("F0203 23:59:59.999999 1 main.go:1] ")
+            << QStringList{ "F", "0203 23:59:59.999999", "1", "main.go:1", "" }
+            << true << int(Severity::Fatal);
+        QTest::newRow("klog-nonmatch-no-bracket")
+            << "klog"
+            << QByteArray("I0203 12:34:56.789012 12345 no closing bracket")
+            << QStringList{ "", "", "", "",
+                            "I0203 12:34:56.789012 12345 no closing bracket" }
+            << false << int(Severity::None);
+
         //=== alternatives: Time, Message ====================================
         QTest::newRow("alternatives-install")
             << "alternatives"
@@ -530,6 +566,10 @@ private slots:
             << "cri"
             << QByteArray("2016-10-06T00:17:09.669794202Z stderr F "
                           "E1006 00:17:09.669 pod: sync error: connection refused");
+        QTest::newRow("klog")
+            << "klog"
+            << QByteArray("I0203 12:34:56.789012   12345 controller.go:123] "
+                          "Starting workers of ReplicaSet controller");
         QTest::newRow("jsonlines")
             << "jsonlines"
             << QByteArray("{\"__REALTIME_TIMESTAMP\":\"1784922714673521\",\"PRIORITY\":\"6\","
@@ -558,6 +598,8 @@ private slots:
         QTest::newRow("clf") << "clf" << "24/Jul/2026:06:15:02";
         // RFC3339Nano: iso8601 keeps the first three fractional digits.
         QTest::newRow("cri-nano") << "cri" << "2016-10-06T00:17:09.669794202Z";
+        // Year-less klog with microsecond fraction (Kind::Klog).
+        QTest::newRow("klog") << "klog" << "0203 12:34:56.789012";
         // JsonLines declares no format; auto-detection must resolve its
         // journald-normalized ISO output.
         QTest::newRow("jsonlines-auto") << "jsonlines"

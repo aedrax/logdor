@@ -42,7 +42,8 @@ Logdor is split into two layers:
   ISO 8601/rsyslog flavors - the latter also parses `journalctl >
   file` exports - plus dpkg.log, dmesg, apt history.log/term.log,
   cloud-init(-output).log, apport.log, Xorg.0.log, alternatives.log,
-  Kubernetes CRI container logs, and logfmt-style key=value),
+  Kubernetes CRI container and klog control-plane logs, and
+  logfmt-style key=value),
   sample-based auto-detection, off-thread filtering (`scanFilter` over a
   `RowSet`), a **field query language** (`level:error tag:Wifi* pid>=100
   "free text"` with AND/OR/NOT - toggle the `Q` button), and off-thread
