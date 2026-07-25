@@ -122,9 +122,15 @@ private:
 
     struct FileSession {
         FilterOptions filter;
-        QJsonObject pluginStates; // keyed by plugin name
+        QStringList timeRangeTerms; // @time terms the picker injected
+        QJsonObject pluginStates;   // keyed by plugin name
+        logdor::FileIdentity identity; // restore gate across app runs
+        qint64 lastUsed = 0;           // LRU eviction in sessions.json
     };
     QHash<QString, FileSession> m_sessions; // keyed by canonical file path
+    QString sessionsFilePath() const;
+    void loadSessionsFile();
+    void saveSessionsFile() const;
 
     // The shared filter bar; MainWindow only fans its options out.
     FilterToolbar* m_filterToolbar;

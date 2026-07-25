@@ -5,6 +5,11 @@
 #include <QLabel>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QDateTime>
+#include <QDir>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <logdor/Query.h>
 #include <QDockWidget>
 #include <QFileDialog>
@@ -284,6 +289,7 @@ MainWindow::MainWindow(QWidget* parent)
     loadPlugins();
     m_pluginManager->setHighlightRules(loadHighlightRules());
     loadSettings();
+    loadSessionsFile();
 }
 
 MainWindow::~MainWindow()
@@ -500,6 +506,10 @@ void MainWindow::loadSettings()
 void MainWindow::closeEvent(QCloseEvent* event)
 {
     m_indexWatcher->cancel();
+    // Capture the open file's session BEFORE teardown so quitting keeps its
+    // state for the next run (the historical gap: only file SWITCHES did).
+    if (!m_currentFileName.isEmpty() && m_lineIndex)
+        captureSession();
     flushAnnotationSave();
     saveSettings();
     QMainWindow::closeEvent(event);
@@ -950,8 +960,13 @@ void MainWindow::captureSession()
 {
     FileSession session;
     session.filter = m_filterOptions;
+    session.timeRangeTerms = m_filterToolbar->timeRangeTerms();
     session.pluginStates = m_pluginManager->saveViewStates();
+    if (m_fileSource)
+        session.identity = logdor::computeFileIdentity(*m_fileSource);
+    session.lastUsed = QDateTime::currentMSecsSinceEpoch();
     m_sessions.insert(sessionKey(m_currentFileName), session);
+    saveSessionsFile(); // small file; write-behind on every switch
 }
 
 void MainWindow::restoreSession(const QString& fileName)
@@ -961,12 +976,129 @@ void MainWindow::restoreSession(const QString& fileName)
         return;
     const FileSession& session = it.value();
 
+    // Across app runs the file may have been rotated or replaced: a saved
+    // identity that mismatches the current content drops the session
+    // (Grown - the log was appended to - still restores).
+    if (session.identity.isValid() && m_fileSource
+        && logdor::matchIdentity(session.identity, *m_fileSource)
+            == logdor::IdentityMatch::Mismatch) {
+        m_sessions.remove(sessionKey(fileName));
+        return;
+    }
+
     // Write the file's filter back into the toolbar without triggering the
     // debounce; the caller's setFilter() applies it in one shot.
     m_filterToolbar->setOptionsSilently(session.filter);
+    m_filterToolbar->setTimeRangeTermsSilently(session.timeRangeTerms);
     m_filterOptions = session.filter;
 
     m_pluginManager->restoreViewStates(session.pluginStates);
+}
+
+QString MainWindow::sessionsFilePath() const
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+        + QStringLiteral("/sessions.json");
+}
+
+void MainWindow::loadSessionsFile()
+{
+    QFile file(sessionsFilePath());
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+    const QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
+    if (root.value(QStringLiteral("version")).toInt() != 1)
+        return;
+    const QJsonObject sessions
+        = root.value(QStringLiteral("sessions")).toObject();
+    for (auto it = sessions.begin(); it != sessions.end(); ++it) {
+        const QJsonObject entry = it.value().toObject();
+        const QJsonObject filter
+            = entry.value(QStringLiteral("filter")).toObject();
+        FileSession session;
+        session.filter = FilterOptions(
+            filter.value(QStringLiteral("query")).toString(),
+            filter.value(QStringLiteral("before")).toInt(),
+            filter.value(QStringLiteral("after")).toInt(),
+            filter.value(QStringLiteral("caseSensitive")).toBool()
+                ? Qt::CaseSensitive
+                : Qt::CaseInsensitive,
+            filter.value(QStringLiteral("invert")).toBool(),
+            filter.value(QStringLiteral("queryMode")).toBool(),
+            filter.value(QStringLiteral("regexMode")).toBool());
+        const QJsonArray terms
+            = entry.value(QStringLiteral("timeRangeTerms")).toArray();
+        for (const QJsonValue& term : terms)
+            session.timeRangeTerms.append(term.toString());
+        session.pluginStates
+            = entry.value(QStringLiteral("pluginStates")).toObject();
+        const QJsonObject identity
+            = entry.value(QStringLiteral("identity")).toObject();
+        session.identity.size
+            = quint64(identity.value(QStringLiteral("size")).toDouble());
+        session.identity.prefixSha256 = identity.value(QStringLiteral("sha"))
+                                            .toString()
+                                            .toUtf8();
+        session.identity.prefixLength
+            = quint32(identity.value(QStringLiteral("prefixLength")).toInt());
+        session.lastUsed
+            = qint64(entry.value(QStringLiteral("lastUsed")).toDouble());
+        m_sessions.insert(it.key(), session);
+    }
+}
+
+void MainWindow::saveSessionsFile() const
+{
+    // LRU-cap the persisted set so the file stays small forever.
+    constexpr int kMaxSessions = 50;
+    QList<QString> keys = m_sessions.keys();
+    std::sort(keys.begin(), keys.end(),
+              [this](const QString& a, const QString& b) {
+                  return m_sessions[a].lastUsed > m_sessions[b].lastUsed;
+              });
+    if (keys.size() > kMaxSessions)
+        keys = keys.mid(0, kMaxSessions);
+
+    QJsonObject sessions;
+    for (const QString& key : std::as_const(keys)) {
+        const FileSession& session = m_sessions[key];
+        QJsonObject filter;
+        filter.insert(QStringLiteral("query"), session.filter.query);
+        filter.insert(QStringLiteral("queryMode"), session.filter.inQueryMode);
+        filter.insert(QStringLiteral("regexMode"), session.filter.inRegexMode);
+        filter.insert(QStringLiteral("caseSensitive"),
+                      session.filter.caseSensitivity == Qt::CaseSensitive);
+        filter.insert(QStringLiteral("invert"), session.filter.invertFilter);
+        filter.insert(QStringLiteral("before"),
+                      session.filter.contextLinesBefore);
+        filter.insert(QStringLiteral("after"),
+                      session.filter.contextLinesAfter);
+        QJsonObject identity;
+        identity.insert(QStringLiteral("size"),
+                        double(session.identity.size));
+        identity.insert(QStringLiteral("sha"),
+                        QString::fromUtf8(session.identity.prefixSha256));
+        identity.insert(QStringLiteral("prefixLength"),
+                        int(session.identity.prefixLength));
+        QJsonObject entry;
+        entry.insert(QStringLiteral("filter"), filter);
+        entry.insert(QStringLiteral("timeRangeTerms"),
+                     QJsonArray::fromStringList(session.timeRangeTerms));
+        entry.insert(QStringLiteral("pluginStates"), session.pluginStates);
+        entry.insert(QStringLiteral("identity"), identity);
+        entry.insert(QStringLiteral("lastUsed"), double(session.lastUsed));
+        sessions.insert(key, entry);
+    }
+    QJsonObject root;
+    root.insert(QStringLiteral("version"), 1);
+    root.insert(QStringLiteral("sessions"), sessions);
+
+    QDir().mkpath(QFileInfo(sessionsFilePath()).absolutePath());
+    QSaveFile file(sessionsFilePath());
+    if (!file.open(QIODevice::WriteOnly))
+        return;
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+    file.commit();
 }
 
 void MainWindow::onActionOpenTriggered()

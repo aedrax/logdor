@@ -69,6 +69,13 @@ logcat level/tag filters - for the whole session, so cycling back picks up
 exactly where you left off. **File -> Open Recent** remembers the last ten
 files and folders (Ctrl+1...Ctrl+9).
 
+The filter bar's ★ button saves the current filter as a named preset and
+recalls presets in one click. **File -> Highlight Rules...** colors lines
+matching your patterns in every viewer (right-click a line for "Highlight
+lines like this"). Each file's filter and view state now also persist
+across app restarts (sessions are dropped automatically if the file's
+content changed).
+
 Right-click any log view and enable **Show Timeline** for a severity-colored
 histogram of the visible rows over time: hover for counts, click to jump to
 that moment, drag to restrict the filter to a time range (Esc clears it).
