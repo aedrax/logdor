@@ -23,6 +23,7 @@ set(LOGDOR_CORE_TESTS
     dockerjsonparser
     gelfparser
     netlogparser
+    w3cparser
     timelinemerge
     histogramscan
     exportscan
