@@ -22,7 +22,7 @@ Registries are value-returning free functions.
 |---|---|---|
 | Bytes | `FileSource` | mmap-first read-only file owner; buffered 4 MiB LRU fallback when mapping fails; `shared_ptr` lifetime so cancelled background work can outlive a file switch |
 | Lines | `LineIndex`, `buildLineIndex` | block-delta line offsets (~4 B/line); cancellable off-thread scan with permille progress |
-| Parsing | `FormatParser`, `PlainTextParser`/`LogcatParser`/`ClfParser`/`CsvParser`/`JsonLinesParser`, `DeclarativeParser` + `FormatSpec`, `FormatRegistry` | schema + stateless thread-safe per-line parse; JSON-defined formats; sample-scored auto-detection |
+| Parsing | `FormatParser`, `PlainTextParser`/`LogcatParser`/`ClfParser`/`CsvParser`/`JsonLinesParser`/`DockerJsonParser`, `DeclarativeParser` + `FormatSpec`, `FormatRegistry` | schema + stateless thread-safe per-line parse; JSON-defined formats; sample-scored auto-detection |
 | Filtering | `RowSet`, `scanFilter`, `CompiledQuery`, `ColumnScan`/`ColumnCache`, `TimestampParse` | chunk-parallel cancellable scans; field-query language over extracted columns (temporal comparison on datetime fields via per-column codecs parsing to UTC epoch ms); empty filter costs zero bytes |
 | Sorting | `sortRows` | stable off-thread sort of visible rows by cached keys |
 | Annotations | `Annotation`/`AnnotationSet`, `FileIdentity`, `AnnotationScan` | versioned sidecar JSON, LWW merge, content-hash identity, bounded re-anchoring |

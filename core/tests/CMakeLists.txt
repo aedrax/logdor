@@ -20,6 +20,7 @@ set(LOGDOR_CORE_TESTS
     systemformats
     jsonlinesparser
     timestampparse
+    dockerjsonparser
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
