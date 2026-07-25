@@ -65,6 +65,12 @@ public:
     /// Enables annotation markers/tooltips and the note context menu.
     void setAnnotationHub(AnnotationHub* hub);
 
+    /// PluginInterface::setHighlightRules pass-through.
+    void setHighlightRules(const QList<HighlightRule>& rules)
+    {
+        m_model->setHighlightRules(rules);
+    }
+
     /**
      * Restrict visible rows to @p sortedLines (ANDed with the filter and any
      * extra predicate) - the PluginEvent::LinesConstrained mechanism. Null or
@@ -92,6 +98,8 @@ signals:
     /// A histogram brush: restrict the filter to this UTC range; (0, 0)
     /// clears it (PluginInterface::timeRangeRequested semantics).
     void timeRangeRequested(qint64 fromUtcMs, qint64 toUtcMs);
+    /// "Highlight lines like this": ask the shell to create a rule.
+    void highlightRequested(const QString& pattern);
     void filterApplied(qint64 matchCount, qint64 elapsedMs);
     void queryError(const QString& message, int position);
 

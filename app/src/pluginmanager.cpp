@@ -176,6 +176,13 @@ void PluginManager::extendCoreSource(std::shared_ptr<logdor::FileSource> source,
         plugin->coreSourceExtended(source, index, firstNewLine);
 }
 
+void PluginManager::setHighlightRules(const QList<HighlightRule>& rules)
+{
+    Q_ASSERT(QThread::currentThread() == qApp->thread());
+    for (PluginInterface* plugin : plugins())
+        plugin->setHighlightRules(rules);
+}
+
 void PluginManager::setAnnotationHub(AnnotationHub* hub)
 {
     for (QPluginLoader* loader : m_pluginLoaders) {

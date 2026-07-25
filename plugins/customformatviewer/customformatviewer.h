@@ -43,6 +43,11 @@ public:
 
     void setFilter(const FilterOptions& options) override;
 
+    void setHighlightRules(const QList<HighlightRule>& rules) override
+    {
+        m_viewer->setHighlightRules(rules);
+    }
+
     // The regex pattern itself stays global (QSettings) - only table view
     // state is per-file.
     QJsonObject saveViewState() const override

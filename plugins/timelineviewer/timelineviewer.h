@@ -47,6 +47,7 @@ public:
     void setCoreSource(std::shared_ptr<logdor::FileSource> source,
                        std::shared_ptr<const logdor::LineIndex> index) override;
     void setFilter(const FilterOptions& options) override;
+    void setHighlightRules(const QList<HighlightRule>& rules) override;
 
     /// Drag-and-drop of log files onto the timeline widget.
     bool eventFilter(QObject* watched, QEvent* event) override;

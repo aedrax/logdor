@@ -57,6 +57,15 @@ void TimelineModel::setMerged(
     endResetModel();
 }
 
+void TimelineModel::setHighlightRules(const QList<HighlightRule>& rules)
+{
+    m_highlights.setRules(rules);
+    if (rowCount() > 0)
+        emit dataChanged(index(0, 0),
+                         index(rowCount() - 1, columnCount() - 1),
+                         { Qt::BackgroundRole, Qt::ForegroundRole });
+}
+
 int TimelineModel::rowForTime(qint64 utcMs) const
 {
     const auto epochOf = [this](const TimelineRow& row) {
@@ -166,6 +175,13 @@ QVariant TimelineModel::data(const QModelIndex& index, int role) const
         return {};
 
     case Qt::BackgroundRole:
+        if (!m_highlights.isEmpty()) {
+            const QColor color = m_highlights.match(QString::fromUtf8(
+                file->source->read(file->index->offsetOf(row.line),
+                                   file->index->lengthOf(row.line))));
+            if (color.isValid())
+                return color;
+        }
         if (file->parser->colorsBySeverity()) {
             const QColor color = LogTableModel::severityColor(severity);
             if (color.isValid())
@@ -174,6 +190,13 @@ QVariant TimelineModel::data(const QModelIndex& index, int role) const
         return {};
 
     case Qt::ForegroundRole:
+        if (!m_highlights.isEmpty()
+            && m_highlights
+                   .match(QString::fromUtf8(file->source->read(
+                       file->index->offsetOf(row.line),
+                       file->index->lengthOf(row.line))))
+                   .isValid())
+            return QColor(Qt::black);
         if (file->parser->colorsBySeverity()
             && LogTableModel::severityColor(severity).isValid())
             return QColor(Qt::black);

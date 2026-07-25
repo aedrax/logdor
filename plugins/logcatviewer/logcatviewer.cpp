@@ -66,6 +66,8 @@ LogcatViewer::LogcatViewer(QObject* parent)
             this, &PluginInterface::filterTermRequested);
     connect(m_viewer, &LogViewerWidget::timeRangeRequested,
             this, &PluginInterface::timeRangeRequested);
+    connect(m_viewer, &LogViewerWidget::highlightRequested,
+            this, &PluginInterface::highlightRequested);
     connect(&m_tagScanWatcher, &QFutureWatcherBase::finished, this, [this]() {
         if (m_tagScanWatcher.future().isCanceled()
             || m_tagScanWatcher.future().resultCount() == 0)

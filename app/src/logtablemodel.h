@@ -1,6 +1,8 @@
 #ifndef LOGTABLEMODEL_H
 #define LOGTABLEMODEL_H
 
+#include "highlightrules.h"
+
 #include <logdor/FileSource.h>
 #include <logdor/FormatParser.h>
 #include <logdor/LineIndex.h>
@@ -68,6 +70,10 @@ public:
     /// tooltip (all columns). May be null.
     void setAnnotationHub(const AnnotationHub* hub);
 
+    /// User highlight rules: matched raw lines get the rule's background
+    /// (first enabled match wins, beating severity coloring).
+    void setHighlightRules(const QList<HighlightRule>& rules);
+
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     int columnCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role) const override;
@@ -85,6 +91,7 @@ private:
     std::vector<qint32> m_order;   // order[viewRow] = rowSetPos; empty = natural
     std::vector<qint32> m_inverse; // inverse[rowSetPos] = viewRow
     mutable QCache<qint64, logdor::ParsedRow> m_cache { 8192 };
+    HighlightMatcher m_highlights;
     const AnnotationHub* m_annotationHub = nullptr;
     mutable QHash<QString, QPixmap> m_markerCache; // per annotation color
 };

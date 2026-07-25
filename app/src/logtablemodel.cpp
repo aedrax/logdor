@@ -120,6 +120,15 @@ QColor LogTableModel::severityColor(Severity severity)
     return QColor(); // invalid: no brush
 }
 
+void LogTableModel::setHighlightRules(const QList<HighlightRule>& rules)
+{
+    m_highlights.setRules(rules);
+    if (rowCount() > 0)
+        emit dataChanged(index(0, 0),
+                         index(rowCount() - 1, columnCount() - 1),
+                         { Qt::BackgroundRole, Qt::ForegroundRole });
+}
+
 void LogTableModel::setAnnotationHub(const AnnotationHub* hub)
 {
     if (m_annotationHub)
@@ -190,6 +199,14 @@ QVariant LogTableModel::data(const QModelIndex& index, int role) const
         return {};
 
     case Qt::BackgroundRole:
+        if (!m_highlights.isEmpty()) {
+            // User rules beat severity coloring - that is their point.
+            const QColor color = m_highlights.match(QString::fromUtf8(
+                m_source->read(m_index->offsetOf(line),
+                               m_index->lengthOf(line))));
+            if (color.isValid())
+                return color;
+        }
         if (m_parser->colorsBySeverity()) {
             const QColor color = severityColor(parsedRow(line)->severity);
             if (color.isValid())
@@ -198,6 +215,13 @@ QVariant LogTableModel::data(const QModelIndex& index, int role) const
         return {};
 
     case Qt::ForegroundRole:
+        if (!m_highlights.isEmpty()
+            && m_highlights
+                   .match(QString::fromUtf8(
+                       m_source->read(m_index->offsetOf(line),
+                                      m_index->lengthOf(line))))
+                   .isValid())
+            return QColor(Qt::black);
         if (m_parser->colorsBySeverity()
             && severityColor(parsedRow(line)->severity).isValid())
             return QColor(Qt::black);

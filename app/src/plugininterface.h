@@ -1,6 +1,7 @@
 #ifndef PLUGININTERFACE_H
 #define PLUGININTERFACE_H
 
+#include <QColor>
 #include <QJsonObject>
 #include <QString>
 #include <QWidget>
@@ -36,6 +37,18 @@ struct FilterOptions {
         , inRegexMode(regexMode)
     {
     }
+};
+
+/// A user-defined line highlight: lines matching @p pattern render with
+/// @p color as their background. Evaluated display-side on rendered rows
+/// only (deliberately not a scan); the first enabled matching rule wins.
+struct HighlightRule {
+    QString name;
+    QString pattern;
+    bool regex = false;
+    bool caseSensitive = false;
+    bool enabled = true;
+    QColor color;
 };
 
 /// Cross-plugin events, fanned out synchronously by PluginManager.
@@ -109,6 +122,12 @@ public:
     /// The shared filter bar changed.
     virtual void setFilter(const FilterOptions& options) { Q_UNUSED(options) }
 
+    /// The app-wide highlight rules changed (also called once at startup).
+    virtual void setHighlightRules(const QList<HighlightRule>& rules)
+    {
+        Q_UNUSED(rules)
+    }
+
     /**
      * Per-file view state (selection, sort, scroll, plugin chrome), captured
      * by the shell before a file switch and handed back when the file
@@ -155,6 +174,14 @@ signals:
      */
     void timeRangeRequested(qint64 fromUtcMs, qint64 toUtcMs);
 
+    /**
+     * Ask the shell to create a highlight rule for @p pattern (plain text,
+     * case-insensitive) - the row context menu's "Highlight lines like
+     * this". The shell stores it and fans setHighlightRules back out.
+     * Routed to the shell only.
+     */
+    void highlightRequested(const QString& pattern);
+
 protected:
     bool m_enabled = true;
 };
@@ -165,7 +192,8 @@ protected:
 // /3.2: filterTermRequested viewer-to-shell filter routing.
 // /3.3: coreSourceExtended follow-mode incremental growth.
 // /3.4: timeRangeRequested histogram-brush filter routing.
-#define PluginInterface_iid "com.logdor.PluginInterface/3.4"
+// /3.5: setHighlightRules fan-out + highlightRequested routing.
+#define PluginInterface_iid "com.logdor.PluginInterface/3.5"
 Q_DECLARE_INTERFACE(PluginInterface, PluginInterface_iid)
 
 #endif // PLUGININTERFACE_H

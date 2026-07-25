@@ -44,6 +44,9 @@ public:
     // Set filter for all enabled plugins
     void setFilter(const FilterOptions& options);
 
+    // Fan the app-wide highlight rules out to ALL loaded plugins.
+    void setHighlightRules(const QList<HighlightRule>& rules);
+
     // Per-file view state, keyed by plugin name. Capture reads ALL loaded
     // plugins (disabled ones return empty objects, which are skipped);
     // restore fans out to enabled plugins only. GUI thread only.

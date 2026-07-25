@@ -191,6 +191,11 @@ void TimelineViewer::setCoreSource(std::shared_ptr<FileSource> source,
     Q_UNUSED(index)
 }
 
+void TimelineViewer::setHighlightRules(const QList<HighlightRule>& rules)
+{
+    m_model->setHighlightRules(rules);
+}
+
 void TimelineViewer::setFilter(const FilterOptions& options)
 {
     m_lastFilter = options;

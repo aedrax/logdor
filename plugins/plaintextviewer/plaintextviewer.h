@@ -31,6 +31,11 @@ public:
 
     void setFilter(const FilterOptions& options) override;
 
+    void setHighlightRules(const QList<HighlightRule>& rules) override
+    {
+        m_viewer->setHighlightRules(rules);
+    }
+
     QJsonObject saveViewState() const override;
     void restoreViewState(const QJsonObject& state) override;
 

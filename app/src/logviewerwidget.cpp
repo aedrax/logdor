@@ -335,6 +335,22 @@ void LogViewerWidget::onContextMenuRequested(const QPoint& pos)
     connect(timelineAction, &QAction::triggered, this,
             [this](bool on) { setHistogramVisible(on); });
 
+    if (clicked.isValid() && m_source && m_index) {
+        const qint64 line = m_model->sourceLineForRow(clicked.row());
+        if (line >= 0) {
+            const QString text = QString::fromUtf8(
+                m_source->read(m_index->offsetOf(line),
+                               m_index->lengthOf(line)))
+                                     .trimmed();
+            if (!text.isEmpty()) {
+                QAction* highlightAction
+                    = menu.addAction(tr("Highlight lines like this"));
+                connect(highlightAction, &QAction::triggered, this,
+                        [this, text]() { emit highlightRequested(text); });
+            }
+        }
+    }
+
     if (m_annotationHub && m_annotationHub->hasFile()) {
         if (!menu.isEmpty())
             menu.addSeparator();

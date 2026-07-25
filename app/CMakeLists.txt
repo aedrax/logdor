@@ -37,6 +37,8 @@ add_library(logdor_interface SHARED
     src/followcontroller.cpp
     src/histogramstrip.h
     src/histogramstrip.cpp
+    src/highlightrules.h
+    src/highlightrules.cpp
 )
 
 target_link_libraries(logdor_interface PUBLIC

@@ -21,13 +21,18 @@
 #include <QActionGroup>
 #include <QCheckBox>
 #include <QDateTimeEdit>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QGridLayout>
 #include <QInputDialog>
+#include <QListWidget>
+#include <QVBoxLayout>
 #include <QMenu>
 #include <QTimeZone>
 #include <QWidgetAction>
 #include "folderview.h"
 #include "followcontroller.h"
+#include "highlightrules.h"
 #include "recentitems.h"
 #include "timesettings.h"
 
@@ -186,6 +191,69 @@ MainWindow::MainWindow(QWidget* parent)
                                         : tr("Choose..."));
             });
 
+    // App-wide highlight rules: a small manager dialog; rules render in
+    // every viewer (first enabled match wins over severity coloring).
+    QAction* highlightAction = ui->menuFile->addAction(
+        tr("Highlight Rules..."));
+    connect(highlightAction, &QAction::triggered, this, [this]() {
+        QDialog dialog(this);
+        dialog.setWindowTitle(tr("Highlight Rules"));
+        auto* dialogLayout = new QVBoxLayout(&dialog);
+        auto* list = new QListWidget(&dialog);
+        QList<HighlightRule> rules = loadHighlightRules();
+        const auto addItem = [list](const HighlightRule& rule) {
+            auto* item = new QListWidgetItem(rule.pattern, list);
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+            item->setCheckState(rule.enabled ? Qt::Checked : Qt::Unchecked);
+            item->setBackground(rule.color);
+            item->setForeground(Qt::black);
+        };
+        for (const HighlightRule& rule : std::as_const(rules))
+            addItem(rule);
+        dialogLayout->addWidget(list);
+        auto* addButton = new QPushButton(tr("Add..."), &dialog);
+        auto* removeButton = new QPushButton(tr("Remove"), &dialog);
+        connect(addButton, &QPushButton::clicked, &dialog,
+                [&dialog, list, &rules, addItem]() {
+                    bool ok = false;
+                    const QString pattern = QInputDialog::getText(
+                        &dialog, tr("Add Highlight Rule"),
+                        tr("Highlight lines containing:"), QLineEdit::Normal,
+                        QString(), &ok);
+                    if (!ok || pattern.trimmed().isEmpty())
+                        return;
+                    HighlightRule rule;
+                    rule.name = pattern.trimmed().left(32);
+                    rule.pattern = pattern.trimmed();
+                    rule.color = nextHighlightColor(rules.size());
+                    rules.append(rule);
+                    addItem(rule);
+                });
+        connect(removeButton, &QPushButton::clicked, &dialog,
+                [list, &rules]() {
+                    const int row = list->currentRow();
+                    if (row < 0)
+                        return;
+                    delete list->takeItem(row);
+                    rules.removeAt(row);
+                });
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+        connect(buttons, &QDialogButtonBox::rejected,
+                &dialog, &QDialog::reject);
+        auto* buttonRow = new QHBoxLayout();
+        buttonRow->addWidget(addButton);
+        buttonRow->addWidget(removeButton);
+        buttonRow->addStretch();
+        buttonRow->addWidget(buttons);
+        dialogLayout->addLayout(buttonRow);
+        dialog.exec();
+        // Persist checkbox toggles and edits, then refan.
+        for (int i = 0; i < rules.size() && i < list->count(); ++i)
+            rules[i].enabled = list->item(i)->checkState() == Qt::Checked;
+        storeHighlightRules(rules);
+        m_pluginManager->setHighlightRules(rules);
+    });
+
     // Follow mode: tail the current file, extending viewers in place.
     ui->menuFile->addSeparator();
     m_followAction = ui->menuFile->addAction(tr("Follow File"));
@@ -214,6 +282,7 @@ MainWindow::MainWindow(QWidget* parent)
     });
 
     loadPlugins();
+    m_pluginManager->setHighlightRules(loadHighlightRules());
     loadSettings();
 }
 
@@ -264,6 +333,19 @@ void MainWindow::loadPlugins()
         // Viewers push "add to filter" terms up to the shared filter bar.
         connect(plugin, &PluginInterface::filterTermRequested,
                 this, &MainWindow::onFilterTermRequested);
+
+        // "Highlight lines like this": store a rule and refan the set.
+        connect(plugin, &PluginInterface::highlightRequested, this,
+                [this](const QString& pattern) {
+                    QList<HighlightRule> rules = loadHighlightRules();
+                    HighlightRule rule;
+                    rule.name = pattern.left(32);
+                    rule.pattern = pattern;
+                    rule.color = nextHighlightColor(rules.size());
+                    rules.append(rule);
+                    storeHighlightRules(rules);
+                    m_pluginManager->setHighlightRules(rules);
+                });
 
         // Histogram brushes become @time terms (replace, never stack).
         connect(plugin, &PluginInterface::timeRangeRequested, this,

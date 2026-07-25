@@ -17,6 +17,8 @@ NetLogViewer::NetLogViewer(QObject* parent)
             this, &PluginInterface::filterTermRequested);
     connect(m_viewer, &LogViewerWidget::timeRangeRequested,
             this, &PluginInterface::timeRangeRequested);
+    connect(m_viewer, &LogViewerWidget::highlightRequested,
+            this, &PluginInterface::highlightRequested);
 }
 
 NetLogViewer::~NetLogViewer()

@@ -3,6 +3,8 @@
 
 #include "timelinefile.h"
 
+#include "../../app/src/highlightrules.h"
+
 #include <logdor/TimelineMerge.h>
 
 #include <QAbstractTableModel>
@@ -48,6 +50,9 @@ public:
     /// (binary search - the stored order is time-ascending); -1 when none.
     int rowForTime(qint64 utcMs) const;
 
+    /// App-wide highlight rules, applied to each row's raw source line.
+    void setHighlightRules(const QList<HighlightRule>& rules);
+
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     int columnCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role) const override;
@@ -63,6 +68,7 @@ private:
     }
 
     bool m_descending = false;
+    HighlightMatcher m_highlights;
     std::vector<logdor::TimelineRow> m_order;
     QHash<qint32, std::shared_ptr<const TimelineFile>> m_files;
     QHash<qint32, int> m_messageField; // fileId -> schema field for Message
