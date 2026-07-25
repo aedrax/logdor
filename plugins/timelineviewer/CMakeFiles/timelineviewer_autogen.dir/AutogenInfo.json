@@ -1,0 +1,112 @@
+{
+	"BUILD_DIR" : "/data/projects/projects/logdor/plugins/timelineviewer/timelineviewer_autogen",
+	"CMAKE_BINARY_DIR" : "/data/projects/projects/logdor",
+	"CMAKE_CURRENT_BINARY_DIR" : "/data/projects/projects/logdor/plugins/timelineviewer",
+	"CMAKE_CURRENT_SOURCE_DIR" : "/data/projects/projects/logdor/plugins/timelineviewer",
+	"CMAKE_EXECUTABLE" : "/usr/bin/cmake",
+	"CMAKE_LIST_FILES" : 
+	[
+		"/data/projects/projects/logdor/plugins/timelineviewer/CMakeLists.txt"
+	],
+	"CMAKE_SOURCE_DIR" : "/data/projects/projects/logdor",
+	"DEP_FILE" : "/data/projects/projects/logdor/plugins/timelineviewer/timelineviewer_autogen/deps",
+	"DEP_FILE_RULE_NAME" : "timelineviewer_autogen/timestamp",
+	"HEADERS" : 
+	[
+		[
+			"/data/projects/projects/logdor/plugins/timelineviewer/timelinefile.h",
+			"MU",
+			"EWIEGA46WW/moc_timelinefile.cpp",
+			null
+		],
+		[
+			"/data/projects/projects/logdor/plugins/timelineviewer/timelineviewer.h",
+			"MU",
+			"EWIEGA46WW/moc_timelineviewer.cpp",
+			null
+		]
+	],
+	"HEADER_EXTENSIONS" : [ "h", "hh", "h++", "hm", "hpp", "hxx", "in", "txx" ],
+	"INCLUDE_DIR" : "/data/projects/projects/logdor/plugins/timelineviewer/timelineviewer_autogen/include",
+	"MOC_COMPILATION_FILE" : "/data/projects/projects/logdor/plugins/timelineviewer/timelineviewer_autogen/mocs_compilation.cpp",
+	"MOC_DEFINITIONS" : 
+	[
+		"QT_CONCURRENT_LIB",
+		"QT_CORE_LIB",
+		"QT_DEPRECATED_WARNINGS",
+		"QT_GUI_LIB",
+		"QT_NO_DEBUG",
+		"QT_PLUGIN",
+		"QT_WIDGETS_LIB",
+		"timelineviewer_EXPORTS"
+	],
+	"MOC_DEPEND_FILTERS" : 
+	[
+		[
+			"Q_PLUGIN_METADATA",
+			"[\n][ \t]*Q_PLUGIN_METADATA[ \t]*\\([^\\)]*FILE[ \t]*\"([^\"]+)\""
+		]
+	],
+	"MOC_INCLUDES" : 
+	[
+		"/data/projects/projects/logdor/app/src",
+		"/data/projects/projects/logdor/core/include",
+		"/home/psorensen/Qt/6.11.1/gcc_64/include/QtCore",
+		"/home/psorensen/Qt/6.11.1/gcc_64/include",
+		"/home/psorensen/Qt/6.11.1/gcc_64/mkspecs/linux-g++",
+		"/home/psorensen/Qt/6.11.1/gcc_64/include/QtWidgets",
+		"/home/psorensen/Qt/6.11.1/gcc_64/include/QtGui",
+		"/home/psorensen/Qt/6.11.1/gcc_64/include/QtConcurrent",
+		"/usr/include",
+		"/usr/include/c++/13",
+		"/usr/include/x86_64-linux-gnu/c++/13",
+		"/usr/include/c++/13/backward",
+		"/usr/lib/gcc/x86_64-linux-gnu/13/include",
+		"/usr/local/include",
+		"/usr/include/x86_64-linux-gnu"
+	],
+	"MOC_MACRO_NAMES" : 
+	[
+		"Q_OBJECT",
+		"Q_GADGET",
+		"Q_NAMESPACE",
+		"Q_NAMESPACE_EXPORT",
+		"Q_GADGET_EXPORT",
+		"Q_ENUM_NS"
+	],
+	"MOC_OPTIONS" : [ "--output-json" ],
+	"MOC_PATH_PREFIX" : false,
+	"MOC_PREDEFS_CMD" : 
+	[
+		"/usr/bin/c++",
+		"-std=gnu++20",
+		"-dM",
+		"-E",
+		"-c",
+		"/usr/share/cmake-3.28/Modules/CMakeCXXCompilerABI.cpp"
+	],
+	"MOC_PREDEFS_FILE" : "/data/projects/projects/logdor/plugins/timelineviewer/timelineviewer_autogen/moc_predefs.h",
+	"MOC_RELAXED_MODE" : false,
+	"MOC_SKIP" : [],
+	"MULTI_CONFIG" : false,
+	"PARALLEL" : 14,
+	"PARSE_CACHE_FILE" : "/data/projects/projects/logdor/plugins/timelineviewer/CMakeFiles/timelineviewer_autogen.dir/ParseCache.txt",
+	"QT_MOC_EXECUTABLE" : "/home/psorensen/Qt/6.11.1/gcc_64/libexec/moc",
+	"QT_UIC_EXECUTABLE" : "/home/psorensen/Qt/6.11.1/gcc_64/libexec/uic",
+	"QT_VERSION_MAJOR" : 6,
+	"QT_VERSION_MINOR" : 11,
+	"SETTINGS_FILE" : "/data/projects/projects/logdor/plugins/timelineviewer/CMakeFiles/timelineviewer_autogen.dir/AutogenUsed.txt",
+	"SOURCES" : 
+	[
+		[
+			"/data/projects/projects/logdor/plugins/timelineviewer/timelineviewer.cpp",
+			"MU",
+			null
+		]
+	],
+	"UIC_OPTIONS" : [],
+	"UIC_SEARCH_PATHS" : [],
+	"UIC_SKIP" : [],
+	"UIC_UI_FILES" : [],
+	"VERBOSITY" : 0
+}
