@@ -56,6 +56,8 @@ qt_add_library(logdor-core STATIC
     src/HistogramScan.cpp
     include/logdor/ExportScan.h
     src/ExportScan.cpp
+    include/logdor/GrepScan.h
+    src/GrepScan.cpp
     include/logdor/JsonLinesParser.h
     src/JsonLinesParser.cpp
     include/logdor/GeoScan.h

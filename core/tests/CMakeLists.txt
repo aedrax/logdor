@@ -26,6 +26,7 @@ set(LOGDOR_CORE_TESTS
     timelinemerge
     histogramscan
     exportscan
+    grepscan
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
