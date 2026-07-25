@@ -11,6 +11,9 @@ target_link_libraries(bench_filter PRIVATE Logdor::Core)
 add_executable(bench_query bench_query.cpp)
 target_link_libraries(bench_query PRIVATE Logdor::Core)
 
+add_executable(bench_merge bench_merge.cpp)
+target_link_libraries(bench_merge PRIVATE Logdor::Core)
+
 set(BENCH_DATA ${CMAKE_BINARY_DIR}/bench-data)
 
 add_test(NAME bench.generate_1g
@@ -59,10 +62,18 @@ set_tests_properties(bench.generate_logcat_1g PROPERTIES
 set_tests_properties(bench.query_1g PROPERTIES
     FIXTURES_REQUIRED benchdata_logcat_1g LABELS "bench" TIMEOUT 600)
 
+# Merged timeline: ~18M rows across two inputs (measured 2026-07: 730 ms
+# warm, 1.8 GB VmHWM incl. the mmap'd corpus, 27 ms cancel).
+add_test(NAME bench.merge_2x1g
+    COMMAND bench_merge ${BENCH_DATA}/logcat-1g.log --copies 2
+            --max-warm-ms 2500 --max-rss-mb 3000 --check-cancel-ms 500)
+set_tests_properties(bench.merge_2x1g PROPERTIES
+    FIXTURES_REQUIRED benchdata_logcat_1g LABELS "bench" TIMEOUT 600)
+
 if(NOT LOGDOR_ENABLE_BENCH)
     set_tests_properties(bench.generate_1g bench.index_1g
         bench.filter_1g bench.filter_regex_1g
-        bench.generate_logcat_1g bench.query_1g
+        bench.generate_logcat_1g bench.query_1g bench.merge_2x1g
         PROPERTIES DISABLED TRUE)
 endif()
 if(NOT LOGDOR_ENABLE_BENCH OR NOT LOGDOR_BENCH_LARGE)
