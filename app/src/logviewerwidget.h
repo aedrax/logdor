@@ -34,6 +34,19 @@ public:
     // Null pair => file closed: cancels all background work, clears caches.
     void setCoreSource(std::shared_ptr<logdor::FileSource> source,
                        std::shared_ptr<const logdor::LineIndex> index);
+
+    /**
+     * Follow mode: the SAME file grew (PluginInterface::coreSourceExtended
+     * semantics). Passthrough views append rows in place; text filters tail
+     * scan from firstNewLine minus the context window and splice; query
+     * mode tail-extracts the referenced columns, splices the cache, then
+     * tail scans. A sorted view or any interrupted earlier extension falls
+     * back to a full re-filter. When the view was scrolled to the bottom it
+     * stays pinned there.
+     */
+    void extendCoreSource(std::shared_ptr<logdor::FileSource> source,
+                          std::shared_ptr<const logdor::LineIndex> index,
+                          qint64 firstNewLine);
     void setParser(std::shared_ptr<const logdor::FormatParser> parser);
 
     /// Text mode filters directly; query mode (options.inQueryMode) compiles
@@ -91,6 +104,10 @@ private slots:
 private:
     void addFilterActions(QMenu* menu, const QModelIndex& clicked);
     void startScan();
+    void startTailScan(qint64 spliceLine);
+    void finishTailScan(qint64 spliceLine,
+                        const logdor::FilterScanResult& result);
+    logdor::LineFilter buildLineFilter() const;
     void startSort();
     // ensureColumns for the current m_sortColumn, then sort (shared by
     // header clicks and view-state restore).
@@ -128,6 +145,11 @@ private:
 
     bool m_scanAfterExtract = false;
     bool m_sortAfterExtract = false;
+    // Follow-mode extension in flight: which splice line the pending tail
+    // scan/extract serves; -1 = none. Pinned = keep the view at the bottom.
+    qint64 m_tailScanSplice = -1;
+    qint64 m_tailExtractSplice = -1;
+    bool m_pinnedForExtend = false;
     int m_sortColumn = -1; // view column (0 = No.), -1 = unsorted
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
 

@@ -10,6 +10,7 @@
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QMenu>
+#include <QScrollBar>
 #include <QTableView>
 #include <QVBoxLayout>
 
@@ -100,6 +101,9 @@ void LogViewerWidget::setCoreSource(std::shared_ptr<FileSource> source,
     m_activeQuery.reset();
     m_scanAfterExtract = false;
     m_sortAfterExtract = false;
+    m_tailScanSplice = -1;
+    m_tailExtractSplice = -1;
+    m_pinnedForExtend = false;
     m_sortColumn = -1;
     clearSortIndicator();
     m_statusStrip->hide();
@@ -111,6 +115,74 @@ void LogViewerWidget::setCoreSource(std::shared_ptr<FileSource> source,
     m_syncing = false;
     if (m_source && m_index && !m_lastOptions.query.isEmpty())
         applyFilter(m_lastOptions);
+}
+
+void LogViewerWidget::extendCoreSource(std::shared_ptr<FileSource> source,
+                                       std::shared_ptr<const LineIndex> index,
+                                       qint64 firstNewLine)
+{
+    if (!m_source || !m_index || !m_parser || !source || !index) {
+        setCoreSource(std::move(source), std::move(index));
+        return;
+    }
+
+    // If an earlier extension's tail work never landed, the visible rows lag
+    // more than one splice behind - a fresh full filter is the simple truth.
+    const bool interrupted = m_tailScanSplice >= 0 || m_tailExtractSplice >= 0;
+    m_scanWatcher.cancel();
+    m_extractWatcher.cancel();
+    m_tailScanSplice = -1;
+    m_tailExtractSplice = -1;
+
+    auto* scrollBar = m_view->verticalScrollBar();
+    m_pinnedForExtend = scrollBar->value() >= scrollBar->maximum();
+
+    m_source = std::move(source);
+    m_index = std::move(index);
+
+    if (interrupted || m_sortColumn >= 0 || m_pendingRestore) {
+        // Sorted views re-sort over a full rescan; the follow UI pauses
+        // follow while a sort is active, so this is the rare path.
+        m_syncing = true;
+        m_model->setSource(m_source, m_index, m_parser);
+        m_syncing = false;
+        applyFilter(m_lastOptions);
+        return;
+    }
+
+    const bool passthrough = m_lastOptions.query.trimmed().isEmpty()
+        && !m_extraPredicate && !m_lineConstraint;
+    if (passthrough) {
+        m_syncing = true;
+        m_model->extendSource(m_source, m_index, firstNewLine,
+                              logdor::RowSet::all(m_index->lineCount()));
+        restoreSelectionSilently();
+        m_syncing = false;
+        if (m_pinnedForExtend)
+            m_view->scrollToBottom();
+        return;
+    }
+
+    if (m_activeQuery) {
+        // The cached columns cover only the old lines; tail-extract the
+        // referenced ones and splice before scanning. If the cache is
+        // missing a column outright, take the full path.
+        const QList<int> referenced = m_activeQuery->referencedColumns();
+        const bool cacheComplete = m_columnCache.missing(referenced).isEmpty()
+            && (!m_activeQuery->needsSeverity() || m_columnCache.hasSeverity());
+        if (!cacheComplete) {
+            applyFilter(m_lastOptions);
+            return;
+        }
+        m_tailExtractSplice = firstNewLine;
+        m_extractWatcher.setFuture(extractColumns(
+            m_source, m_index, m_parser, referenced,
+            m_activeQuery->needsSeverity(), m_timeContext,
+            kDefaultFilterChunkLines, firstNewLine));
+        return;
+    }
+
+    startTailScan(firstNewLine);
 }
 
 void LogViewerWidget::setParser(std::shared_ptr<const FormatParser> parser)
@@ -367,7 +439,35 @@ void LogViewerWidget::onExtractFinished()
 {
     if (m_extractWatcher.future().isCanceled())
         return;
-    m_columnCache.insert(m_extractWatcher.future().result());
+    const ColumnScanResult result = m_extractWatcher.future().result();
+
+    if (m_tailExtractSplice >= 0) {
+        // Follow mode: splice each tail column onto its cached head, then
+        // run the tail scan over the completed cache.
+        const qint64 splice = m_tailExtractSplice;
+        m_tailExtractSplice = -1;
+        for (auto it = result.columns.begin(); it != result.columns.end();
+             ++it) {
+            const auto head = m_columnCache.column(it.key());
+            m_columnCache.insert(
+                it.key(), std::make_shared<const ColumnData>(
+                              ColumnData::appended(*head, splice, *it.value())));
+        }
+        if (result.severity) {
+            const auto head = m_columnCache.severity();
+            auto merged = std::make_shared<std::vector<quint8>>();
+            merged->reserve(size_t(splice) + result.severity->size());
+            merged->insert(merged->end(), head->begin(),
+                           head->begin() + splice);
+            merged->insert(merged->end(), result.severity->begin(),
+                           result.severity->end());
+            m_columnCache.setSeverity(std::move(merged));
+        }
+        startTailScan(splice);
+        return;
+    }
+
+    m_columnCache.insert(result);
     if (m_scanAfterExtract) {
         m_scanAfterExtract = false;
         startScan();
@@ -378,10 +478,53 @@ void LogViewerWidget::onExtractFinished()
     }
 }
 
+void LogViewerWidget::startTailScan(qint64 spliceLine)
+{
+    m_scanWatcher.cancel();
+    m_tailScanSplice = spliceLine;
+    const qint64 firstLine
+        = std::max<qint64>(0, spliceLine - m_lastOptions.contextLinesBefore);
+    LineFilter filter = buildLineFilter();
+    m_scanWatcher.setFuture(scanFilter(m_source, m_index, std::move(filter),
+                                       kDefaultFilterChunkLines, firstLine));
+}
+
+void LogViewerWidget::finishTailScan(qint64 spliceLine,
+                                     const FilterScanResult& result)
+{
+    // Keep only rows at or past the splice; context rows the tail scan
+    // found below it were already decided by the old scan (minor boundary
+    // wobble around new matches' backward context is accepted).
+    std::vector<qint32> tailLines;
+    tailLines.reserve(size_t(result.rows.size()));
+    for (qint64 row = 0; row < result.rows.size(); ++row) {
+        const qint64 line = result.rows.sourceLine(row);
+        if (line >= spliceLine)
+            tailLines.push_back(qint32(line));
+    }
+    RowSet spliced = RowSet::appended(m_model->rowSet(), spliceLine,
+                                      std::move(tailLines),
+                                      m_index->lineCount());
+
+    m_syncing = true;
+    m_model->extendSource(m_source, m_index, spliceLine, std::move(spliced));
+    restoreSelectionSilently();
+    m_syncing = false;
+    if (m_pinnedForExtend)
+        m_view->scrollToBottom();
+}
+
 void LogViewerWidget::startScan()
 {
     m_scanWatcher.cancel();
+    m_tailScanSplice = -1;
 
+    LineFilter filter = buildLineFilter();
+    m_scanWatcher.setFuture(scanFilter(m_source, m_index, std::move(filter)));
+}
+
+LineFilter LogViewerWidget::buildLineFilter() const
+{
     LineFilter filter;
     if (m_activeQuery) {
         filter.fieldQuery = m_activeQuery;
@@ -410,8 +553,7 @@ void LogViewerWidget::startScan()
     } else {
         filter.extraPredicate = m_extraPredicate;
     }
-
-    m_scanWatcher.setFuture(scanFilter(m_source, m_index, std::move(filter)));
+    return filter;
 }
 
 void LogViewerWidget::onScanFinished()
@@ -419,6 +561,13 @@ void LogViewerWidget::onScanFinished()
     if (m_scanWatcher.future().isCanceled())
         return;
     const FilterScanResult result = m_scanWatcher.future().result();
+
+    if (m_tailScanSplice >= 0) {
+        const qint64 splice = m_tailScanSplice;
+        m_tailScanSplice = -1;
+        finishTailScan(splice, result);
+        return;
+    }
 
     m_syncing = true;
     m_model->setRowSet(result.rows); // clears any sort order

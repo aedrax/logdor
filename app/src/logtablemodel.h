@@ -35,6 +35,19 @@ public:
 
     void setRowSet(logdor::RowSet rows); // clears any row order
     const logdor::RowSet& rowSet() const { return m_rows; }
+
+    /**
+     * Follow mode: the SAME file grew. Swaps the pointers, drops the parse
+     * cache for @p spliceLine (an unterminated final line may have changed),
+     * and adopts @p rows - via row insertion when the change is a pure
+     * append (rows below spliceLine are identical by construction of
+     * RowSet::appended, and the tiny boundary region is verified), else via
+     * a model reset. Natural order only; an active row order falls back to
+     * a reset.
+     */
+    void extendSource(std::shared_ptr<logdor::FileSource> source,
+                      std::shared_ptr<const logdor::LineIndex> index,
+                      qint64 spliceLine, logdor::RowSet rows);
     const std::shared_ptr<const logdor::FormatParser>& parser() const { return m_parser; }
 
     /**

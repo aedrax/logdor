@@ -38,6 +38,28 @@ bool waitForScan(LogViewerWidget& widget, int timeoutMs = 5000)
     return spy.wait(timeoutMs);
 }
 
+// Append to the file, reopen, extend the index, and deliver the growth to
+// the widget the way PluginManager::extendCoreSource would.
+Opened growFile(const QString& path, const Opened& old,
+                const QByteArray& bytes, LogViewerWidget& widget)
+{
+    {
+        QFile f(path);
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Append)
+            || f.write(bytes) != bytes.size())
+            return {};
+    }
+    auto source = FileSource::open(path);
+    auto future = extendLineIndex(source, old.index);
+    future.waitForFinished();
+    const qint64 firstNewLine = old.index->lastLineTerminated()
+        ? old.index->lineCount()
+        : old.index->lineCount() - 1;
+    Opened grown { source, future.result().index };
+    widget.extendCoreSource(grown.source, grown.index, firstNewLine);
+    return grown;
+}
+
 } // namespace
 
 class tst_LogViewerWidget : public QObject {
@@ -92,6 +114,82 @@ private slots:
             QVERIFY(spy.wait(5000));
         }
         QCOMPARE(widget.model()->rowCount(), 20);
+    }
+
+    void extendPassthroughAppendsInPlace()
+    {
+        QTemporaryDir dir;
+        auto o = openContent(dir, "grow.log", "a\nb\nc\n");
+        LogViewerWidget widget;
+        widget.setParser(parserById(u"plaintext"));
+        widget.setCoreSource(o.source, o.index);
+        QCOMPARE(widget.model()->rowCount(), 3);
+
+        QSignalSpy inserted(widget.model(), &QAbstractItemModel::rowsInserted);
+        QSignalSpy reset(widget.model(), &QAbstractItemModel::modelReset);
+        growFile(dir.filePath("grow.log"), o, "d\ne\n", widget);
+        QCOMPARE(widget.model()->rowCount(), 5); // synchronous in passthrough
+        QCOMPARE(inserted.count(), 1);           // pure append, no reset
+        QCOMPARE(reset.count(), 0);
+        QCOMPARE(widget.model()->sourceLineForRow(4), qint64(4));
+    }
+
+    void extendTextFilterSplicesTail()
+    {
+        QTemporaryDir dir;
+        auto o = openContent(dir, "filt.log", "match one\nskip\nmatch two\n");
+        LogViewerWidget widget;
+        widget.setParser(parserById(u"plaintext"));
+        widget.setCoreSource(o.source, o.index);
+        widget.applyFilter(FilterOptions(QStringLiteral("match")));
+        QVERIFY(waitForScan(widget));
+        QCOMPARE(widget.model()->rowCount(), 2);
+
+        growFile(dir.filePath("filt.log"), o, "skip too\nmatch three\n",
+                 widget);
+        QTRY_COMPARE_WITH_TIMEOUT(widget.model()->rowCount(), 3, 5000);
+        QCOMPARE(widget.model()->sourceLineForRow(2), qint64(4));
+    }
+
+    void extendReevaluatesUnterminatedLine()
+    {
+        QTemporaryDir dir;
+        auto o = openContent(dir, "unterm.log", "one\ntw");
+        LogViewerWidget widget;
+        widget.setParser(parserById(u"plaintext"));
+        widget.setCoreSource(o.source, o.index);
+        widget.applyFilter(FilterOptions(QStringLiteral("two")));
+        QVERIFY(waitForScan(widget));
+        QCOMPARE(widget.model()->rowCount(), 0); // "tw" does not match yet
+
+        growFile(dir.filePath("unterm.log"), o, "o\nother\n", widget);
+        QTRY_COMPARE_WITH_TIMEOUT(widget.model()->rowCount(), 1, 5000);
+        QCOMPARE(widget.model()->sourceLineForRow(0), qint64(1)); // now "two"
+    }
+
+    void extendQueryModeSplicesColumns()
+    {
+        QTemporaryDir dir;
+        const QByteArray head
+            = "01-01 10:00:00.000 100 1 E Tag: boom\n"
+              "01-01 10:00:01.000 100 1 I Tag: fine\n"
+              "01-01 10:00:02.000 100 1 E Tag: boom again\n";
+        auto o = openContent(dir, "q.log", head);
+        LogViewerWidget widget;
+        widget.setParser(parserById(u"logcat"));
+        widget.setCoreSource(o.source, o.index);
+        widget.applyFilter(FilterOptions(QStringLiteral("level:error"), 0, 0,
+                                         Qt::CaseInsensitive, false,
+                                         /*queryMode=*/true));
+        QVERIFY(waitForScan(widget));
+        QCOMPARE(widget.model()->rowCount(), 2);
+
+        growFile(dir.filePath("q.log"), o,
+                 "01-01 10:00:03.000 100 1 I Tag: quiet\n"
+                 "01-01 10:00:04.000 100 1 E Tag: boom three\n",
+                 widget);
+        QTRY_COMPARE_WITH_TIMEOUT(widget.model()->rowCount(), 3, 5000);
+        QCOMPARE(widget.model()->sourceLineForRow(2), qint64(4));
     }
 
     void viewStateRoundTrip()

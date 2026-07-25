@@ -35,6 +35,47 @@ void LogTableModel::setRowSet(RowSet rows)
     endResetModel();
 }
 
+void LogTableModel::extendSource(std::shared_ptr<FileSource> source,
+                                 std::shared_ptr<const LineIndex> index,
+                                 qint64 spliceLine, RowSet rows)
+{
+    m_source = std::move(source);
+    m_index = std::move(index);
+    m_cache.remove(spliceLine); // its content may have grown
+
+    const qint64 oldSize = m_rows.size();
+    const qint64 newSize = rows.size();
+
+    // Pure append: rows below spliceLine are identical by construction of
+    // RowSet::appended; only the boundary region (old rows at or past
+    // spliceLine, at most a handful) can have changed verdicts.
+    bool pureAppend = m_order.empty() && newSize >= oldSize;
+    if (pureAppend) {
+        qint64 row = oldSize;
+        while (row > 0 && m_rows.sourceLine(row - 1) >= spliceLine)
+            --row;
+        for (; pureAppend && row < oldSize; ++row)
+            pureAppend = m_rows.sourceLine(row) == rows.sourceLine(row);
+    }
+
+    if (!pureAppend) {
+        setRowSet(std::move(rows));
+        return;
+    }
+
+    if (newSize > oldSize) {
+        beginInsertRows(QModelIndex(), int(oldSize), int(newSize - 1));
+        m_rows = std::move(rows);
+        endInsertRows();
+    } else {
+        m_rows = std::move(rows);
+    }
+    const int changedRow = rowForSourceLine(spliceLine);
+    if (changedRow >= 0 && columnCount() > 0)
+        emit dataChanged(this->index(changedRow, 0),
+                         this->index(changedRow, columnCount() - 1));
+}
+
 void LogTableModel::setRowOrder(std::vector<qint32> order)
 {
     Q_ASSERT(order.empty() || qint64(order.size()) == m_rows.size());
