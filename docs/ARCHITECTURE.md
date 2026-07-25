@@ -25,7 +25,8 @@ Registries are value-returning free functions.
 | Parsing | `FormatParser`, `PlainTextParser`/`LogcatParser`/`ClfParser`/`CsvParser`/`JsonLinesParser`/`DockerJsonParser`/`GelfParser`, `DeclarativeParser` + `FormatSpec`, `FormatRegistry` | schema + stateless thread-safe per-line parse; JSON-defined formats; sample-scored auto-detection |
 | Filtering | `RowSet`, `scanFilter`, `CompiledQuery`, `ColumnScan`/`ColumnCache`, `TimestampParse` | chunk-parallel cancellable scans; field-query language over extracted columns (temporal comparison on datetime fields via per-column codecs parsing to UTC epoch ms); empty filter costs zero bytes |
 | Sorting | `sortRows` | stable off-thread sort of visible rows by cached keys |
-| Timeline | `mergeTimeline`, `scanHistogram` | merges N files' visible rows into one time-ascending `(epochMs, fileId, line)` order from their extracted epoch lanes (rows without a valid epoch excluded and counted per input); buckets visible rows' epochs into per-severity histogram lanes for the timeline strip |
+| Timeline | `mergeTimeline`, `scanHistogram`, `probeTimeRange` | merges N files' visible rows into one time-ascending `(epochMs, fileId, line)` order from their extracted epoch lanes (rows without a valid epoch excluded and counted per input); buckets visible rows' epochs into per-severity histogram lanes for the timeline strip; cheap synchronous head/tail span probe seeding the time picker |
+| Export/Search | `exportRows`, `grepFolder` | visible rows in view order to text or RFC 4180 CSV (cancelled/failed exports remove the partial file); streaming folder-wide grep, one future result per reportable file |
 | Annotations | `Annotation`/`AnnotationSet`, `FileIdentity`, `AnnotationScan` | versioned sidecar JSON, LWW merge, content-hash identity, bounded re-anchoring |
 
 **Threading contract**: every potentially slow core operation returns a

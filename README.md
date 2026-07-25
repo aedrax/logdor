@@ -81,6 +81,12 @@ histogram of the visible rows over time: hover for counts, click to jump to
 that moment, drag to restrict the filter to a time range (Esc clears it).
 The Merged Timeline shows the same strip summed across its files.
 
+**File -> Search in Folder...** (Ctrl+Shift+F) greps a whole directory tree
+(gzipped logs included) and jumps straight to any match. Any viewer's
+context menu can **Export Visible Rows** (text or CSV, in the current sort
+order), and the filter bar's Time picker opens pre-seeded with the current
+file's actual time span. Gzip-compressed logs (`*.gz`) open directly.
+
 **File -> Follow File** (F8) tails the current file: new lines appear as
 they are written (filters keep applying to them), a view scrolled to the
 bottom stays pinned there, and a rotated or truncated file reloads

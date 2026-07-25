@@ -50,6 +50,14 @@ public:
         m_timeRangeTerms = terms;
     }
 
+    /// Seed the range picker's fresh defaults with the current file's
+    /// observed span (probeTimeRange); (0, 0) falls back to "today so far".
+    void setTimeRangeHint(qint64 firstUtcMs, qint64 lastUtcMs)
+    {
+        m_hintFromMs = firstUtcMs;
+        m_hintToMs = lastUtcMs;
+    }
+
     void focusInput();
 
     /// Saved filter presets (QSettings "savedQueries").
@@ -80,6 +88,8 @@ private:
     QSpinBox* m_afterSpinBox = nullptr;
     QTimer* m_debounce = nullptr;
     QStringList m_timeRangeTerms;
+    qint64 m_hintFromMs = 0; // picker seed from the current file's span
+    qint64 m_hintToMs = 0;
 };
 
 #endif // FILTERTOOLBAR_H

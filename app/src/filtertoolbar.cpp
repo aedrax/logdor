@@ -122,13 +122,22 @@ FilterToolbar::FilterToolbar(QWidget* parent)
     timeMenu->addAction(timeAction);
 
     connect(timeRangeButton, &QPushButton::clicked, this,
-            [timeMenu, timeRangeButton, fromCheck, toCheck, fromEdit,
+            [this, timeMenu, timeRangeButton, fromCheck, toCheck, fromEdit,
              toEdit]() {
                 if (!fromCheck->isChecked() && !toCheck->isChecked()) {
-                    // Fresh defaults: today so far.
-                    const QDateTime now = QDateTime::currentDateTime();
-                    fromEdit->setDateTime(QDateTime(now.date(), QTime(0, 0)));
-                    toEdit->setDateTime(now);
+                    if (m_hintFromMs != 0 || m_hintToMs != 0) {
+                        // Fresh defaults: the open file's observed span.
+                        fromEdit->setDateTime(
+                            QDateTime::fromMSecsSinceEpoch(m_hintFromMs));
+                        toEdit->setDateTime(
+                            QDateTime::fromMSecsSinceEpoch(m_hintToMs));
+                    } else {
+                        // No probe (timestamp-less or uptime): today so far.
+                        const QDateTime now = QDateTime::currentDateTime();
+                        fromEdit->setDateTime(
+                            QDateTime(now.date(), QTime(0, 0)));
+                        toEdit->setDateTime(now);
+                    }
                 }
                 timeMenu->popup(timeRangeButton->mapToGlobal(
                     QPoint(0, timeRangeButton->height())));

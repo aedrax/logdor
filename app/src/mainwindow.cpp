@@ -38,9 +38,13 @@
 #include "foldersearchdock.h"
 #include "folderview.h"
 #include "followcontroller.h"
+#include "formatcatalog.h"
 #include "highlightrules.h"
 #include "recentitems.h"
 #include "timesettings.h"
+
+#include <logdor/FormatRegistry.h>
+#include <logdor/TimeProbe.h>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -714,6 +718,27 @@ void MainWindow::onIndexingFinished()
     // the current toolbar filter. setFilter() below applies either in one
     // shot, and viewers finish their part when their scans land.
     restoreSession(fileName);
+    // Seed the time picker with this file's observed span (cheap head/tail
+    // probe with the auto-detected format; monotonic clocks don't seed).
+    {
+        static const auto parsers = loadAllParsers();
+        logdor::TimeRangeProbe probe;
+        const auto scores = logdor::detectFormat(*m_fileSource, *m_lineIndex,
+                                                 parsers);
+        if (!scores.isEmpty()) {
+            if (const auto parser
+                = logdor::parserById(scores.front().parserId, parsers)) {
+                probe = logdor::probeTimeRange(
+                    *m_fileSource, *m_lineIndex, *parser,
+                    TimeSettings::instance().contextForFile(fileName));
+            }
+        }
+        if (probe.valid && !probe.monotonic)
+            m_filterToolbar->setTimeRangeHint(probe.firstMs, probe.lastMs);
+        else
+            m_filterToolbar->setTimeRangeHint(0, 0);
+    }
+
     m_pluginManager->setFilter(m_filterOptions);
     if (m_pendingJumpLine >= 0) {
         // Folder-search jump: viewers apply the selection once their own
