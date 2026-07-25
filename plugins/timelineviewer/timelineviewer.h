@@ -16,6 +16,8 @@
 class QLabel;
 class QListWidget;
 class QListWidgetItem;
+class QTableView;
+class TimelineModel;
 
 /**
  * Merged Timeline: the analyst adds N log files - same or different formats -
@@ -66,6 +68,8 @@ private:
     QWidget* m_widget = nullptr;
     QListWidget* m_fileList = nullptr;
     QLabel* m_statusLabel = nullptr;
+    QTableView* m_table = nullptr;
+    TimelineModel* m_model = nullptr;
 
     QList<std::shared_ptr<TimelineFile>> m_files;
     qint32 m_nextFileId = 0;
@@ -75,7 +79,6 @@ private:
     QList<std::shared_ptr<const logdor::FormatParser>> m_parsers;
 
     QFutureWatcher<logdor::TimelineMergeResult> m_mergeWatcher;
-    std::vector<logdor::TimelineRow> m_order; // last completed merge
     qint64 m_mergeElapsedMs = 0;
     QSet<QFutureWatcherBase*> m_pendingWatchers;
     bool m_updatingList = false;

@@ -7,8 +7,10 @@ qt_add_plugin(timelineviewer
 target_sources(timelineviewer
     PRIVATE
         timelineviewer.cpp
+        timelinemodel.cpp
     PUBLIC
         timelineviewer.h
+        timelinemodel.h
         timelinefile.h
 )
 

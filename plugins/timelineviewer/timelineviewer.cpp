@@ -1,5 +1,7 @@
 #include "timelineviewer.h"
 
+#include "timelinemodel.h"
+
 #include "../../app/src/formatcatalog.h"
 #include "../../app/src/timesettings.h"
 
@@ -10,10 +12,12 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QLabel>
 #include <QListWidget>
 #include <QLocale>
 #include <QPushButton>
+#include <QTableView>
 #include <QVBoxLayout>
 
 using namespace logdor;
@@ -59,11 +63,24 @@ TimelineViewer::TimelineViewer(QObject* parent)
     m_fileList->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_fileList->setMaximumHeight(120);
 
+    m_model = new TimelineModel(this);
+    m_table = new QTableView();
+    m_table->setModel(m_model);
+    m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_table->setShowGrid(false);
+    m_table->setWordWrap(false);
+    m_table->verticalHeader()->setVisible(false);
+    m_table->verticalHeader()->setDefaultSectionSize(
+        m_table->fontMetrics().height() + 4);
+    m_table->horizontalHeader()->setStretchLastSection(true);
+    m_table->horizontalHeader()->setSectionResizeMode(
+        QHeaderView::Interactive);
+
     auto* layout = new QVBoxLayout(m_widget);
     layout->addLayout(toolbar);
     layout->addWidget(m_fileList);
+    layout->addWidget(m_table, /*stretch=*/1);
     layout->addWidget(m_statusLabel);
-    layout->addStretch(); // A5 replaces this with the merged table view
 
     connect(addButton, &QPushButton::clicked,
             this, &TimelineViewer::addFilesDialog);
@@ -89,7 +106,6 @@ TimelineViewer::TimelineViewer(QObject* parent)
         if (m_mergeWatcher.future().isCanceled())
             return;
         TimelineMergeResult result = m_mergeWatcher.result();
-        m_order = std::move(result.order);
         m_mergeElapsedMs = result.elapsedMs;
         // droppedPerInput is positional over the inputs the merge was built
         // from: the enabled Ready files in list order at schedule time. A
@@ -103,6 +119,12 @@ TimelineViewer::TimelineViewer(QObject* parent)
                 ++inputIndex;
             }
         }
+        QHash<qint32, std::shared_ptr<const TimelineFile>> filesById;
+        for (const auto& file : std::as_const(m_files)) {
+            if (file->state == TimelineFile::State::Ready)
+                filesById.insert(file->fileId, file);
+        }
+        m_model->setMerged(std::move(result.order), std::move(filesById));
         refreshFileList();
         refreshStatus();
     });
@@ -278,7 +300,7 @@ void TimelineViewer::scheduleMerge()
                                file->timeData });
     }
     if (inputs.empty()) {
-        m_order.clear();
+        m_model->clearMerged();
         m_mergeElapsedMs = 0;
         refreshStatus();
         return;
@@ -330,13 +352,13 @@ void TimelineViewer::refreshStatus()
                                   "into one timeline."));
         return;
     }
-    if (m_order.empty()) {
+    if (m_model->mergedCount() == 0) {
         m_statusLabel->setText(tr("No merged events yet."));
         return;
     }
     const QLocale locale;
     m_statusLabel->setText(tr("%1 events merged in %2 ms")
-                               .arg(locale.toString(qint64(m_order.size())),
+                               .arg(locale.toString(m_model->mergedCount()),
                                     locale.toString(m_mergeElapsedMs)));
 }
 
