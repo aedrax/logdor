@@ -24,6 +24,7 @@ set(LOGDOR_CORE_TESTS
     gelfparser
     netlogparser
     timelinemerge
+    histogramscan
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)
