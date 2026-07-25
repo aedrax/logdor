@@ -77,6 +77,36 @@ private slots:
                  utcMs(2026, 12, 30, 0, 0, 0));
     }
 
+    void klogShapes()
+    {
+        const auto codec = TimestampCodec::fromFormatString(
+            "MMdd HH:mm:ss.zzzzzz", utcCtx(2026, 7));
+        QCOMPARE(codec.kind(), TimestampCodec::Kind::Klog);
+        // Microsecond fractions truncate to milliseconds.
+        QCOMPARE(parsedMs(codec, "0203 12:34:56.789012"),
+                 utcMs(2026, 2, 3, 12, 34, 56, 789));
+        // klog pads the tid with spaces; the value itself has none, but a
+        // fraction-less time is still valid.
+        QCOMPARE(parsedMs(codec, "0203 12:34:56"),
+                 utcMs(2026, 2, 3, 12, 34, 56));
+        // Months after the reference month belong to the previous year.
+        QCOMPARE(parsedMs(codec, "1230 00:00:00.000000"),
+                 utcMs(2025, 12, 30, 0, 0, 0));
+        QCOMPARE(parsedMs(codec, "02-03 12:34:56.789"), -1); // logcat shape
+        QCOMPARE(parsedMs(codec, "0203 12:34:56.789012 extra"), -1);
+        QCOMPARE(parsedMs(codec, "1350 12:34:56.789012"), -1); // bad month
+    }
+
+    void klogAssumedZone()
+    {
+        // Fixed UTC+1: klog wall times convert through the assumed zone.
+        const TimeParseContext ctx { QTimeZone(3600), 2026, 7 };
+        const auto codec
+            = TimestampCodec::fromFormatString("MMdd HH:mm:ss.zzzzzz", ctx);
+        QCOMPARE(parsedMs(codec, "0203 12:00:00.000000"),
+                 utcMs(2026, 2, 3, 11, 0, 0));
+    }
+
     void rfc3164Shapes()
     {
         const auto codec = TimestampCodec::fromFormatString(
@@ -172,6 +202,8 @@ private slots:
                  TimestampCodec::Kind::Clf);
         QCOMPARE(TimestampCodec::detect({ "07-24 06:15:02.123" }, ctx).kind(),
                  TimestampCodec::Kind::Logcat);
+        QCOMPARE(TimestampCodec::detect({ "0203 12:34:56.789012" }, ctx).kind(),
+                 TimestampCodec::Kind::Klog);
         QCOMPARE(TimestampCodec::detect({ "Jul 24 06:15:02" }, ctx).kind(),
                  TimestampCodec::Kind::Rfc3164);
         QCOMPARE(TimestampCodec::detect({ "1721800000123" }, ctx).kind(),
@@ -252,6 +284,10 @@ private slots:
 
         const auto rfc = parseTimeLiteral(u"Jul 24 06:15:02", ctx);
         QCOMPARE(rfc.lowerMs, utcMs(2026, 7, 24, 6, 15, 2));
+
+        const auto klog = parseTimeLiteral(u"0203 12:34:56.789012", ctx);
+        QCOMPARE(klog.kind, TimeLiteral::Kind::Absolute);
+        QCOMPARE(klog.lowerMs, utcMs(2026, 2, 3, 12, 34, 56, 789));
 
         const auto clf = parseTimeLiteral(u"24/Jul/2026:06:15:02", ctx);
         QCOMPARE(clf.lowerMs, utcMs(2026, 7, 24, 6, 15, 2));
