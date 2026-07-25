@@ -190,6 +190,31 @@ private slots:
         QCOMPARE(idx.lineCount(), 5000);
     }
 
+    void resumedFromPreservesWideMode()
+    {
+        // A >4 GiB span inside one block forces wide mode; a resumed build
+        // must keep appending correctly in that representation.
+        LineIndex wide;
+        wide.addTerminator(10, false);
+        wide.addTerminator(quint64(5) << 30, false); // 5 GiB delta
+        wide.finalize((quint64(5) << 30) + 100);
+        QVERIFY(wide.isWide());
+        QVERIFY(!wide.lastLineTerminated());
+
+        LineIndex resumed = LineIndex::resumedFrom(wide);
+        const quint64 newEnd = (quint64(5) << 30) + 200;
+        resumed.addTerminator(newEnd - 50, false);
+        resumed.finalize(newEnd);
+
+        LineIndex fresh;
+        fresh.addTerminator(10, false);
+        fresh.addTerminator(quint64(5) << 30, false);
+        fresh.addTerminator(newEnd - 50, false);
+        fresh.finalize(newEnd);
+        compareIndexes(resumed, fresh);
+        QVERIFY(resumed.isWide());
+    }
+
     void resumeAccessors()
     {
         const LineIndex terminated = indexOf("a\nb\n");

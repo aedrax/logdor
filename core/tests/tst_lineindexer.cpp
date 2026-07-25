@@ -2,6 +2,7 @@
 #include <logdor/LineIndex.h>
 #include <logdor/LineIndexer.h>
 
+#include <QRandomGenerator>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -9,6 +10,7 @@ using logdor::FileSource;
 using logdor::IndexingResult;
 using logdor::LineIndex;
 using logdor::buildLineIndex;
+using logdor::extendLineIndex;
 
 namespace {
 
@@ -55,6 +57,60 @@ IndexingResult buildSync(const QString& path, qsizetype chunkSize)
     auto future = buildLineIndex(std::move(src), chunkSize);
     future.waitForFinished();
     return future.result();
+}
+
+IndexingResult extendSync(const QString& path,
+                          std::shared_ptr<const LineIndex> previous,
+                          qsizetype chunkSize)
+{
+    auto src = FileSource::open(path); // follow mode always reopens
+    if (!src)
+        return {};
+    auto future = extendLineIndex(std::move(src), std::move(previous), chunkSize);
+    future.waitForFinished();
+    return future.result();
+}
+
+bool appendToFile(const QString& path, const QByteArray& bytes)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Append))
+        return false;
+    return f.write(bytes) == bytes.size();
+}
+
+void compareIndexes(const LineIndex& actual, const LineIndex& expected)
+{
+    QCOMPARE(actual.lineCount(), expected.lineCount());
+    QCOMPARE(actual.fileSize(), expected.fileSize());
+    QCOMPARE(actual.lastLineTerminated(), expected.lastLineTerminated());
+    QCOMPARE(actual.resumeOffset(), expected.resumeOffset());
+    for (qint64 line = 0; line < expected.lineCount(); ++line) {
+        QCOMPARE(actual.offsetOf(line), expected.offsetOf(line));
+        QCOMPARE(actual.rawLengthOf(line), expected.rawLengthOf(line));
+        QCOMPARE(actual.endsWithCrLf(line), expected.endsWithCrLf(line));
+    }
+}
+
+// A burst of appended log data hitting every line-ending shape; roughly one
+// in three bursts ends without a newline (a partially written line).
+QByteArray randomBurst(QRandomGenerator& rng)
+{
+    QByteArray burst;
+    const int lines = int(rng.bounded(5));
+    for (int i = 0; i < lines; ++i) {
+        switch (rng.bounded(4)) {
+        case 0: burst += "plain " + QByteArray::number(rng.generate()) + "\n"; break;
+        case 1: burst += "dos " + QByteArray::number(rng.generate()) + "\r\n"; break;
+        case 2: burst += "\n"; break;
+        case 3: burst += "lone\rcr content\n"; break;
+        }
+    }
+    if (rng.bounded(3) == 0)
+        burst += "partial tail";
+    else if (rng.bounded(4) == 0)
+        burst += "ends with cr\r"; // next burst may start with '\n'
+    return burst;
 }
 
 void comparePairwise(const QByteArray& data, const LineIndex& idx)
@@ -162,6 +218,129 @@ private slots:
         future.waitForFinished();
         QCOMPARE(future.progressValue(), 1000);
         QCOMPARE(future.result().lineCount, qint64(1)); // one giant line
+    }
+
+    void extendMatchesFullRebuild_data()
+    {
+        QTest::addColumn<int>("seed");
+        QTest::addColumn<int>("chunkSize");
+        QTest::addColumn<bool>("forceBuffered");
+        for (int seed : { 1, 2, 3 }) {
+            for (int chunk : { 5, 4096 }) {
+                QTest::addRow("seed=%d/chunk=%d/mapped", seed, chunk)
+                    << seed << chunk << false;
+            }
+        }
+        QTest::addRow("seed=1/chunk=4096/buffered") << 1 << 4096 << true;
+    }
+
+    void extendMatchesFullRebuild()
+    {
+        QFETCH(int, seed);
+        QFETCH(int, chunkSize);
+        QFETCH(bool, forceBuffered);
+
+        QTemporaryDir dir;
+        QRandomGenerator rng{ quint32(seed) };
+        QByteArray content = randomBurst(rng);
+        const QString path = writeFile(dir, "follow.log", content);
+        QVERIFY(!path.isEmpty());
+        if (forceBuffered)
+            qputenv("LOGDOR_FORCE_BUFFERED", "1");
+
+        auto current = buildSync(path, chunkSize).index;
+        QVERIFY(current);
+
+        for (int step = 0; step < 12; ++step) {
+            const QByteArray burst = randomBurst(rng);
+            QVERIFY(appendToFile(path, burst));
+            content += burst;
+
+            const IndexingResult extended
+                = extendSync(path, current, chunkSize);
+            QVERIFY(extended.index);
+            QCOMPARE(extended.bytesScanned,
+                     quint64(content.size()) - current->resumeOffset());
+
+            const IndexingResult fresh = buildSync(path, chunkSize);
+            QVERIFY(fresh.index);
+            compareIndexes(*extended.index, *fresh.index);
+            comparePairwise(content, *extended.index);
+            current = extended.index;
+        }
+    }
+
+    void extendCrlfSplitAtOldEof()
+    {
+        // Old file ends "...\r" unterminated; the appended bytes start with
+        // '\n'. resumeOffset() re-covers the '\r', so the pair is detected.
+        QTemporaryDir dir;
+        const QString path = writeFile(dir, "crlf.log", "abc\r");
+        auto base = buildSync(path, 4096).index;
+        QVERIFY(base);
+        QCOMPARE(base->lineCount(), qint64(1));
+
+        QVERIFY(appendToFile(path, "\ndef\n"));
+        const IndexingResult extended = extendSync(path, base, 4096);
+        QVERIFY(extended.index);
+        QCOMPARE(extended.index->lineCount(), qint64(2));
+        QVERIFY(extended.index->endsWithCrLf(0));
+        QCOMPARE(extended.index->lengthOf(0), qsizetype(3));    // "abc"
+        QCOMPARE(extended.index->rawLengthOf(0), qsizetype(4)); // "abc\r"
+    }
+
+    void extendZeroGrowthIsIdentity()
+    {
+        QTemporaryDir dir;
+        for (const QByteArray& content :
+             { QByteArray("a\nb\n"), QByteArray("a\nb"), QByteArray() }) {
+            const QString path = writeFile(dir, "same.log", content);
+            auto base = buildSync(path, 4096).index;
+            QVERIFY(base);
+            const IndexingResult extended = extendSync(path, base, 4096);
+            QVERIFY(extended.index);
+            QCOMPARE(extended.bytesScanned,
+                     quint64(content.size()) - base->resumeOffset());
+            compareIndexes(*extended.index, *base);
+        }
+    }
+
+    void extendShrunkFileReturnsPrevious()
+    {
+        QTemporaryDir dir;
+        const QString path = writeFile(dir, "shrink.log", "a\nb\nc\n");
+        auto base = buildSync(path, 4096).index;
+        QVERIFY(base);
+
+        QVERIFY(writeFile(dir, "shrink.log", "a\n") == path); // truncate
+        const IndexingResult extended = extendSync(path, base, 4096);
+        QCOMPARE(extended.index.get(), base.get());
+        QCOMPARE(extended.lineCount, base->lineCount());
+    }
+
+    void extendCancelLeavesPreviousIntact()
+    {
+        QTemporaryDir dir;
+        const QString path = writeFile(dir, "grow.log", "start\n");
+        auto base = buildSync(path, 4096).index;
+        QVERIFY(base);
+        const qint64 baseCount = base->lineCount();
+        const quint64 baseSize = base->fileSize();
+
+        QByteArray big;
+        while (big.size() < 4 * 1024 * 1024)
+            big += "appended line that keeps the scanner busy\n";
+        QVERIFY(appendToFile(path, big));
+
+        auto src = FileSource::open(path);
+        QVERIFY(src);
+        auto future = extendLineIndex(src, base, 4096); // many cancel points
+        future.cancel();
+        future.waitForFinished();
+        QVERIFY(future.isCanceled());
+        QCOMPARE(future.resultCount(), 0);
+        QCOMPARE(base->lineCount(), baseCount); // untouched snapshot
+        QCOMPARE(base->fileSize(), baseSize);
     }
 
     void cancellationProducesNoResult()
