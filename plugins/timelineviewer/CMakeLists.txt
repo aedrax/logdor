@@ -41,3 +41,15 @@ install(TARGETS timelineviewer
     LIBRARY DESTINATION plugins
     RUNTIME DESTINATION plugins
 )
+
+if(BUILD_TESTING)
+    qt_add_executable(tst_timelineviewer tst_timelineviewer.cpp)
+    target_link_libraries(tst_timelineviewer PRIVATE
+        logdor_interface Logdor::Core Qt6::Test Qt6::Widgets)
+    target_compile_definitions(tst_timelineviewer PRIVATE
+        TIMELINE_PLUGIN_PATH="$<TARGET_FILE:timelineviewer>")
+    add_dependencies(tst_timelineviewer timelineviewer)
+    add_test(NAME plugins.timelineviewer COMMAND tst_timelineviewer)
+    set_tests_properties(plugins.timelineviewer PROPERTIES LABELS "unit"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()

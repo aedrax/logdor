@@ -1,6 +1,7 @@
 #ifndef TIMELINEFILE_H
 #define TIMELINEFILE_H
 
+#include <logdor/ColumnScan.h>
 #include <logdor/FileSource.h>
 #include <logdor/FormatParser.h>
 #include <logdor/LineIndex.h>
@@ -38,6 +39,10 @@ struct TimelineFile {
     int timeColumn = -1;
     std::shared_ptr<const logdor::ColumnData> timeData;
     std::shared_ptr<const std::vector<quint8>> severity;
+
+    /// Extracted columns for query-mode filtering, seeded with the time
+    /// column; further columns are pulled on demand per query.
+    logdor::ColumnCache columns;
 
     /// Rows the merge sees: all lines until filtering (Phase A6) narrows it.
     logdor::RowSet visibleRows;

@@ -56,6 +56,7 @@ private:
     std::shared_ptr<TimelineFile> fileById(qint32 fileId) const;
     void startIndexing(const std::shared_ptr<TimelineFile>& file);
     void startExtraction(const std::shared_ptr<TimelineFile>& file);
+    void applyFilterToFile(const std::shared_ptr<TimelineFile>& file);
     void failFile(const std::shared_ptr<TimelineFile>& file,
                   const QString& reason);
     void scheduleMerge();
@@ -80,6 +81,7 @@ private:
 
     QFutureWatcher<logdor::TimelineMergeResult> m_mergeWatcher;
     qint64 m_mergeElapsedMs = 0;
+    int m_filterGeneration = 0; // discards stale per-file scan results
     QSet<QFutureWatcherBase*> m_pendingWatchers;
     bool m_updatingList = false;
 };

@@ -6,6 +6,7 @@
 #include "../../app/src/timesettings.h"
 
 #include <logdor/ColumnScan.h>
+#include <logdor/FilterScan.h>
 #include <logdor/FormatRegistry.h>
 #include <logdor/LineIndexer.h>
 
@@ -150,7 +151,78 @@ void TimelineViewer::setCoreSource(std::shared_ptr<FileSource> source,
 
 void TimelineViewer::setFilter(const FilterOptions& options)
 {
-    m_lastFilter = options; // applied to per-file row sets in Phase A6
+    m_lastFilter = options;
+    ++m_filterGeneration;
+    for (const auto& file : std::as_const(m_files))
+        applyFilterToFile(file);
+}
+
+/**
+ * Narrow one Ready file's visible rows to the shared filter and re-merge.
+ * Text/regex filters scan raw lines; query mode compiles per file with
+ * AllowUnknownFields, so @time constrains every file uniformly while a term
+ * naming a field this file's format lacks simply un-constrains this file.
+ * Context lines are ignored in the merged view.
+ */
+void TimelineViewer::applyFilterToFile(
+    const std::shared_ptr<TimelineFile>& file)
+{
+    if (file->state != TimelineFile::State::Ready)
+        return;
+    const qint32 fileId = file->fileId;
+    const int generation = m_filterGeneration;
+    const FilterOptions options = m_lastFilter;
+
+    if (options.query.trimmed().isEmpty()) {
+        file->visibleRows = RowSet::all(file->index->lineCount());
+        scheduleMerge();
+        return;
+    }
+
+    LineFilter filter;
+    filter.caseSensitive = options.caseSensitivity == Qt::CaseSensitive;
+    filter.invert = options.invertFilter;
+    if (options.inQueryMode) {
+        const auto context
+            = TimeSettings::instance().contextForFile(file->path);
+        auto query = CompiledQuery::compile(
+            options.query, file->parser->schema(), options.caseSensitivity,
+            QueryOption::AllowUnknownFields, nullptr, context);
+        if (!query)
+            return; // invalid syntax: keep the current rows
+        const QList<int> missing
+            = file->columns.missing(query->referencedColumns());
+        if (!missing.isEmpty()) {
+            const bool needSeverity
+                = query->needsSeverity() && !file->columns.hasSeverity();
+            watchFuture(extractColumns(file->source, file->index, file->parser,
+                                       missing, needSeverity, context),
+                        [this, fileId, generation](
+                            const ColumnScanResult& result) {
+                            auto file = fileById(fileId);
+                            if (!file || generation != m_filterGeneration)
+                                return;
+                            file->columns.insert(result);
+                            applyFilterToFile(file); // nothing missing now
+                        });
+            return;
+        }
+        filter.fieldQuery = query;
+        filter.columns = file->columns.snapshot(query->referencedColumns(),
+                                                query->needsSeverity());
+    } else {
+        filter.query = options.query;
+        filter.regexMode = options.inRegexMode;
+    }
+
+    watchFuture(scanFilter(file->source, file->index, std::move(filter)),
+                [this, fileId, generation](const FilterScanResult& result) {
+                    auto file = fileById(fileId);
+                    if (!file || generation != m_filterGeneration)
+                        return;
+                    file->visibleRows = result.rows;
+                    scheduleMerge();
+                });
 }
 
 void TimelineViewer::addFilesDialog()
@@ -275,8 +347,10 @@ void TimelineViewer::startExtraction(const std::shared_ptr<TimelineFile>& file)
             }
             file->state = TimelineFile::State::Ready;
             file->visibleRows = RowSet::all(file->index->lineCount());
+            file->columns.insert(timeColumn, file->timeData);
+            file->columns.setSeverity(file->severity);
             refreshFileList();
-            scheduleMerge();
+            applyFilterToFile(file); // merges once the rows are known
         });
 }
 
