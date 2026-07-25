@@ -50,6 +50,8 @@ qt_add_library(logdor-core STATIC
     src/GelfParser.cpp
     include/logdor/NetLogParser.h
     src/NetLogParser.cpp
+    include/logdor/TimelineMerge.h
+    src/TimelineMerge.cpp
     include/logdor/JsonLinesParser.h
     src/JsonLinesParser.cpp
     include/logdor/GeoScan.h
