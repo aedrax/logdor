@@ -59,6 +59,7 @@ public:
      */
     void setRowOrder(std::vector<qint32> order);
     bool hasRowOrder() const { return !m_order.empty(); }
+    const std::vector<qint32>& rowOrder() const { return m_order; }
 
     qint64 sourceLineForRow(int row) const;  // -1 when out of range
     int rowForSourceLine(qint64 line) const; // -1 when hidden

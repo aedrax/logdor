@@ -5,6 +5,7 @@
 #include "plugininterface.h"
 
 #include <logdor/ColumnScan.h>
+#include <logdor/ExportScan.h>
 #include <logdor/FilterScan.h>
 #include <logdor/HistogramScan.h>
 #include <logdor/SortScan.h>
@@ -133,6 +134,7 @@ private:
     bool ensureColumns(const QList<int>& columns, bool needsSeverity);
     void restoreSelectionSilently();
     void configureColumns();
+    void exportVisibleRows();
     void setHistogramVisible(bool visible);
     // Re-bucket the strip for the current row set (no-op while hidden);
     // extracts the time column (and severity) on first use.

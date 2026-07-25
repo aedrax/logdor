@@ -13,9 +13,12 @@
 
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QDateTime>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QSaveFile>
+#include <QtConcurrentRun>
 #include <QHeaderView>
 #include <QLabel>
 #include <QListWidget>
@@ -58,6 +61,8 @@ TimelineViewer::TimelineViewer(QObject* parent)
     auto* addButton = new QPushButton(tr("Add Files…"));
     auto* addCurrentButton = new QPushButton(tr("Add Current File"));
     auto* removeButton = new QPushButton(tr("Remove"));
+    auto* exportButton = new QPushButton(tr("Export…"));
+    exportButton->setToolTip(tr("Export the merged timeline as TSV"));
     auto* newestFirstButton = new QPushButton(tr("Newest First"));
     newestFirstButton->setObjectName(
         QStringLiteral("timelineNewestFirstButton"));
@@ -70,6 +75,7 @@ TimelineViewer::TimelineViewer(QObject* parent)
     toolbar->addWidget(addButton);
     toolbar->addWidget(addCurrentButton);
     toolbar->addWidget(removeButton);
+    toolbar->addWidget(exportButton);
     toolbar->addStretch();
     toolbar->addWidget(newestFirstButton);
 
@@ -124,6 +130,8 @@ TimelineViewer::TimelineViewer(QObject* parent)
                     }
                 }
             });
+    connect(exportButton, &QPushButton::clicked,
+            this, &TimelineViewer::exportTimeline);
     connect(addButton, &QPushButton::clicked,
             this, &TimelineViewer::addFilesDialog);
     connect(addCurrentButton, &QPushButton::clicked,
@@ -326,6 +334,89 @@ void TimelineViewer::removeSelectedFiles()
     });
     refreshFileList();
     scheduleMerge();
+}
+
+void TimelineViewer::exportTimeline()
+{
+    if (m_model->mergedCount() == 0)
+        return;
+    const QString path = QFileDialog::getSaveFileName(
+        m_widget, tr("Export Merged Timeline"), QString(),
+        tr("Tab-separated values (*.tsv)"));
+    if (path.isEmpty())
+        return;
+
+    // Snapshot the immutable pieces and write off-thread: the order vector,
+    // the per-file shared data, and each file's Message field index.
+    auto order = std::make_shared<std::vector<TimelineRow>>(m_model->order());
+    auto files = m_model->files();
+    QHash<qint32, int> messageFields;
+    for (auto it = files.cbegin(); it != files.cend(); ++it) {
+        const auto schema = it.value()->parser->schema();
+        int field = schema.size() - 1;
+        for (int i = 0; i < schema.size(); ++i) {
+            if (schema[i].hint == FieldHint::Message)
+                field = i;
+        }
+        messageFields.insert(it.key(), field);
+    }
+
+    watchFuture(
+        QtConcurrent::run([order, files, messageFields, path]() -> QString {
+            QSaveFile out(path);
+            if (!out.open(QIODevice::WriteOnly))
+                return out.errorString();
+            QByteArray buffer = "File\tTime\tSeverity\tMessage\n";
+            ParsedRow parsed;
+            static const char* kSeverityNames[]
+                = { "", "Verbose", "Debug", "Info",
+                    "Warning", "Error", "Fatal" };
+            for (const TimelineRow& row : *order) {
+                const auto file = files.value(row.fileId);
+                if (!file)
+                    continue;
+                qint64 ms = 0;
+                file->timeData->intAt(row.line, &ms);
+                const QByteArray raw
+                    = file->source->read(file->index->offsetOf(row.line),
+                                         file->index->lengthOf(row.line));
+                file->parser->parseLine(QByteArrayView(raw), parsed);
+                const int field = messageFields.value(row.fileId, -1);
+                QString message = field >= 0 && field < parsed.fields.size()
+                    ? parsed.fields[field]
+                    : QString();
+                message.replace(u'\t', u' ');
+                const quint8 severity = file->severity
+                        && size_t(row.line) < file->severity->size()
+                    ? (*file->severity)[size_t(row.line)]
+                    : 0;
+                buffer += file->displayName.toUtf8();
+                buffer += '\t';
+                buffer += QDateTime::fromMSecsSinceEpoch(ms)
+                              .toString(u"yyyy-MM-dd HH:mm:ss.zzz")
+                              .toUtf8();
+                buffer += '\t';
+                buffer += kSeverityNames[std::min<quint8>(severity, 6)];
+                buffer += '\t';
+                buffer += message.toUtf8();
+                buffer += '\n';
+                if (buffer.size() > 4 * 1024 * 1024) {
+                    if (out.write(buffer) != buffer.size())
+                        return out.errorString();
+                    buffer.clear();
+                }
+            }
+            if (!buffer.isEmpty() && out.write(buffer) != buffer.size())
+                return out.errorString();
+            if (!out.commit())
+                return out.errorString();
+            return {};
+        }),
+        [this](const QString& error) {
+            m_statusLabel->setText(error.isEmpty()
+                                       ? tr("Timeline exported.")
+                                       : tr("Export failed: %1").arg(error));
+        });
 }
 
 void TimelineViewer::addFile(const QString& path)

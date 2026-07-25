@@ -56,6 +56,7 @@ private slots:
     void addFilesDialog();
     void addCurrentFile();
     void removeSelectedFiles();
+    void exportTimeline();
 
 private:
     void addFile(const QString& path);

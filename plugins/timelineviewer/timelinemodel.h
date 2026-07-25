@@ -41,6 +41,13 @@ public:
         return m_order[orderIndex(row)];
     }
     qint64 mergedCount() const { return qint64(m_order.size()); }
+    /// The stored (always time-ascending) order and its files - snapshot
+    /// inputs for the timeline's off-thread TSV export.
+    const std::vector<logdor::TimelineRow>& order() const { return m_order; }
+    QHash<qint32, std::shared_ptr<const TimelineFile>> files() const
+    {
+        return m_files;
+    }
 
     /// Newest-first presentation; the stored order stays ascending.
     void setDescending(bool descending);

@@ -5,6 +5,7 @@
 #include "histogramstrip.h"
 #include "timesettings.h"
 
+#include <QFileDialog>
 #include <QFontMetrics>
 #include <QHeaderView>
 #include <QJsonArray>
@@ -253,6 +254,39 @@ void LogViewerWidget::configureColumns()
     }
 }
 
+void LogViewerWidget::exportVisibleRows()
+{
+    QString selectedFilter;
+    const QString path = QFileDialog::getSaveFileName(
+        this, tr("Export Visible Rows"), QString(),
+        tr("Text (*.txt);;CSV (*.csv)"), &selectedFilter);
+    if (path.isEmpty())
+        return;
+
+    ExportRequest request;
+    request.outPath = path;
+    request.format = selectedFilter.contains(QStringLiteral("*.csv"))
+            || path.endsWith(QStringLiteral(".csv"), Qt::CaseInsensitive)
+        ? ExportFormat::Csv
+        : ExportFormat::Text;
+
+    auto* watcher = new QFutureWatcher<ExportResult>(this);
+    connect(watcher, &QFutureWatcherBase::finished, this, [this, watcher]() {
+        watcher->deleteLater();
+        if (watcher->future().isCanceled())
+            return;
+        const ExportResult result = watcher->result();
+        showStatusStrip(result.error.isEmpty()
+                            ? tr("Exported %L1 rows in %2 ms")
+                                  .arg(result.rowsWritten)
+                                  .arg(result.elapsedMs)
+                            : result.error);
+    });
+    watcher->setFuture(exportRows(m_source, m_index, m_parser,
+                                  m_model->rowSet(), m_model->rowOrder(),
+                                  std::move(request)));
+}
+
 int LogViewerWidget::histogramTimeColumn() const
 {
     if (!m_parser)
@@ -349,6 +383,12 @@ void LogViewerWidget::onContextMenuRequested(const QPoint& pos)
                         [this, text]() { emit highlightRequested(text); });
             }
         }
+    }
+
+    if (m_source && m_index && m_parser && m_model->rowCount() > 0) {
+        QAction* exportAction = menu.addAction(tr("Export Visible Rows..."));
+        connect(exportAction, &QAction::triggered, this,
+                [this]() { exportVisibleRows(); });
     }
 
     if (m_annotationHub && m_annotationHub->hasFile()) {
