@@ -32,6 +32,11 @@ public:
     void setCoreSource(std::shared_ptr<logdor::FileSource> source,
                        std::shared_ptr<const logdor::LineIndex> index);
 
+    // Follow mode: fan a grown source/index out to enabled plugins.
+    void extendCoreSource(std::shared_ptr<logdor::FileSource> source,
+                          std::shared_ptr<const logdor::LineIndex> index,
+                          qint64 firstNewLine);
+
     // Hand the shared annotation hub to ALL loaded plugins (pointer is
     // stable for the app lifetime, so disabled plugins get it too).
     void setAnnotationHub(AnnotationHub* hub);

@@ -85,6 +85,22 @@ public:
     }
 
     /**
+     * Follow mode: the current file GREW. @p source/@p index supersede the
+     * ones from setCoreSource() for the same file; lines below
+     * @p firstNewLine are byte-identical, line firstNewLine itself may have
+     * changed (an unterminated final line that kept growing), and lines
+     * beyond it are new. The default treats it as a fresh file - correct,
+     * just not incremental. GUI thread only.
+     */
+    virtual void coreSourceExtended(std::shared_ptr<logdor::FileSource> source,
+                                    std::shared_ptr<const logdor::LineIndex> index,
+                                    qint64 firstNewLine)
+    {
+        Q_UNUSED(firstNewLine)
+        setCoreSource(std::move(source), std::move(index));
+    }
+
+    /**
      * Shared annotation state (notes on lines/ranges). Called once at
      * startup; the pointer stays valid for the application lifetime.
      */
@@ -139,7 +155,8 @@ protected:
 // stale binaries must fail to load.
 // /3.1: save/restoreViewState for per-file session retention.
 // /3.2: filterTermRequested viewer-to-shell filter routing.
-#define PluginInterface_iid "com.logdor.PluginInterface/3.2"
+// /3.3: coreSourceExtended follow-mode incremental growth.
+#define PluginInterface_iid "com.logdor.PluginInterface/3.3"
 Q_DECLARE_INTERFACE(PluginInterface, PluginInterface_iid)
 
 #endif // PLUGININTERFACE_H

@@ -167,6 +167,15 @@ QList<PluginInterface*> PluginManager::enabledPlugins() const
         plugin->setCoreSource(source, index);
 }
 
+void PluginManager::extendCoreSource(std::shared_ptr<logdor::FileSource> source,
+                                     std::shared_ptr<const logdor::LineIndex> index,
+                                     qint64 firstNewLine)
+{
+    Q_ASSERT(QThread::currentThread() == qApp->thread());
+    for (PluginInterface* plugin : enabledPlugins())
+        plugin->coreSourceExtended(source, index, firstNewLine);
+}
+
 void PluginManager::setAnnotationHub(AnnotationHub* hub)
 {
     for (QPluginLoader* loader : m_pluginLoaders) {
