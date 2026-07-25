@@ -25,6 +25,7 @@ set(LOGDOR_CORE_TESTS
     netlogparser
     timelinemerge
     histogramscan
+    exportscan
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)

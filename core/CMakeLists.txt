@@ -54,6 +54,8 @@ qt_add_library(logdor-core STATIC
     src/TimelineMerge.cpp
     include/logdor/HistogramScan.h
     src/HistogramScan.cpp
+    include/logdor/ExportScan.h
+    src/ExportScan.cpp
     include/logdor/JsonLinesParser.h
     src/JsonLinesParser.cpp
     include/logdor/GeoScan.h
