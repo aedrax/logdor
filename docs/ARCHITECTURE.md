@@ -108,9 +108,16 @@ rsyslog/Ubuntu 24.04+ high-precision timestamps), `dpkg`, `dmesg`,
 `keyvalue`, `apt-history`, `apt-term`, `cloud-init`,
 `cloud-init-output`, `apport`, `xorg`, `alternatives`, `cri`
 (Kubernetes container logs, `kubectl logs --timestamps` /
-`/var/log/containers`), and `klog` (Kubernetes control-plane /
-glog-style `I0203 12:34:56.789012 ...`) — all golden-tested against
-real captured lines in `core/tests/tst_systemformats.cpp`.
+`/var/log/containers`), `klog` (Kubernetes control-plane /
+glog-style `I0203 12:34:56.789012 ...`), `apache-error` (2.4 and 2.2
+shapes), `nginx-error` (nginx *access* logs in the default `combined`
+format are byte-compatible with Apache combined and belong to the
+`clf` builtin), `s3-access` (Amazon S3 server access logs; post-2019
+trailing fields land in one `Extra` column), `cef` (ArcSight Common
+Event Format, bare or syslog-prefixed; header `\|` escapes are shown
+raw), and `leef` (IBM QRadar LEEF 1.0/2.0; the 2.0 delimiter field is
+detected best-effort) — all golden-tested against real captured lines
+in `core/tests/tst_systemformats.cpp`.
 
 A `datetime` field may declare `"timeFormat"` — `"iso8601"`,
 `"epoch-s"`/`"epoch-ms"`/`"epoch-us"`, `"uptime"` (monotonic seconds
@@ -127,7 +134,9 @@ text: `journalctl -o short-iso-precise > out.log` is parsed by
 `syslog-iso`, `journalctl -o json > out.log` by the `jsonlines`
 builtin (which handles the journal's arbitrary field order, `PRIORITY`
 levels, and µs-epoch timestamps), and `last -f /var/log/wtmp > out.log`
-is plain text.
+is plain text. (One gap: journald before v256 printed zone offsets
+without a colon (`-0400`), which the `syslog-iso` pattern does not
+match; re-export on a current system or add a user spec.)
 
 **A new C++ parser** - implement `FormatParser` (stateless, thread-safe
 `parseLine`; fill every schema field even on mismatch; keep
@@ -141,12 +150,16 @@ example): subclass `PluginInterface`, wrap a `LogViewerWidget`, forward
 `linesSelected`/`selectSourceLines` for cross-view selection sync.
 
 **Per-file parsers** (schema or decode state depends on file content:
-`CsvParser`, `NetLogParser`) stay out of `builtinParsers()` - they
-cannot participate in stateless detection - and are constructed by
-their viewer plugin via a `fromFile(source, index)` factory with a
-plaintext fallback. If a third such format appears, a
-`FormatParserFactory` abstraction in core (so the shared format
-selector can offer them too) is the natural next step.
+`CsvParser`, `NetLogParser`, `W3CExtendedParser`) stay out of
+`builtinParsers()` - they cannot participate in stateless detection -
+and are constructed by their viewer plugin via a
+`fromFile(source, index)` factory with a plaintext fallback.
+`W3CExtendedParser` derives its columns from the `#Fields:` directive
+of W3C Extended Log Format files (IIS/Exchange) and merges adjacent
+`date time` fields into one sortable timestamp column. Now that a
+third such format exists, a `FormatParserFactory` abstraction in core
+(so the shared format selector can offer them too) is the natural
+next step.
 
 ## Tests and benchmarks
 

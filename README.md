@@ -45,8 +45,12 @@ Logdor is split into two layers:
   ISO 8601/rsyslog flavors - the latter also parses `journalctl >
   file` exports - plus dpkg.log, dmesg, apt history.log/term.log,
   cloud-init(-output).log, apport.log, Xorg.0.log, alternatives.log,
-  Kubernetes CRI container and klog control-plane logs, and
-  logfmt-style key=value),
+  Kubernetes CRI container and klog control-plane logs,
+  logfmt-style key=value, Apache and nginx error logs (nginx access
+  logs in the default `combined` format already parse as Apache CLF),
+  Amazon S3 server access logs, and the CEF and LEEF security event
+  formats; W3C Extended Log Format (IIS) files get their columns from
+  the `#Fields:` directive via the W3C Log Viewer plugin),
   sample-based auto-detection, off-thread filtering (`scanFilter` over a
   `RowSet`), a **field query language** (`level:error tag:Wifi* pid>=100
   "free text"` with AND/OR/NOT - toggle the `Q` button), and off-thread
