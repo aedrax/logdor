@@ -22,6 +22,7 @@ set(LOGDOR_CORE_TESTS
     timestampparse
     dockerjsonparser
     gelfparser
+    netlogparser
 )
 
 foreach(t IN LISTS LOGDOR_CORE_TESTS)

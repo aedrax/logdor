@@ -48,6 +48,8 @@ qt_add_library(logdor-core STATIC
     src/DockerJsonParser.cpp
     include/logdor/GelfParser.h
     src/GelfParser.cpp
+    include/logdor/NetLogParser.h
+    src/NetLogParser.cpp
     include/logdor/JsonLinesParser.h
     src/JsonLinesParser.cpp
     include/logdor/GeoScan.h
