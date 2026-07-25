@@ -34,6 +34,11 @@ foreach(t IN LISTS LOGDOR_CORE_TESTS)
     set_tests_properties(core.${t} PROPERTIES LABELS "unit")
 endforeach()
 
+if(LOGDOR_WITH_GZIP)
+    # The gzip fixtures deflate their own test containers.
+    target_link_libraries(tst_filesource PRIVATE ZLIB::ZLIB)
+endif()
+
 # Guard 1: an executable that links ONLY Logdor::Core. Its link step fails if
 # core references undefined GUI symbols; the ldd test below catches transitive
 # GUI libraries pulled in via interface dependencies.

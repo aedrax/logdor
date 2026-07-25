@@ -13,6 +13,11 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Concurrent
 qt_standard_project_setup(REQUIRES 6.8)
 
 include(CTest)
+option(LOGDOR_WITH_GZIP "Open .gz logs by inflating them at open time (needs zlib)" ON)
+if(LOGDOR_WITH_GZIP)
+    find_package(ZLIB REQUIRED)
+endif()
+
 option(LOGDOR_ENABLE_BENCH "Register benchmark executables with CTest (label: bench)" OFF)
 option(LOGDOR_BENCH_LARGE "Also register the 5 GB benchmark corpus" OFF)
 if(BUILD_TESTING)

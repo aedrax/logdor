@@ -70,6 +70,12 @@ target_link_libraries(logdor-core
     PUBLIC Qt6::Core
     PRIVATE Qt6::Concurrent
 )
+if(LOGDOR_WITH_GZIP)
+    # PUBLIC define so tests can gate their gzip fixtures on it; the imported
+    # target satisfies CMAKE_LINK_LIBRARIES_ONLY_TARGETS.
+    target_link_libraries(logdor-core PRIVATE ZLIB::ZLIB)
+    target_compile_definitions(logdor-core PUBLIC LOGDOR_HAVE_ZLIB)
+endif()
 
 # Configure-time guard: reject GUI modules in the direct link list. (The ldd
 # test in core/tests catches actual GUI symbol usage; --as-needed hides a

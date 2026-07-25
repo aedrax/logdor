@@ -3,6 +3,10 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#ifdef LOGDOR_HAVE_ZLIB
+#include <zlib.h>
+#endif
+
 using logdor::FileSource;
 
 namespace {
@@ -27,6 +31,27 @@ QString writeFile(const QTemporaryDir& dir, const QString& name,
     return path;
 }
 
+#ifdef LOGDOR_HAVE_ZLIB
+// A real gzip container (deflate with the gzip wrapper), one member.
+QByteArray gzipped(const QByteArray& payload)
+{
+    z_stream stream = {};
+    if (deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 + 16, 8,
+                     Z_DEFAULT_STRATEGY) != Z_OK)
+        return {};
+    QByteArray out(payload.size() + 128, Qt::Uninitialized);
+    stream.next_in = reinterpret_cast<Bytef*>(
+        const_cast<char*>(payload.constData()));
+    stream.avail_in = uInt(payload.size());
+    stream.next_out = reinterpret_cast<Bytef*>(out.data());
+    stream.avail_out = uInt(out.size());
+    const int rc = deflate(&stream, Z_FINISH);
+    out.resize(out.size() - qsizetype(stream.avail_out));
+    deflateEnd(&stream);
+    return rc == Z_STREAM_END ? out : QByteArray();
+}
+#endif
+
 } // namespace
 
 class tst_FileSource : public QObject {
@@ -36,7 +61,114 @@ private slots:
     void cleanup()
     {
         qunsetenv("LOGDOR_FORCE_BUFFERED");
+        qunsetenv("LOGDOR_MAX_DECOMPRESSED_MB");
     }
+
+#ifdef LOGDOR_HAVE_ZLIB
+    void gzipRoundtripsToPlainBytes()
+    {
+        QTemporaryDir dir;
+        const QByteArray payload = patternedContent(200'000);
+        const QString path = writeFile(dir, "log.gz", gzipped(payload));
+        QVERIFY(FileSource::isCompressedFile(path));
+
+        auto src = FileSource::open(path);
+        QVERIFY(src);
+        QCOMPARE(src->mode(), FileSource::Mode::Decompressed);
+        QVERIFY(src->isContiguous());
+        QCOMPARE(src->size(), quint64(payload.size()));
+        QCOMPARE(src->read(0, payload.size()), payload);
+        QCOMPARE(src->view(1000, 64).toByteArray(), payload.mid(1000, 64));
+        QByteArray into(64, Qt::Uninitialized);
+        QCOMPARE(src->readInto(500, into.data(), 64), qsizetype(64));
+        QCOMPARE(into, payload.mid(500, 64));
+        // Reads past the end clamp exactly like a plain source.
+        QCOMPARE(src->read(quint64(payload.size()) - 5, 100).size(),
+                 qsizetype(5));
+    }
+
+    void gzipMultiMemberConcatenates()
+    {
+        // Rotated-log convention: `cat a.gz b.gz` is a valid gzip file.
+        QTemporaryDir dir;
+        const QString path = writeFile(
+            dir, "multi.gz", gzipped("first half\n") + gzipped("second half\n"));
+        auto src = FileSource::open(path);
+        QVERIFY(src);
+        QCOMPARE(src->read(0, 64), QByteArray("first half\nsecond half\n"));
+    }
+
+    void gzipTruncatedAndCorruptFail()
+    {
+        QTemporaryDir dir;
+        const QByteArray whole = gzipped(patternedContent(100'000));
+
+        QString error;
+        QVERIFY(!FileSource::open(
+            writeFile(dir, "trunc.gz", whole.left(whole.size() / 2)), &error));
+        QVERIFY(error.contains(QStringLiteral("truncated"))
+                || error.contains(QStringLiteral("corrupt")));
+
+        QByteArray corrupt = whole;
+        for (qsizetype i = 40; i < 200 && i < corrupt.size(); ++i)
+            corrupt[i] = char(~corrupt[i]);
+        error.clear();
+        QVERIFY(!FileSource::open(writeFile(dir, "corrupt.gz", corrupt),
+                                  &error));
+        QVERIFY(!error.isEmpty());
+    }
+
+    void gzipSuffixWithoutMagicOpensPlain()
+    {
+        QTemporaryDir dir;
+        const QByteArray content = "just a plain file named .gz\n";
+        const QString path = writeFile(dir, "plain.gz", content);
+        QVERIFY(!FileSource::isCompressedFile(path));
+        auto src = FileSource::open(path);
+        QVERIFY(src);
+        QVERIFY(src->mode() != FileSource::Mode::Decompressed);
+        QCOMPARE(src->read(0, content.size()), content);
+    }
+
+    void gzipBombCapFails()
+    {
+        QTemporaryDir dir;
+        qputenv("LOGDOR_MAX_DECOMPRESSED_MB", "1");
+        const QString path = writeFile(
+            dir, "bomb.gz", gzipped(QByteArray(3 * 1024 * 1024, 'x')));
+        QString error;
+        QVERIFY(!FileSource::open(path, &error));
+        QVERIFY(error.contains(QStringLiteral("cap")));
+    }
+
+    void gzipOpenAsyncDeliversAndCancels()
+    {
+        QTemporaryDir dir;
+        const QByteArray payload = patternedContent(300'000);
+        const QString path = writeFile(dir, "async.gz", gzipped(payload));
+
+        auto future = FileSource::openAsync(path);
+        future.waitForFinished();
+        const FileSource::AsyncOpenResult result = future.result();
+        QVERIFY(result.source);
+        QVERIFY(result.error.isEmpty());
+        QCOMPARE(result.source->read(0, payload.size()), payload);
+
+        // Plain files resolve through the same path.
+        const QString plain = writeFile(dir, "plain.log", payload);
+        auto plainFuture = FileSource::openAsync(plain);
+        plainFuture.waitForFinished();
+        QVERIFY(plainFuture.result().source);
+        QCOMPARE(plainFuture.result().source->size(), quint64(payload.size()));
+
+        // Cancellation produces no result.
+        auto cancelled = FileSource::openAsync(path);
+        cancelled.cancel();
+        cancelled.waitForFinished();
+        QVERIFY(cancelled.isCanceled());
+        QCOMPARE(cancelled.resultCount(), 0);
+    }
+#endif // LOGDOR_HAVE_ZLIB
 
     void nonexistentFileFails()
     {
