@@ -14,6 +14,7 @@ Logdor is a tool to simplify looking at log files by enabling filtering, color c
 Logdor provides functionality through a plugin-based architecture. Each plugin specializes in a specific type of log format or viewing capability:
 
 - **Plain Text Viewer** - the generic viewer for any format, with auto-detection and a format selector (all built-in and user-defined formats)
+- **Merged Timeline** - merge events from multiple log files (same or different formats) into one time-sorted view; add files by dialog, drag-and-drop, or from the current file, toggle newest-first, and filter through the shared bar
 - **Annotations** - every note on the open log in one panel: jump, edit, re-anchor, share
 - **Custom Format Viewer** - author log formats interactively with a live regex; save them as shareable format specs
 - **CSV Viewer** - table view for CSV files with header-derived, type-sniffed columns

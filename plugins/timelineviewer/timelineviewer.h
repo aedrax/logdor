@@ -46,6 +46,9 @@ public:
                        std::shared_ptr<const logdor::LineIndex> index) override;
     void setFilter(const FilterOptions& options) override;
 
+    /// Drag-and-drop of log files onto the timeline widget.
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
 private slots:
     void addFilesDialog();
     void addCurrentFile();

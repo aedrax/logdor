@@ -34,8 +34,15 @@ public:
     void clearMerged();
 
     /// The merged row behind a proxy-free model row.
-    logdor::TimelineRow timelineRow(int row) const { return m_order[size_t(row)]; }
+    logdor::TimelineRow timelineRow(int row) const
+    {
+        return m_order[orderIndex(row)];
+    }
     qint64 mergedCount() const { return qint64(m_order.size()); }
+
+    /// Newest-first presentation; the stored order stays ascending.
+    void setDescending(bool descending);
+    bool isDescending() const { return m_descending; }
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     int columnCount(const QModelIndex& parent = QModelIndex()) const override;
@@ -46,7 +53,12 @@ public:
 private:
     const logdor::ParsedRow* parsedRow(const TimelineFile& file,
                                        qint32 line) const;
+    size_t orderIndex(int row) const
+    {
+        return m_descending ? m_order.size() - 1 - size_t(row) : size_t(row);
+    }
 
+    bool m_descending = false;
     std::vector<logdor::TimelineRow> m_order;
     QHash<qint32, std::shared_ptr<const TimelineFile>> m_files;
     QHash<qint32, int> m_messageField; // fileId -> schema field for Message

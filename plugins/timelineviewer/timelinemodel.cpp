@@ -57,6 +57,15 @@ void TimelineModel::setMerged(
     endResetModel();
 }
 
+void TimelineModel::setDescending(bool descending)
+{
+    if (m_descending == descending)
+        return;
+    beginResetModel();
+    m_descending = descending;
+    endResetModel();
+}
+
 void TimelineModel::clearMerged()
 {
     beginResetModel();
@@ -100,7 +109,7 @@ QVariant TimelineModel::data(const QModelIndex& index, int role) const
 {
     if (!index.isValid() || index.row() >= rowCount())
         return {};
-    const TimelineRow row = m_order[size_t(index.row())];
+    const TimelineRow row = m_order[orderIndex(index.row())];
     const auto file = m_files.value(row.fileId);
     if (!file)
         return {};

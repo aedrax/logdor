@@ -10,6 +10,7 @@
 
 #include <QAbstractItemModel>
 #include <QPluginLoader>
+#include <QPushButton>
 #include <QTableView>
 #include <QTemporaryDir>
 #include <QTest>
@@ -100,6 +101,19 @@ private slots:
 
         m_plugin->setFilter(FilterOptions());
         QTRY_COMPARE_WITH_TIMEOUT(m_model->rowCount(), 5, 10000);
+    }
+
+    void newestFirstReversesPresentation()
+    {
+        auto* toggle = m_plugin->widget()->findChild<QPushButton*>(
+            QStringLiteral("timelineNewestFirstButton"));
+        QVERIFY(toggle);
+        toggle->click();
+        QCOMPARE(m_model->rowCount(), 5);
+        QVERIFY(cell(0, 3).contains(QStringLiteral("alpha 4")));
+        QVERIFY(cell(4, 3).contains(QStringLiteral("alpha 0")));
+        toggle->click();
+        QVERIFY(cell(0, 3).contains(QStringLiteral("alpha 0")));
     }
 
 private:

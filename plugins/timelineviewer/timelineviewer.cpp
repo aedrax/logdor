@@ -10,6 +10,8 @@
 #include <logdor/FormatRegistry.h>
 #include <logdor/LineIndexer.h>
 
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -17,7 +19,9 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QLocale>
+#include <QMimeData>
 #include <QPushButton>
+#include <QUrl>
 #include <QTableView>
 #include <QVBoxLayout>
 
@@ -47,9 +51,16 @@ TimelineViewer::TimelineViewer(QObject* parent)
 {
     m_widget = new QWidget();
 
+    m_widget->setAcceptDrops(true);
+    m_widget->installEventFilter(this);
+
     auto* addButton = new QPushButton(tr("Add Files…"));
     auto* addCurrentButton = new QPushButton(tr("Add Current File"));
     auto* removeButton = new QPushButton(tr("Remove"));
+    auto* newestFirstButton = new QPushButton(tr("Newest First"));
+    newestFirstButton->setObjectName(
+        QStringLiteral("timelineNewestFirstButton"));
+    newestFirstButton->setCheckable(true);
     m_statusLabel = new QLabel(tr("Add log files to merge their events "
                                   "into one timeline."));
     m_statusLabel->setWordWrap(true);
@@ -59,6 +70,7 @@ TimelineViewer::TimelineViewer(QObject* parent)
     toolbar->addWidget(addCurrentButton);
     toolbar->addWidget(removeButton);
     toolbar->addStretch();
+    toolbar->addWidget(newestFirstButton);
 
     m_fileList = new QListWidget();
     m_fileList->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -83,6 +95,19 @@ TimelineViewer::TimelineViewer(QObject* parent)
     layout->addWidget(m_table, /*stretch=*/1);
     layout->addWidget(m_statusLabel);
 
+    connect(newestFirstButton, &QPushButton::toggled, this,
+            [this](bool checked) { m_model->setDescending(checked); });
+    connect(&TimeSettings::instance(), &TimeSettings::assumedZoneChanged,
+            this, [this]() {
+                // Epochs of zone-less formats depend on the assumed zone:
+                // drop every extracted lane and rebuild from scratch.
+                for (const auto& file : std::as_const(m_files)) {
+                    if (file->state == TimelineFile::State::Ready) {
+                        file->columns.clear();
+                        startExtraction(file);
+                    }
+                }
+            });
     connect(addButton, &QPushButton::clicked,
             this, &TimelineViewer::addFilesDialog);
     connect(addCurrentButton, &QPushButton::clicked,
@@ -223,6 +248,32 @@ void TimelineViewer::applyFilterToFile(
                     file->visibleRows = result.rows;
                     scheduleMerge();
                 });
+}
+
+bool TimelineViewer::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == m_widget) {
+        if (event->type() == QEvent::DragEnter) {
+            auto* drag = static_cast<QDragEnterEvent*>(event);
+            const auto urls = drag->mimeData()->urls();
+            for (const QUrl& url : urls) {
+                if (url.isLocalFile()) {
+                    drag->acceptProposedAction();
+                    return true;
+                }
+            }
+        } else if (event->type() == QEvent::Drop) {
+            auto* drop = static_cast<QDropEvent*>(event);
+            const auto urls = drop->mimeData()->urls();
+            for (const QUrl& url : urls) {
+                if (url.isLocalFile())
+                    addFile(url.toLocalFile());
+            }
+            drop->acceptProposedAction();
+            return true;
+        }
+    }
+    return PluginInterface::eventFilter(watched, event);
 }
 
 void TimelineViewer::addFilesDialog()
