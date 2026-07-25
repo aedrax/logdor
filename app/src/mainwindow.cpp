@@ -427,6 +427,24 @@ void MainWindow::loadPlugins()
         // Viewers push "add to filter" terms up to the shared filter bar.
         connect(plugin, &PluginInterface::filterTermRequested,
                 this, &MainWindow::onFilterTermRequested);
+
+        // Histogram brushes become @time terms (replace, never stack).
+        connect(plugin, &PluginInterface::timeRangeRequested, this,
+                [this](qint64 fromUtcMs, qint64 toUtcMs) {
+                    if (fromUtcMs == 0 && toUtcMs == 0) {
+                        applyTimeRange({});
+                        return;
+                    }
+                    const auto format = [](qint64 ms) {
+                        return logdor::quoteQueryValue(
+                            QDateTime::fromMSecsSinceEpoch(ms).toString(
+                                u"yyyy-MM-dd HH:mm:ss.zzz"),
+                            /*forceQuote=*/true);
+                    };
+                    applyTimeRange(
+                        { QStringLiteral("@time>=%1").arg(format(fromUtcMs)),
+                          QStringLiteral("@time<=%1").arg(format(toUtcMs)) });
+                });
         
         m_pluginsMenu->addAction(action);
         m_pluginActions[pluginName] = action;

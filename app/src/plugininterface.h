@@ -147,6 +147,14 @@ signals:
      */
     void filterTermRequested(const QString& term);
 
+    /**
+     * Ask the shell to restrict the shared filter to [fromUtcMs, toUtcMs]
+     * (a histogram brush). (0, 0) clears the range. The shell converts to
+     * @time terms that REPLACE the previously requested range, never stack.
+     * Routed to the shell only, never to other plugins.
+     */
+    void timeRangeRequested(qint64 fromUtcMs, qint64 toUtcMs);
+
 protected:
     bool m_enabled = true;
 };
@@ -156,7 +164,8 @@ protected:
 // /3.1: save/restoreViewState for per-file session retention.
 // /3.2: filterTermRequested viewer-to-shell filter routing.
 // /3.3: coreSourceExtended follow-mode incremental growth.
-#define PluginInterface_iid "com.logdor.PluginInterface/3.3"
+// /3.4: timeRangeRequested histogram-brush filter routing.
+#define PluginInterface_iid "com.logdor.PluginInterface/3.4"
 Q_DECLARE_INTERFACE(PluginInterface, PluginInterface_iid)
 
 #endif // PLUGININTERFACE_H
