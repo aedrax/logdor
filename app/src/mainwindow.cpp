@@ -35,6 +35,7 @@
 #include <QMenu>
 #include <QTimeZone>
 #include <QWidgetAction>
+#include "foldersearchdock.h"
 #include "folderview.h"
 #include "followcontroller.h"
 #include "highlightrules.h"
@@ -259,6 +260,16 @@ MainWindow::MainWindow(QWidget* parent)
         m_pluginManager->setHighlightRules(rules);
     });
 
+    // Folder-wide search (Ctrl+Shift+F), dock created on first use.
+    QAction* searchAction = ui->menuFile->addAction(tr("Search in Folder..."));
+    searchAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F));
+    connect(searchAction, &QAction::triggered, this, [this]() {
+        ensureSearchDock();
+        m_searchDock->show();
+        m_searchDock->raise();
+        m_searchDock->focusPattern();
+    });
+
     // Follow mode: tail the current file, extending viewers in place.
     ui->menuFile->addSeparator();
     m_followAction = ui->menuFile->addAction(tr("Follow File"));
@@ -429,6 +440,35 @@ void MainWindow::openPath(const QString& path)
         openFile(path);
 }
 
+void MainWindow::ensureSearchDock()
+{
+    if (m_searchDock)
+        return;
+    m_searchDock = new FolderSearchDock(this);
+    addDockWidget(Qt::BottomDockWidgetArea, m_searchDock);
+    if (m_folderView)
+        m_searchDock->setFolder(m_folderView->folder());
+    else if (!m_currentFileName.isEmpty())
+        m_searchDock->setFolder(QFileInfo(m_currentFileName).absolutePath());
+    connect(m_searchDock, &FolderSearchDock::openRequested,
+            this, &MainWindow::openFileAtLine);
+}
+
+void MainWindow::openFileAtLine(const QString& fileName, qint64 line)
+{
+    if (QFileInfo(fileName).canonicalFilePath()
+        == QFileInfo(m_currentFileName).canonicalFilePath()) {
+        // Already open: select immediately.
+        m_pluginManager->broadcastEvent(
+            PluginEvent::LinesSelected,
+            QVariant::fromValue(QList<int> { int(line) }));
+        return;
+    }
+    m_pendingJumpLine = line;
+    if (!openFile(fileName))
+        m_pendingJumpLine = -1;
+}
+
 void MainWindow::openFolder(const QString& dir)
 {
     if (!m_folderView) {
@@ -445,6 +485,8 @@ void MainWindow::openFolder(const QString& dir)
         tr("Files - %1").arg(QFileInfo(dir).fileName()));
     m_folderDock->show();
     m_folderDock->raise();
+    if (m_searchDock)
+        m_searchDock->setFolder(dir);
     addRecentItem(dir);
 }
 
@@ -673,6 +715,14 @@ void MainWindow::onIndexingFinished()
     // shot, and viewers finish their part when their scans land.
     restoreSession(fileName);
     m_pluginManager->setFilter(m_filterOptions);
+    if (m_pendingJumpLine >= 0) {
+        // Folder-search jump: viewers apply the selection once their own
+        // scans land (selectSourceLines is async-safe).
+        m_pluginManager->broadcastEvent(
+            PluginEvent::LinesSelected,
+            QVariant::fromValue(QList<int> { int(m_pendingJumpLine) }));
+        m_pendingJumpLine = -1;
+    }
     setWindowTitle(tr("Logdor - %1").arg(QFileInfo(fileName).fileName()));
     addRecentItem(fileName); // success only: failed opens never enter recents
     if (m_folderView)

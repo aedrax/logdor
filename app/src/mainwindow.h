@@ -14,6 +14,7 @@
 #include <logdor/LineIndexer.h>
 #include <memory>
 
+class FolderSearchDock;
 class FolderView;
 class FollowController;
 class QLabel;
@@ -42,6 +43,10 @@ public:
 
     // Show the folder dock listing every log under @p dir.
     void openFolder(const QString& dir);
+
+    // Open @p fileName and, once its index lands, select @p line in every
+    // viewer (the folder-search jump).
+    void openFileAtLine(const QString& fileName, qint64 line);
 
 private slots:
     void onActionOpenTriggered();
@@ -103,6 +108,10 @@ private:
     // Folder navigation, created lazily on the first Open Folder.
     FolderView* m_folderView = nullptr;
     QDockWidget* m_folderDock = nullptr;
+    // Folder-wide search, created lazily on the first Ctrl+Shift+F.
+    FolderSearchDock* m_searchDock = nullptr;
+    void ensureSearchDock();
+    qint64 m_pendingJumpLine = -1; // selected after the next index lands
     // Current file, owned by the core; viewers hold shared_ptrs into it.
     std::shared_ptr<logdor::FileSource> m_fileSource;
     std::shared_ptr<const logdor::LineIndex> m_lineIndex;

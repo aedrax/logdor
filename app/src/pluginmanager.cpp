@@ -231,6 +231,11 @@ void PluginManager::onPluginEvent(PluginEvent event, const QVariant& data)
     forwardEventToPlugins(event, data, sender);
 }
 
+void PluginManager::broadcastEvent(PluginEvent event, const QVariant& data)
+{
+    forwardEventToPlugins(event, data, nullptr);
+}
+
 void PluginManager::forwardEventToPlugins(PluginEvent event, const QVariant& data, PluginInterface* sender)
 {
     for (PluginInterface* plugin : enabledPlugins()) {

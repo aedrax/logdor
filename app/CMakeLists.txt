@@ -39,6 +39,8 @@ add_library(logdor_interface SHARED
     src/histogramstrip.cpp
     src/highlightrules.h
     src/highlightrules.cpp
+    src/foldersearchdock.h
+    src/foldersearchdock.cpp
 )
 
 target_link_libraries(logdor_interface PUBLIC

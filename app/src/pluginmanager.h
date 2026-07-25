@@ -47,6 +47,10 @@ public:
     // Fan the app-wide highlight rules out to ALL loaded plugins.
     void setHighlightRules(const QList<HighlightRule>& rules);
 
+    // Shell-initiated event to every enabled plugin (no sender to exclude) -
+    // e.g. selecting a line after a folder-search jump.
+    void broadcastEvent(PluginEvent event, const QVariant& data);
+
     // Per-file view state, keyed by plugin name. Capture reads ALL loaded
     // plugins (disabled ones return empty objects, which are skipped);
     // restore fans out to enabled plugins only. GUI thread only.
