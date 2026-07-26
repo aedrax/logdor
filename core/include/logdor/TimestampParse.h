@@ -77,6 +77,7 @@ public:
         Rfc3164,       // Jul 24 06:15:02 (year-less; "Jul  4" tolerated)
         Logcat,        // 07-24 06:15:02.123 (year-less)
         Klog,          // 0203 12:34:56.789012 (year-less; klog/glog)
+        Snort,         // 01/18-11:07:53.123456 (year-less; snort fast alerts)
         Clf,           // 24/Jul/2026:06:15:02[ +0200]
         EpochSeconds,  // in [1e8, 1e11): 1973..5138; fraction allowed
         EpochMillis,   // in [1e11, 1e14)
@@ -91,10 +92,10 @@ public:
      * empty => Invalid (caller should detect()). Anything else is a Qt
      * date/time pattern: no 'y' in the pattern enables year inference, no 't'
      * means values are wall times in ctx.assumedZone. The built-in shapes
-     * "MM-dd HH:mm:ss.zzz", "dd/MMM/yyyy:HH:mm:ss", "MMM d HH:mm:ss", and
-     * "MMdd HH:mm:ss.zzzzzz" (klog/glog - beyond QDateTime, which caps
-     * fractions at 3 digits) are recognized and upgraded to their
-     * hand-rolled fast kinds.
+     * "MM-dd HH:mm:ss.zzz", "dd/MMM/yyyy:HH:mm:ss", "MMM d HH:mm:ss",
+     * "MMdd HH:mm:ss.zzzzzz" (klog/glog), and "MM/dd-HH:mm:ss.zzzzzz"
+     * (snort - both beyond QDateTime, which caps fractions at 3 digits)
+     * are recognized and upgraded to their hand-rolled fast kinds.
      */
     static TimestampCodec fromFormatString(const QString& timeFormat,
                                            const TimeParseContext& ctx);

@@ -107,6 +107,25 @@ private slots:
                  utcMs(2026, 2, 3, 11, 0, 0));
     }
 
+    void snortShapes()
+    {
+        const auto codec = TimestampCodec::fromFormatString(
+            "MM/dd-HH:mm:ss.zzzzzz", utcCtx(2026, 7));
+        QCOMPARE(codec.kind(), TimestampCodec::Kind::Snort);
+        // Microsecond fractions truncate to milliseconds.
+        QCOMPARE(parsedMs(codec, "01/18-11:07:53.123456"),
+                 utcMs(2026, 1, 18, 11, 7, 53, 123));
+        QCOMPARE(parsedMs(codec, "01/18-11:07:53"),
+                 utcMs(2026, 1, 18, 11, 7, 53));
+        // Months after the reference month belong to the previous year.
+        QCOMPARE(parsedMs(codec, "12/30-00:00:00.000000"),
+                 utcMs(2025, 12, 30, 0, 0, 0));
+        QCOMPARE(parsedMs(codec, "0118 11:07:53.123456"), -1); // klog shape
+        QCOMPARE(parsedMs(codec, "01-18 11:07:53.123"), -1);   // logcat shape
+        QCOMPARE(parsedMs(codec, "01/18-11:07:53.123456 x"), -1);
+        QCOMPARE(parsedMs(codec, "13/50-11:07:53.123456"), -1); // bad date
+    }
+
     void rfc3164Shapes()
     {
         const auto codec = TimestampCodec::fromFormatString(
@@ -204,6 +223,8 @@ private slots:
                  TimestampCodec::Kind::Logcat);
         QCOMPARE(TimestampCodec::detect({ "0203 12:34:56.789012" }, ctx).kind(),
                  TimestampCodec::Kind::Klog);
+        QCOMPARE(TimestampCodec::detect({ "01/18-11:07:53.123456" }, ctx).kind(),
+                 TimestampCodec::Kind::Snort);
         QCOMPARE(TimestampCodec::detect({ "Jul 24 06:15:02" }, ctx).kind(),
                  TimestampCodec::Kind::Rfc3164);
         QCOMPARE(TimestampCodec::detect({ "1721800000123" }, ctx).kind(),
@@ -288,6 +309,10 @@ private slots:
         const auto klog = parseTimeLiteral(u"0203 12:34:56.789012", ctx);
         QCOMPARE(klog.kind, TimeLiteral::Kind::Absolute);
         QCOMPARE(klog.lowerMs, utcMs(2026, 2, 3, 12, 34, 56, 789));
+
+        const auto snort = parseTimeLiteral(u"01/18-11:07:53.123456", ctx);
+        QCOMPARE(snort.kind, TimeLiteral::Kind::Absolute);
+        QCOMPARE(snort.lowerMs, utcMs(2026, 1, 18, 11, 7, 53, 123));
 
         const auto clf = parseTimeLiteral(u"24/Jul/2026:06:15:02", ctx);
         QCOMPARE(clf.lowerMs, utcMs(2026, 7, 24, 6, 15, 2));

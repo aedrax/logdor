@@ -222,6 +222,20 @@ bool parseKlogWall(QStringView s, Wall* w)
     return pos == s.size();
 }
 
+// MM/dd-HH:MM:SS[.frac] (year-less; snort fast alerts - fraction usually 6
+// digits, truncated to ms by takeFraction)
+bool parseSnortWall(QStringView s, Wall* w)
+{
+    qsizetype pos = 0;
+    if (!takeInt(s, pos, 2, 2, &w->month) || !takeChar(s, pos, u'/')
+        || !takeInt(s, pos, 2, 2, &w->day) || !takeChar(s, pos, u'-'))
+        return false;
+    if (!takeTime(s, pos, w))
+        return false;
+    w->hasYear = false;
+    return pos == s.size();
+}
+
 // MMM [d]d HH:MM:SS (year-less; the classic "Jul  4" double space tolerated)
 bool parseRfc3164Wall(QStringView s, Wall* w)
 {
@@ -360,7 +374,8 @@ TimestampCodec TimestampCodec::make(Kind kind, const QString& pattern,
     // The offset table is only needed by kinds that read wall times without
     // an explicit offset in the text; for UTC the identity fallback is exact.
     const bool needsZone = kind == Kind::Iso8601 || kind == Kind::Rfc3164
-        || kind == Kind::Logcat || kind == Kind::Klog || kind == Kind::Clf
+        || kind == Kind::Logcat || kind == Kind::Klog || kind == Kind::Snort
+        || kind == Kind::Clf
         || (kind == Kind::QtPattern && !c.m_patternHasZone);
     if (needsZone && ctx.assumedZone.isValid()
         && ctx.assumedZone != QTimeZone::utc()) {
@@ -394,6 +409,8 @@ TimestampCodec TimestampCodec::fromFormatString(const QString& timeFormat,
         kind = Kind::Logcat;
     else if (fmt == QLatin1String("MMdd HH:mm:ss.zzzzzz"))
         kind = Kind::Klog;
+    else if (fmt == QLatin1String("MM/dd-HH:mm:ss.zzzzzz"))
+        kind = Kind::Snort;
     else if (fmt == QLatin1String("dd/MMM/yyyy:HH:mm:ss"))
         kind = Kind::Clf;
     else if (fmt == QLatin1String("MMM d HH:mm:ss"))
@@ -408,9 +425,10 @@ TimestampCodec TimestampCodec::detect(const QStringList& samples,
         return {};
     // Specificity order; the first kind wins ties.
     static constexpr Kind kLadder[] = {
-        Kind::Iso8601,     Kind::Clf,         Kind::Logcat,
-        Kind::Klog,        Kind::Rfc3164,     Kind::EpochMicros,
-        Kind::EpochMillis, Kind::EpochSeconds, Kind::UptimeSeconds,
+        Kind::Iso8601,     Kind::Clf,          Kind::Logcat,
+        Kind::Klog,        Kind::Snort,        Kind::Rfc3164,
+        Kind::EpochMicros, Kind::EpochMillis,  Kind::EpochSeconds,
+        Kind::UptimeSeconds,
     };
     TimestampCodec best;
     qsizetype bestCount = 0;
@@ -495,6 +513,10 @@ bool TimestampCodec::parse(QStringView text, qint64* msOut) const
         break;
     case Kind::Klog:
         if (!parseKlogWall(text, &w))
+            return false;
+        break;
+    case Kind::Snort:
+        if (!parseSnortWall(text, &w))
             return false;
         break;
     case Kind::Clf:
@@ -592,7 +614,7 @@ TimeLiteral parseTimeLiteral(QStringView text, const TimeParseContext& ctx)
     Wall w;
     if (!parseIsoWall(text, &w) && !parseClfWall(text, &w)
         && !parseLogcatWall(text, &w) && !parseKlogWall(text, &w)
-        && !parseRfc3164Wall(text, &w))
+        && !parseSnortWall(text, &w) && !parseRfc3164Wall(text, &w))
         return lit;
 
     // Same reference-year and zone rules as column parsing.
