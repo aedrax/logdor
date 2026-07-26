@@ -74,6 +74,25 @@ private slots:
             << QStringList{ "2026-07-24T14:38:29Z", "Error", "",
                             "Connection timeout" }
             << true << int(Severity::Error);
+        // log4j2 JsonLayout (issue #25): timeMillis stays raw like pino's
+        // numeric "time" - codec detection resolves the epoch-ms lane.
+        QTest::newRow("log4j2-jsonlayout")
+            << QByteArray("{\"timeMillis\":1719489344123,\"thread\":\"main\","
+                          "\"level\":\"INFO\",\"loggerName\":\"com.example.App\","
+                          "\"message\":\"Started application\",\"endOfBatch\":false,"
+                          "\"threadId\":1}")
+            << QStringList{ "1719489344123", "Info", "com.example.App",
+                            "Started application" }
+            << true << int(Severity::Info);
+        // log4j2 JsonTemplateLayout: the nested instant object normalizes to
+        // ISO like the journald key.
+        QTest::newRow("log4j2-jsontemplatelayout-instant")
+            << QByteArray("{\"instant\":{\"epochSecond\":1719489344,"
+                          "\"nanoOfSecond\":123456789},\"level\":\"ERROR\","
+                          "\"loggerName\":\"c.e.App\",\"message\":\"boom\"}")
+            << QStringList{ "2024-06-27T11:55:44.123Z", "Error", "c.e.App",
+                            "boom" }
+            << true << int(Severity::Error);
         QTest::newRow("unknown-level-string-shown-raw")
             << QByteArray("{\"level\":\"noise\",\"message\":\"hello\"}")
             << QStringList{ "", "noise", "", "hello" }

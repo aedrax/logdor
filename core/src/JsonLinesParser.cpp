@@ -13,12 +13,16 @@ namespace logdor {
 namespace {
 
 const QLatin1StringView kJournalTimestampKey("__REALTIME_TIMESTAMP");
+const QLatin1StringView kInstantKey("instant"); // log4j2 JsonTemplateLayout
 
 // Alias lists, checked in order; first present key wins.
+// timeMillis (log4j2 JsonLayout) stays raw like pino's numeric "time" -
+// codec detection resolves the epoch-ms lane for temporal filtering.
 const QLatin1StringView kTimestampKeys[] = {
     QLatin1StringView("timestamp"), QLatin1StringView("time"),
     QLatin1StringView("ts"), QLatin1StringView("@timestamp"),
     QLatin1StringView("__REALTIME_TIMESTAMP"),
+    QLatin1StringView("timeMillis"), QLatin1StringView("instant"),
 };
 const QLatin1StringView kLevelKeys[] = {
     QLatin1StringView("level"), QLatin1StringView("severity"),
@@ -26,8 +30,8 @@ const QLatin1StringView kLevelKeys[] = {
 };
 const QLatin1StringView kSourceKeys[] = {
     QLatin1StringView("SYSLOG_IDENTIFIER"), QLatin1StringView("_SYSTEMD_UNIT"),
-    QLatin1StringView("logger"), QLatin1StringView("name"),
-    QLatin1StringView("tag"),
+    QLatin1StringView("logger"), QLatin1StringView("loggerName"),
+    QLatin1StringView("name"), QLatin1StringView("tag"),
 };
 const QLatin1StringView kMessageKeys[] = {
     QLatin1StringView("message"), QLatin1StringView("msg"),
@@ -63,6 +67,18 @@ QString formatTimestamp(const QJsonValue& v, QLatin1StringView key)
         if (okNum)
             return QDateTime::fromMSecsSinceEpoch(us / 1000, QTimeZone::UTC)
                 .toString(Qt::ISODateWithMs);
+    }
+    if (key == kInstantKey && v.isObject()) {
+        // log4j2 JsonTemplateLayout: {"epochSecond":N,"nanoOfSecond":N}.
+        const QJsonObject o = v.toObject();
+        if (const auto sec = o.constFind(QLatin1StringView("epochSecond"));
+            sec != o.constEnd() && sec->isDouble()) {
+            const qint64 ms = qint64(sec->toDouble()) * 1000
+                + qint64(o.value(QLatin1StringView("nanoOfSecond")).toDouble())
+                    / 1'000'000;
+            return QDateTime::fromMSecsSinceEpoch(ms, QTimeZone::UTC)
+                .toString(Qt::ISODateWithMs);
+        }
     }
     return valueToString(v);
 }
