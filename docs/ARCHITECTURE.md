@@ -119,9 +119,12 @@ raw), `leef` (IBM QRadar LEEF 1.0/2.0; the 2.0 delimiter field is
 detected best-effort), `nagios` (bracketed-epoch daemon log),
 `audit` (Linux auditd, optional `node=` prefix), `logback`
 (logback/log4j classic `%d [%thread] %-5level %logger - %msg` layout;
-the bare-time no-config default has no parseable date), and `snort`
+the bare-time no-config default has no parseable date), `snort`
 (fast alerts; the year-less `MM/dd-HH:mm:ss.ffffff` timestamp gets its
-own codec kind) — all golden-tested against real captured lines in
+own codec kind), and `sysdig` (default text output; binary `.scap`
+captures need `sysdig -r file.scap > out.log` first, and only
+`sysdig -t a` epoch output carries a full date for temporal
+filtering) — all golden-tested against real captured lines in
 `core/tests/tst_systemformats.cpp`. Log4j 2 JSON output (JsonLayout
 `timeMillis` and JsonTemplateLayout nested `instant`) parses via the
 `jsonlines` builtin.

@@ -49,9 +49,9 @@ QByteArray repeatLines(const QByteArray& line, int count)
 // (syslog-rfc3164, syslog-iso, dpkg, dmesg, apt-history, apt-term,
 // cloud-init, cloud-init-output, apport, xorg, alternatives, cri, klog,
 // apache-error, nginx-error, s3-access, cef, leef, nagios, audit,
-// logback, snort), using lines captured from real Ubuntu /var/log files
-// or vendor documentation, plus detection checks against the full
-// parser list.
+// logback, snort, sysdig), using lines captured from real Ubuntu
+// /var/log files or vendor documentation, plus detection checks
+// against the full parser list.
 class tst_SystemFormats : public QObject {
     Q_OBJECT
 
@@ -77,7 +77,8 @@ private slots:
                                     "cloud-init-output", "apport", "xorg",
                                     "alternatives", "cri", "klog", "apache-error",
                                     "nginx-error", "s3-access", "cef", "leef",
-                                    "nagios", "audit", "logback", "snort" };
+                                    "nagios", "audit", "logback", "snort",
+                                    "sysdig" };
         for (const QString& id : required)
             QVERIFY2(parserById(id, m_parsers), qPrintable(id));
     }
@@ -766,6 +767,41 @@ private slots:
             << QStringList{ "", "", "Commencing packet processing (pid=1234)",
                             "", "", "", "", "" }
             << false << int(Severity::None);
+
+        //=== sysdig: Event #, Time, CPU, Process, TID, Dir, Type, Info ======
+        // Default -p layout: %evt.num %evt.outputtime %evt.cpu %proc.name
+        // (%thread.tid) %evt.dir %evt.type %evt.info. The default output
+        // time is time-of-day only (no date -> no temporal features);
+        // `sysdig -t a` prints epoch seconds, which codec detection resolves.
+        QTest::newRow("sysdig-default-time")
+            << "sysdig"
+            << QByteArray("23071 11:13:39.478062506 0 sshd (5794) > read "
+                          "fd=10(<f>/dev/ptmx) size=16384")
+            << QStringList{ "23071", "11:13:39.478062506", "0", "sshd", "5794",
+                            ">", "read", "fd=10(<f>/dev/ptmx) size=16384" }
+            << true << int(Severity::None);
+        QTest::newRow("sysdig-absolute-time")
+            << "sysdig"
+            << QByteArray("23072 1719489344.478082700 0 sshd (5794) < read "
+                          "res=43 data=..H.f...!.8...")
+            << QStringList{ "23072", "1719489344.478082700", "0", "sshd",
+                            "5794", "<", "read", "res=43 data=..H.f...!.8..." }
+            << true << int(Severity::None);
+        // Argument-less events have an empty Info; comm names may contain
+        // spaces ("tmux: server") and <NA> is a valid process name.
+        QTest::newRow("sysdig-no-info-spaced-proc")
+            << "sysdig"
+            << QByteArray("253566 11:16:42.808339340 1 tmux: server (14109) > "
+                          "rt_sigprocmask")
+            << QStringList{ "253566", "11:16:42.808339340", "1", "tmux: server",
+                            "14109", ">", "rt_sigprocmask", "" }
+            << true << int(Severity::None);
+        QTest::newRow("sysdig-nonmatch")
+            << "sysdig"
+            << QByteArray("Driver initialization completed")
+            << QStringList{ "", "", "", "", "", "", "",
+                            "Driver initialization completed" }
+            << false << int(Severity::None);
     }
 
     void golden()
@@ -912,6 +948,10 @@ private slots:
                           "GPL ATTACK_RESPONSE id check returned root [**] "
                           "[Classification: Potentially Bad Traffic] [Priority: 2] "
                           "{TCP} 192.0.2.5:80 -> 10.0.0.1:445");
+        QTest::newRow("sysdig")
+            << "sysdig"
+            << QByteArray("23071 11:13:39.478062506 0 sshd (5794) > read "
+                          "fd=10(<f>/dev/ptmx) size=16384");
     }
 
     void timestampCodecs_data()
@@ -951,6 +991,9 @@ private slots:
         QTest::newRow("cef-auto") << "cef" << "Sep 19 08:26:10";
         QTest::newRow("leef-auto") << "leef" << "Jan 18 11:07:53";
         QTest::newRow("nagios-epoch") << "nagios" << "1700000000";
+        // sysdig declares no format; only `sysdig -t a` epoch output has a
+        // parseable date (the default time-of-day output degrades to text).
+        QTest::newRow("sysdig-absolute") << "sysdig" << "1719489344.478082700";
         // Kind::EpochSeconds accepts fractional seconds.
         QTest::newRow("audit-epoch-frac") << "audit" << "1364475353.159";
         // iso8601 accepts the space separator and comma fraction.

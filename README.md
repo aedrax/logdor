@@ -50,9 +50,10 @@ Logdor is split into two layers:
   logs in the default `combined` format already parse as Apache CLF),
   Amazon S3 server access logs, the CEF and LEEF security event
   formats, Nagios, Linux auditd, logback/log4j classic pattern
-  output (log4j 2 JSON parses via the JSON Lines builtin), and Snort
-  fast alerts; W3C Extended Log Format (IIS) files get their columns
-  from the `#Fields:` directive via the W3C Log Viewer plugin),
+  output (log4j 2 JSON parses via the JSON Lines builtin), Snort
+  fast alerts, and sysdig text output; W3C Extended Log Format (IIS)
+  files get their columns from the `#Fields:` directive via the W3C
+  Log Viewer plugin),
   sample-based auto-detection, off-thread filtering (`scanFilter` over a
   `RowSet`), a **field query language** (`level:error tag:Wifi* pid>=100
   "free text"` with AND/OR/NOT - toggle the `Q` button), and off-thread

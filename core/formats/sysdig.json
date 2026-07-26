@@ -1,0 +1,16 @@
+{
+    "id": "sysdig",
+    "displayName": "sysdig capture (text output)",
+    "pattern": "^(?<num>\\d+) (?<time>\\d{2}:\\d{2}:\\d{2}\\.\\d{6,9}|\\d{9,11}\\.\\d{6,9}) (?<cpu>\\d+) (?<proc>.+?) \\((?<tid>\\d+)\\) (?<dir>[<>]) (?<type>\\S+)(?: (?<info>.*))?$",
+    "fields": [
+        { "name": "Event #", "capture": "num", "type": "integer", "hint": "numeric" },
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp" },
+        { "name": "CPU", "capture": "cpu", "type": "integer", "hint": "numeric" },
+        { "name": "Process", "capture": "proc", "type": "string", "hint": "identifier" },
+        { "name": "TID", "capture": "tid", "type": "integer", "hint": "numeric" },
+        { "name": "Dir", "capture": "dir", "type": "string" },
+        { "name": "Type", "capture": "type", "type": "string", "hint": "identifier" },
+        { "name": "Info", "capture": "info", "type": "string", "hint": "message" }
+    ],
+    "specificity": 0.9
+}
