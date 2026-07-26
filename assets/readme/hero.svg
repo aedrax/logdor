@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="320" viewBox="0 0 1200 320"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Logdor — the discerninator</title>
+  <desc id="desc">A fast native viewer for huge log files: severity color coding, a field query language, timelines, and annotations. The graphic shows a miniature log viewer window with a query filter, a timeline spike strip, and severity-colored rows.</desc>
+
+  <rect width="1200" height="320" rx="18" fill="#0d1117"/>
+  <rect x="0.75" y="0.75" width="1198.5" height="318.5" rx="17.5" fill="none" stroke="#2a3441" stroke-width="1.5"/>
+
+  <g id="title-block">
+    <text x="64" y="78" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" letter-spacing="3" fill="#8b949e">QT 6 · NATIVE LOG VIEWER</text>
+
+    <text x="60" y="158" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="84" font-weight="800" fill="#e8eaed">Logdor</text>
+    <text x="362" y="158" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="26" font-style="italic" font-weight="600" fill="#f5a623">the discerninator!</text>
+
+    <text x="64" y="204" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="23" fill="#b6bec7">Filter, color-code, annotate, and merge huge log files.</text>
+    <text x="64" y="238" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="23" fill="#b6bec7">30+ formats understood out of the box.</text>
+
+    <text x="64" y="284" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" fill="#8b949e">indexing ≥1 GB/s&#160;&#160;·&#160;&#160;~4 bytes/line&#160;&#160;·&#160;&#160;MIT</text>
+  </g>
+
+  <g id="project-proof">
+    <!-- miniature viewer window -->
+    <rect x="716" y="36" width="432" height="248" rx="10" fill="#161d26" stroke="#2a3441" stroke-width="1.5"/>
+
+    <!-- window bar -->
+    <circle cx="738" cy="56" r="5" fill="#3a4553"/>
+    <circle cx="756" cy="56" r="5" fill="#3a4553"/>
+    <circle cx="774" cy="56" r="5" fill="#3a4553"/>
+
+    <!-- filter bar with field query -->
+    <rect x="732" y="72" width="336" height="34" rx="6" fill="#12301d" stroke="#2ea043" stroke-width="1.5"/>
+    <text x="746" y="95" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="19" fill="#7ee787">level:error tag:Wifi*</text>
+    <rect x="1076" y="72" width="56" height="34" rx="6" fill="#1b2836" stroke="#f5a623" stroke-width="1.5"/>
+    <text x="1104" y="96" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="19" font-weight="700" fill="#f5a623">Q</text>
+
+    <!-- timeline spike strip -->
+    <g id="timeline" fill="#3a4553">
+      <rect x="734" y="136" width="5" height="6"/>
+      <rect x="743" y="132" width="5" height="10"/>
+      <rect x="752" y="138" width="5" height="4"/>
+      <rect x="761" y="128" width="5" height="14"/>
+      <rect x="770" y="134" width="5" height="8"/>
+      <rect x="779" y="118" width="5" height="24" fill="#ff6347"/>
+      <rect x="788" y="130" width="5" height="12"/>
+      <rect x="797" y="136" width="5" height="6"/>
+      <rect x="806" y="126" width="5" height="16" fill="#ffa500"/>
+      <rect x="815" y="134" width="5" height="8"/>
+      <rect x="824" y="138" width="5" height="4"/>
+      <rect x="833" y="130" width="5" height="12"/>
+      <rect x="842" y="112" width="5" height="30" fill="#ff6347"/>
+      <rect x="851" y="128" width="5" height="14"/>
+      <rect x="860" y="136" width="5" height="6"/>
+      <rect x="869" y="132" width="5" height="10"/>
+      <rect x="878" y="126" width="5" height="16" fill="#ffa500"/>
+      <rect x="887" y="136" width="5" height="6"/>
+      <rect x="896" y="130" width="5" height="12"/>
+      <rect x="905" y="138" width="5" height="4"/>
+      <rect x="914" y="122" width="5" height="20" fill="#ff6347"/>
+      <rect x="923" y="134" width="5" height="8"/>
+      <rect x="932" y="130" width="5" height="12"/>
+      <rect x="941" y="136" width="5" height="6"/>
+      <rect x="950" y="128" width="5" height="14"/>
+      <rect x="959" y="134" width="5" height="8"/>
+      <rect x="968" y="116" width="5" height="26" fill="#ff6347"/>
+      <rect x="977" y="132" width="5" height="10"/>
+      <rect x="986" y="138" width="5" height="4"/>
+      <rect x="995" y="128" width="5" height="14"/>
+      <rect x="1004" y="134" width="5" height="8"/>
+      <rect x="1013" y="126" width="5" height="16" fill="#ffa500"/>
+      <rect x="1022" y="136" width="5" height="6"/>
+      <rect x="1031" y="130" width="5" height="12"/>
+      <rect x="1040" y="138" width="5" height="4"/>
+      <rect x="1049" y="132" width="5" height="10"/>
+      <rect x="1058" y="124" width="5" height="18" fill="#ffa500"/>
+      <rect x="1067" y="134" width="5" height="8"/>
+      <rect x="1076" y="130" width="5" height="12"/>
+      <rect x="1085" y="136" width="5" height="6"/>
+      <rect x="1094" y="120" width="5" height="22" fill="#ff6347"/>
+      <rect x="1103" y="132" width="5" height="10"/>
+      <rect x="1112" y="136" width="5" height="6"/>
+      <rect x="1121" y="130" width="5" height="12"/>
+      <rect x="1130" y="138" width="5" height="4"/>
+    </g>
+    <line x1="732" y1="144" x2="1136" y2="144" stroke="#2a3441" stroke-width="1.5"/>
+
+    <!-- severity-colored log rows with redacted text bars -->
+    <g id="log-rows">
+      <g>
+        <rect x="732" y="156" width="404" height="18" rx="3" fill="#79c0e8"/>
+        <rect x="740" y="162" width="52" height="6" rx="3" fill="#0d1117" opacity="0.55"/>
+        <rect x="800" y="162" width="150" height="6" rx="3" fill="#0d1117" opacity="0.55"/>
+      </g>
+      <g>
+        <rect x="732" y="178" width="404" height="18" rx="3" fill="#85e089"/>
+        <rect x="740" y="184" width="52" height="6" rx="3" fill="#0d1117" opacity="0.55"/>
+        <rect x="800" y="184" width="210" height="6" rx="3" fill="#0d1117" opacity="0.55"/>
+      </g>
+      <g>
+        <rect x="732" y="200" width="404" height="18" rx="3" fill="#ff6347"/>
+        <rect x="740" y="206" width="52" height="6" rx="3" fill="#0d1117" opacity="0.55"/>
+        <rect x="800" y="206" width="260" height="6" rx="3" fill="#0d1117" opacity="0.55"/>
+      </g>
+      <g>
+        <rect x="732" y="222" width="404" height="18" rx="3" fill="#ffa500"/>
+        <rect x="740" y="228" width="52" height="6" rx="3" fill="#0d1117" opacity="0.55"/>
+        <rect x="800" y="228" width="120" height="6" rx="3" fill="#0d1117" opacity="0.55"/>
+      </g>
+      <g>
+        <rect x="732" y="244" width="404" height="18" rx="3" fill="#79c0e8"/>
+        <rect x="740" y="250" width="52" height="6" rx="3" fill="#0d1117" opacity="0.55"/>
+        <rect x="800" y="250" width="185" height="6" rx="3" fill="#0d1117" opacity="0.55"/>
+      </g>
+    </g>
+  </g>
+</svg>
