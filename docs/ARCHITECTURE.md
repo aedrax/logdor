@@ -115,9 +115,16 @@ format are byte-compatible with Apache combined and belong to the
 `clf` builtin), `s3-access` (Amazon S3 server access logs; post-2019
 trailing fields land in one `Extra` column), `cef` (ArcSight Common
 Event Format, bare or syslog-prefixed; header `\|` escapes are shown
-raw), and `leef` (IBM QRadar LEEF 1.0/2.0; the 2.0 delimiter field is
-detected best-effort) — all golden-tested against real captured lines
-in `core/tests/tst_systemformats.cpp`.
+raw), `leef` (IBM QRadar LEEF 1.0/2.0; the 2.0 delimiter field is
+detected best-effort), `nagios` (bracketed-epoch daemon log),
+`audit` (Linux auditd, optional `node=` prefix), `logback`
+(logback/log4j classic `%d [%thread] %-5level %logger - %msg` layout;
+the bare-time no-config default has no parseable date), and `snort`
+(fast alerts; the year-less `MM/dd-HH:mm:ss.ffffff` timestamp gets its
+own codec kind) — all golden-tested against real captured lines in
+`core/tests/tst_systemformats.cpp`. Log4j 2 JSON output (JsonLayout
+`timeMillis` and JsonTemplateLayout nested `instant`) parses via the
+`jsonlines` builtin.
 
 A `datetime` field may declare `"timeFormat"` — `"iso8601"`,
 `"epoch-s"`/`"epoch-ms"`/`"epoch-us"`, `"uptime"` (monotonic seconds
