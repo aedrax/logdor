@@ -1,0 +1,21 @@
+{
+    "id": "snort",
+    "displayName": "Snort fast alert",
+    "pattern": "^(?<time>\\d{2}/\\d{2}-\\d{2}:\\d{2}:\\d{2}\\.\\d{6})\\s+\\[\\*\\*\\]\\s+\\[(?<sig>[\\d:]+)\\]\\s+(?<msg>.*?)\\s+\\[\\*\\*\\]\\s+(?:\\[Classification:\\s+(?<class>[^\\]]+)\\]\\s+)?\\[Priority:\\s+(?<priority>\\d+)\\]\\s+\\{(?<proto>\\w+)\\}\\s+(?<src>\\S+)\\s+->\\s+(?<dst>\\S+)$",
+    "fields": [
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "MM/dd-HH:mm:ss.zzzzzz" },
+        { "name": "Signature", "capture": "sig", "type": "string", "hint": "identifier" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" },
+        { "name": "Classification", "capture": "class", "type": "string" },
+        { "name": "Priority", "capture": "priority", "type": "string", "hint": "severityname" },
+        { "name": "Protocol", "capture": "proto", "type": "string", "hint": "identifier" },
+        { "name": "Source", "capture": "src", "type": "string", "hint": "identifier" },
+        { "name": "Destination", "capture": "dst", "type": "string", "hint": "identifier" }
+    ],
+    "severity": {
+        "capture": "priority",
+        "map": { "1": "error", "2": "warning", "3": "info", "4": "verbose" },
+        "default": "none"
+    },
+    "specificity": 0.95
+}

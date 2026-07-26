@@ -1,0 +1,21 @@
+{
+    "id": "logback",
+    "displayName": "Logback / Log4j classic pattern",
+    "pattern": "^(?<time>\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}[.,]\\d{3}) +\\[(?<thread>[^\\]]*)\\] +(?<level>TRACE|DEBUG|INFO|WARN|ERROR|FATAL) +(?<logger>\\S+) +-+ ?(?<msg>.*)$",
+    "fields": [
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "iso8601" },
+        { "name": "Thread", "capture": "thread", "type": "string", "hint": "identifier" },
+        { "name": "Level", "capture": "level", "type": "string", "hint": "severityname" },
+        { "name": "Logger", "capture": "logger", "type": "string", "hint": "identifier" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
+    ],
+    "severity": {
+        "capture": "level",
+        "map": {
+            "trace": "verbose", "debug": "debug", "info": "info",
+            "warn": "warning", "error": "error", "fatal": "fatal"
+        },
+        "default": "none"
+    },
+    "specificity": 0.9
+}

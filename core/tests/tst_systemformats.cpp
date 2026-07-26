@@ -48,9 +48,10 @@ QByteArray repeatLines(const QByteArray& line, int count)
 // Golden coverage for the system-log format specs shipped in core/formats
 // (syslog-rfc3164, syslog-iso, dpkg, dmesg, apt-history, apt-term,
 // cloud-init, cloud-init-output, apport, xorg, alternatives, cri, klog,
-// apache-error, nginx-error, s3-access, cef, leef), using lines captured
-// from real Ubuntu /var/log files or vendor documentation, plus detection
-// checks against the full parser list.
+// apache-error, nginx-error, s3-access, cef, leef, nagios, audit,
+// logback, snort), using lines captured from real Ubuntu /var/log files
+// or vendor documentation, plus detection checks against the full
+// parser list.
 class tst_SystemFormats : public QObject {
     Q_OBJECT
 
@@ -75,7 +76,8 @@ private slots:
                                     "apt-history", "apt-term", "cloud-init",
                                     "cloud-init-output", "apport", "xorg",
                                     "alternatives", "cri", "klog", "apache-error",
-                                    "nginx-error", "s3-access", "cef", "leef" };
+                                    "nginx-error", "s3-access", "cef", "leef",
+                                    "nagios", "audit", "logback", "snort" };
         for (const QString& id : required)
             QVERIFY2(parserById(id, m_parsers), qPrintable(id));
     }
@@ -655,6 +657,115 @@ private slots:
             << QStringList{ "", "", "", "", "", "", "", "",
                             "Jul 24 14:30:01 ubuntu-server CRON[12345]: (root) CMD (true)" }
             << false << int(Severity::None);
+
+        //=== nagios: Time, Type, Message ====================================
+        QTest::newRow("nagios-service-alert")
+            << "nagios"
+            << QByteArray("[1700000000] SERVICE ALERT: "
+                          "web01;HTTP;CRITICAL;SOFT;1;CRITICAL - Socket timeout after 10 seconds")
+            << QStringList{ "1700000000", "SERVICE ALERT",
+                            "web01;HTTP;CRITICAL;SOFT;1;CRITICAL - Socket timeout after 10 seconds" }
+            << true << int(Severity::None);
+        QTest::newRow("nagios-external-command")
+            << "nagios"
+            << QByteArray("[1700000030] EXTERNAL COMMAND: "
+                          "PROCESS_SERVICE_CHECK_RESULT;web01;HTTP;0;OK")
+            << QStringList{ "1700000030", "EXTERNAL COMMAND",
+                            "PROCESS_SERVICE_CHECK_RESULT;web01;HTTP;0;OK" }
+            << true << int(Severity::None);
+        // Daemon lines have no TYPE: prefix; Type stays empty.
+        QTest::newRow("nagios-typeless")
+            << "nagios"
+            << QByteArray("[1700000060] Caught SIGTERM, shutting down...")
+            << QStringList{ "1700000060", "", "Caught SIGTERM, shutting down..." }
+            << true << int(Severity::None);
+        QTest::newRow("nagios-nonmatch")
+            << "nagios"
+            << QByteArray("Nagios Core 4.4.6 starting... (PID=1234)")
+            << QStringList{ "", "", "Nagios Core 4.4.6 starting... (PID=1234)" }
+            << false << int(Severity::None);
+
+        //=== audit: Node, Type, Time, Serial, Message =======================
+        QTest::newRow("audit-syscall")
+            << "audit"
+            << QByteArray("type=SYSCALL msg=audit(1364475353.159:24270): "
+                          "arch=c000003e syscall=2 success=yes exit=3")
+            << QStringList{ "", "SYSCALL", "1364475353.159", "24270",
+                            "arch=c000003e syscall=2 success=yes exit=3" }
+            << true << int(Severity::None);
+        QTest::newRow("audit-node-prefixed")
+            << "audit"
+            << QByteArray("node=host1 type=USER_LOGIN msg=audit(1700000000.123:456): "
+                          "pid=1234 uid=0 auid=1000 ses=2 res=success")
+            << QStringList{ "host1", "USER_LOGIN", "1700000000.123", "456",
+                            "pid=1234 uid=0 auid=1000 ses=2 res=success" }
+            << true << int(Severity::None);
+        // logfmt lines start key=value too; the msg=audit(...) shape is the
+        // differentiator (keyvalue itself is anchored on ts=).
+        QTest::newRow("audit-nonmatch-logfmt")
+            << "audit"
+            << QByteArray("ts=2026-07-01T10:00:00Z level=info msg=\"hello\"")
+            << QStringList{ "", "", "", "",
+                            "ts=2026-07-01T10:00:00Z level=info msg=\"hello\"" }
+            << false << int(Severity::None);
+
+        //=== logback: Time, Thread, Level, Logger, Message ==================
+        QTest::newRow("logback-comma-ms")
+            << "logback"
+            << QByteArray("2024-06-27 11:55:44,123 [main] INFO  "
+                          "com.example.app.Application - Started Application in 2.312 seconds")
+            << QStringList{ "2024-06-27 11:55:44,123", "main", "INFO",
+                            "com.example.app.Application",
+                            "Started Application in 2.312 seconds" }
+            << true << int(Severity::Info);
+        QTest::newRow("logback-dot-ms-T-sep")
+            << "logback"
+            << QByteArray("2024-06-27T11:55:45.001 [http-nio-8080-exec-3] ERROR "
+                          "c.e.a.web.ApiController - Unhandled exception")
+            << QStringList{ "2024-06-27T11:55:45.001", "http-nio-8080-exec-3",
+                            "ERROR", "c.e.a.web.ApiController",
+                            "Unhandled exception" }
+            << true << int(Severity::Error);
+        // Stack-trace continuation lines fall back to the message column;
+        // the bare HH:mm:ss.SSS no-config logback default is out of scope
+        // (no codec parses a time-of-day-only value).
+        QTest::newRow("logback-nonmatch-stacktrace")
+            << "logback"
+            << QByteArray("java.lang.NullPointerException: null")
+            << QStringList{ "", "", "", "",
+                            "java.lang.NullPointerException: null" }
+            << false << int(Severity::None);
+
+        //=== snort: Time, Signature, Message, Classification, Priority,
+        //           Protocol, Source, Destination ===========================
+        QTest::newRow("snort-classified")
+            << "snort"
+            << QByteArray("01/18-11:07:53.123456  [**] [1:2100498:7] "
+                          "GPL ATTACK_RESPONSE id check returned root [**] "
+                          "[Classification: Potentially Bad Traffic] [Priority: 2] "
+                          "{TCP} 192.0.2.5:80 -> 10.0.0.1:445")
+            << QStringList{ "01/18-11:07:53.123456", "1:2100498:7",
+                            "GPL ATTACK_RESPONSE id check returned root",
+                            "Potentially Bad Traffic", "2", "TCP",
+                            "192.0.2.5:80", "10.0.0.1:445" }
+            << true << int(Severity::Warning);
+        // Classification is optional; year-included snort timestamp configs
+        // (01/18/24-...) are out of scope.
+        QTest::newRow("snort-no-classification")
+            << "snort"
+            << QByteArray("01/18-11:08:04.987654 [**] [129:12:1] "
+                          "Consecutive TCP small segments exceeding threshold [**] "
+                          "[Priority: 3] {TCP} 10.0.0.7:52814 -> 192.0.2.5:443")
+            << QStringList{ "01/18-11:08:04.987654", "129:12:1",
+                            "Consecutive TCP small segments exceeding threshold",
+                            "", "3", "TCP", "10.0.0.7:52814", "192.0.2.5:443" }
+            << true << int(Severity::Info);
+        QTest::newRow("snort-nonmatch")
+            << "snort"
+            << QByteArray("Commencing packet processing (pid=1234)")
+            << QStringList{ "", "", "Commencing packet processing (pid=1234)",
+                            "", "", "", "", "" }
+            << false << int(Severity::None);
     }
 
     void golden()
@@ -783,6 +894,24 @@ private slots:
             << QByteArray("192.0.2.1 - - [27/Jun/2024:11:55:44 +0000] "
                           "\"GET /index.html HTTP/1.1\" 200 612 \"-\" "
                           "\"Mozilla/5.0 (X11; Linux x86_64)\"");
+        QTest::newRow("nagios")
+            << "nagios"
+            << QByteArray("[1700000000] SERVICE ALERT: "
+                          "web01;HTTP;CRITICAL;SOFT;1;CRITICAL - Socket timeout after 10 seconds");
+        QTest::newRow("audit")
+            << "audit"
+            << QByteArray("type=SYSCALL msg=audit(1364475353.159:24270): "
+                          "arch=c000003e syscall=2 success=yes exit=3");
+        QTest::newRow("logback")
+            << "logback"
+            << QByteArray("2024-06-27 11:55:44,123 [main] INFO  "
+                          "com.example.app.Application - Started Application in 2.312 seconds");
+        QTest::newRow("snort")
+            << "snort"
+            << QByteArray("01/18-11:07:53.123456  [**] [1:2100498:7] "
+                          "GPL ATTACK_RESPONSE id check returned root [**] "
+                          "[Classification: Potentially Bad Traffic] [Priority: 2] "
+                          "{TCP} 192.0.2.5:80 -> 10.0.0.1:445");
     }
 
     void timestampCodecs_data()
@@ -821,6 +950,12 @@ private slots:
         // CEF/LEEF declare no format; detection resolves the syslog prefix.
         QTest::newRow("cef-auto") << "cef" << "Sep 19 08:26:10";
         QTest::newRow("leef-auto") << "leef" << "Jan 18 11:07:53";
+        QTest::newRow("nagios-epoch") << "nagios" << "1700000000";
+        // Kind::EpochSeconds accepts fractional seconds.
+        QTest::newRow("audit-epoch-frac") << "audit" << "1364475353.159";
+        // iso8601 accepts the space separator and comma fraction.
+        QTest::newRow("logback-comma") << "logback" << "2024-06-27 11:55:44,123";
+        QTest::newRow("snort") << "snort" << "01/18-11:07:53.123456";
     }
 
     // Every bundled timestamp field must yield a codec (declared format or

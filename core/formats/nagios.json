@@ -1,0 +1,11 @@
+{
+    "id": "nagios",
+    "displayName": "Nagios log",
+    "pattern": "^\\[(?<time>\\d{9,11})\\] (?:(?<type>[A-Z][A-Z _/-]*[A-Z]): )?(?<msg>.*)$",
+    "fields": [
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "epoch-s" },
+        { "name": "Type", "capture": "type", "type": "string", "hint": "identifier" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
+    ],
+    "specificity": 0.9
+}

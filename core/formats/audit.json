@@ -1,0 +1,13 @@
+{
+    "id": "audit",
+    "displayName": "Linux audit log (auditd)",
+    "pattern": "^(?:node=(?<node>\\S+) )?type=(?<type>\\S+) msg=audit\\((?<time>\\d+\\.\\d+):(?<serial>\\d+)\\): ?(?<msg>.*)$",
+    "fields": [
+        { "name": "Node", "capture": "node", "type": "string", "hint": "identifier" },
+        { "name": "Type", "capture": "type", "type": "string", "hint": "identifier" },
+        { "name": "Time", "capture": "time", "type": "datetime", "hint": "timestamp", "timeFormat": "epoch-s" },
+        { "name": "Serial", "capture": "serial", "type": "integer", "hint": "numeric" },
+        { "name": "Message", "capture": "msg", "type": "string", "hint": "message" }
+    ],
+    "specificity": 0.95
+}
