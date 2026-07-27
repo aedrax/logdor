@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Logdor
+Comment=Log file viewer with pluggable format parsers
+Exec=logdor
+Icon=logdor
+Categories=Development;Utility;
+Terminal=false

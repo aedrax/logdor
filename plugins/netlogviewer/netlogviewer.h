@@ -15,7 +15,7 @@ public:
     ~NetLogViewer();
 
     QString name() const override { return tr("NetLog Viewer"); }
-    QString version() const override { return "0.1.0"; }
+    QString version() const override { return "v1.0.0"; }
     QString description() const override { return tr("Chrome net-export captures with decoded event and source types."); }
     QWidget* widget() override { return m_viewer; }
 

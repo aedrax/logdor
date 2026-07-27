@@ -49,7 +49,6 @@ target_link_libraries(logdor_interface PUBLIC
     Qt6::Widgets
     Qt6::Concurrent
 )
-
 if(BUILD_TESTING)
     foreach(t logtablemodel annotationhub logviewerwidget recentitems folderview
               followcontroller)
@@ -97,7 +96,7 @@ set_target_properties(logdor PROPERTIES
 )
 
 include(GNUInstallDirs)
-install(TARGETS logdor
+install(TARGETS logdor logdor_interface
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}

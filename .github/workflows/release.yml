@@ -1,0 +1,221 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  # 6.9+ required on macOS: Qt 6.8's prebuilt OpenGL config links the AGL
+  # framework, which was removed from the SDK in Xcode 16.3.
+  QT_VERSION: "6.9.3"
+
+# Each platform builds two variants: the default lean build, and a
+# "-webengine" build that includes Qt WebEngine so the Map Viewer plugin is
+# compiled in (plugins/CMakeLists.txt skips it when WebEngineWidgets is
+# absent). WebEngine adds roughly 150 MB per package, hence both.
+# qtwebchannel and qtpositioning are aqt's dependency modules for qtwebengine.
+
+jobs:
+  linux:
+    name: Linux (AppImage${{ matrix.variant }})
+    # Built on 22.04 (glibc 2.35) so the AppImage runs on distros from ~2022
+    # onward. gcc-13 comes from the toolchain PPA (core needs C++20); its newer
+    # libstdc++/libgcc are linked statically so users don't need them installed.
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: ""
+            qt_modules: ""
+          - variant: "-webengine"
+            qt_modules: "qtwebengine qtwebchannel qtpositioning"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          modules: ${{ matrix.qt_modules }}
+          cache: true
+
+      - name: Install system dependencies
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          # The last row are WebEngineCore's runtime deps, needed so
+          # linuxdeploy can resolve and bundle them; harmless for the lean
+          # variant.
+          sudo apt-get install -y gcc-13 g++-13 zlib1g-dev libgl1-mesa-dev libxkbcommon-x11-0 libxcb-cursor0 \
+            libnss3 libasound2 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxkbfile1
+
+      - name: Configure and build
+        env:
+          CC: gcc-13
+          CXX: g++-13
+        run: |
+          # Static libstdc++/libgcc on all three linker flag sets: the app
+          # executable, liblogdor_interface.so, and the plugin modules each
+          # need it for portability.
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-static-libstdc++ -static-libgcc" \
+            -DCMAKE_MODULE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"
+          cmake --build build --parallel
+
+      - name: Package AppImage
+        run: |
+          # Stage plugins and format specs straight from the build tree so
+          # every binary keeps its full build rpath — linuxdeploy resolves
+          # Qt and liblogdor_interface through those, then rewrites all
+          # rpaths in the AppDir to $ORIGIN-relative ones.
+          # Layout matches what PluginManager/FormatCatalog resolve relative
+          # to usr/bin/logdor: usr/plugins and usr/share/logdor/formats.
+          mkdir -p AppDir/usr/plugins AppDir/usr/share/logdor/formats
+          cp build/plugins/*.so AppDir/usr/plugins/
+          cp build/formats/*.json AppDir/usr/share/logdor/formats/
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy*.AppImage
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir \
+            --executable build/app/logdor \
+            --desktop-file assets/linux/logdor.desktop \
+            --icon-file app/resources/icons/logdor.png \
+            --plugin qt \
+            --output appimage
+          mv Logdor-x86_64.AppImage Logdor-linux-x86_64${{ matrix.variant }}.AppImage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux${{ matrix.variant }}
+          path: Logdor-linux-x86_64${{ matrix.variant }}.AppImage
+
+  windows:
+    name: Windows (zip${{ matrix.variant }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: ""
+            qt_modules: ""
+          - variant: "-webengine"
+            qt_modules: "qtwebengine qtwebchannel qtpositioning"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2022_64
+          modules: ${{ matrix.qt_modules }}
+          cache: true
+
+      # zlib for LOGDOR_WITH_GZIP; static-md triplet links it into the core
+      # so no extra DLL ships.
+      - name: Install zlib
+        run: vcpkg install zlib:x64-windows-static-md
+
+      - name: Configure and build
+        run: |
+          cmake -B build -DBUILD_TESTING=OFF `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+          cmake --build build --config Release --parallel
+
+      - name: Package
+        shell: pwsh
+        run: |
+          # bin/logdor.exe + logdor_interface.dll, plugins/, share/logdor/formats/
+          cmake --install build --config Release --prefix Logdor
+          # The exe covers the Qt modules the lean plugins use; the mapviewer
+          # dll is deployed explicitly so WebEngine (QtWebEngineProcess.exe,
+          # resources, locales) gets bundled too.
+          windeployqt --release --compiler-runtime --no-translations Logdor/bin/logdor.exe
+          if (Test-Path Logdor/plugins/mapviewer.dll) {
+            windeployqt --release --compiler-runtime --no-translations --dir Logdor/bin Logdor/plugins/mapviewer.dll
+          }
+          Compress-Archive -Path Logdor -DestinationPath Logdor-windows-x64${{ matrix.variant }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows${{ matrix.variant }}
+          path: Logdor-windows-x64${{ matrix.variant }}.zip
+
+  macos:
+    name: macOS (dmg${{ matrix.variant }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: ""
+            qt_modules: ""
+          - variant: "-webengine"
+            qt_modules: "qtwebengine qtwebchannel qtpositioning"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          modules: ${{ matrix.qt_modules }}
+          cache: true
+
+      - name: Configure and build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" \
+            -DBUILD_TESTING=OFF
+          cmake --build build --parallel
+
+      - name: Package DMG
+        run: |
+          APP=build/app/logdor.app
+          # PluginManager finds Contents/plugins (one level up from MacOS/);
+          # FormatCatalog finds Contents/formats via ../formats.
+          mkdir -p "$APP/Contents/plugins" "$APP/Contents/formats"
+          cp build/plugins/*.so "$APP/Contents/plugins/"
+          cp build/formats/*.json "$APP/Contents/formats/"
+          # Pass each plugin to macdeployqt so their liblogdor_interface/Qt
+          # references get rewritten to the bundled Frameworks copies. For the
+          # webengine variant this also pulls in QtWebEngineCore and its
+          # QtWebEngineProcess helper app.
+          EXTRA=()
+          for p in "$APP"/Contents/plugins/*.so; do EXTRA+=("-executable=$p"); done
+          macdeployqt "$APP" "${EXTRA[@]}" -dmg
+          mv build/app/logdor.dmg Logdor-macos-universal${{ matrix.variant }}.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos${{ matrix.variant }}
+          path: Logdor-macos-universal${{ matrix.variant }}.dmg
+
+  release:
+    name: Create GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            Logdor-linux-x86_64.AppImage
+            Logdor-linux-x86_64-webengine.AppImage
+            Logdor-windows-x64.zip
+            Logdor-windows-x64-webengine.zip
+            Logdor-macos-universal.dmg
+            Logdor-macos-universal-webengine.dmg

@@ -36,7 +36,7 @@ public:
     ~TimelineViewer();
 
     QString name() const override { return tr("Merged Timeline"); }
-    QString version() const override { return "0.1.0"; }
+    QString version() const override { return "v1.0.0"; }
     QString description() const override
     {
         return tr("Merge events from multiple log files into one "

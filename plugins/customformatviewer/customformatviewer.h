@@ -29,7 +29,7 @@ public:
     ~CustomFormatViewer();
 
     QString name() const override { return tr("Custom Format Viewer"); }
-    QString version() const override { return "1.0.0"; }
+    QString version() const override { return "v1.0.0"; }
     QString description() const override { return tr("Author log formats interactively with a live regex."); }
     QWidget* widget() override { return m_container; }
 

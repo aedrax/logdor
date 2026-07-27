@@ -15,7 +15,7 @@ public:
     ~W3CViewer();
 
     QString name() const override { return tr("W3C Log Viewer"); }
-    QString version() const override { return "0.1.0"; }
+    QString version() const override { return "v1.0.0"; }
     QString description() const override { return tr("Table view for W3C Extended Log Format files (IIS) with #Fields-derived columns."); }
     QWidget* widget() override { return m_viewer; }
 

@@ -4,7 +4,7 @@ namespace logdor {
 
 QString coreVersion()
 {
-    return QStringLiteral("0.1.0");
+    return QStringLiteral("v1.0.0");
 }
 
 } // namespace logdor

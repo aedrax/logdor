@@ -24,7 +24,7 @@ public:
     ~AnnotationViewer();
 
     QString name() const override { return tr("Annotations"); }
-    QString version() const override { return "1.0.0"; }
+    QString version() const override { return "v1.0.0"; }
     QString description() const override { return tr("All notes on the current log: jump, edit, share."); }
     QWidget* widget() override { return m_container; }
 
