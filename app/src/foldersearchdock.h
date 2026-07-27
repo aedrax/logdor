@@ -1,6 +1,8 @@
 #ifndef FOLDERSEARCHDOCK_H
 #define FOLDERSEARCHDOCK_H
 
+#include "logdorexport.h"
+
 #include <logdor/GrepScan.h>
 
 #include <QDockWidget>
@@ -19,7 +21,7 @@ class QTreeWidgetItem;
  * grepFolder results into a tree grouped by file, and let activation jump
  * into the file at the matched line. Sidecar annotation files are skipped.
  */
-class Q_DECL_EXPORT FolderSearchDock : public QDockWidget {
+class LOGDOR_INTERFACE_EXPORT FolderSearchDock : public QDockWidget {
     Q_OBJECT
 public:
     explicit FolderSearchDock(QWidget* parent = nullptr);

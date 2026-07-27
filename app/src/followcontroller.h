@@ -1,6 +1,8 @@
 #ifndef FOLLOWCONTROLLER_H
 #define FOLLOWCONTROLLER_H
 
+#include "logdorexport.h"
+
 #include <logdor/FileIdentity.h>
 #include <logdor/FileSource.h>
 #include <logdor/LineIndex.h>
@@ -28,7 +30,7 @@
  * count, or one less when the old final line was unterminated (its content
  * grew - consumers must re-evaluate it).
  */
-class Q_DECL_EXPORT FollowController : public QObject {
+class LOGDOR_INTERFACE_EXPORT FollowController : public QObject {
     Q_OBJECT
 public:
     explicit FollowController(QObject* parent = nullptr);

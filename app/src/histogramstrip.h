@@ -1,6 +1,8 @@
 #ifndef HISTOGRAMSTRIP_H
 #define HISTOGRAMSTRIP_H
 
+#include "logdorexport.h"
+
 #include <logdor/HistogramScan.h>
 
 #include <QWidget>
@@ -13,7 +15,7 @@
  * and emits timeRangeSelected(0, 0). The strip renders whatever result it
  * is given - the owner runs scanHistogram and calls setHistogram().
  */
-class Q_DECL_EXPORT HistogramStrip : public QWidget {
+class LOGDOR_INTERFACE_EXPORT HistogramStrip : public QWidget {
     Q_OBJECT
 public:
     explicit HistogramStrip(QWidget* parent = nullptr);

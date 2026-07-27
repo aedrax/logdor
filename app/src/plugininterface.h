@@ -1,6 +1,8 @@
 #ifndef PLUGININTERFACE_H
 #define PLUGININTERFACE_H
 
+#include "logdorexport.h"
+
 #include <QColor>
 #include <QJsonObject>
 #include <QString>
@@ -76,7 +78,7 @@ enum class PluginEvent {
  * run their own background work (filter scans etc.) via QFutureWatcher -
  * see LogViewerWidget, which most viewers simply wrap.
  */
-class Q_DECL_EXPORT PluginInterface : public QObject {
+class LOGDOR_INTERFACE_EXPORT PluginInterface : public QObject {
     Q_OBJECT
 public:
     explicit PluginInterface(QObject* parent = nullptr)

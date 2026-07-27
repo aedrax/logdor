@@ -1,6 +1,8 @@
 #ifndef LOGVIEWERWIDGET_H
 #define LOGVIEWERWIDGET_H
 
+#include "logdorexport.h"
+
 #include "logtablemodel.h"
 #include "plugininterface.h"
 
@@ -28,7 +30,7 @@ class QTableView;
  * sorting share a per-file column cache: the first one pays a one-time
  * extraction scan, refinements are fast.
  */
-class Q_DECL_EXPORT LogViewerWidget : public QWidget {
+class LOGDOR_INTERFACE_EXPORT LogViewerWidget : public QWidget {
     Q_OBJECT
 public:
     explicit LogViewerWidget(QWidget* parent = nullptr);

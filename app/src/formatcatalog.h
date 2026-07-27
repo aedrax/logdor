@@ -1,6 +1,8 @@
 #ifndef FORMATCATALOG_H
 #define FORMATCATALOG_H
 
+#include "logdorexport.h"
+
 #include <logdor/FormatParser.h>
 
 #include <QStringList>
@@ -14,7 +16,7 @@
  * format without compiling; user specs override bundled ids). Invalid spec
  * files are skipped and reported via @p warnings. Value-returning by design.
  */
-Q_DECL_EXPORT QList<std::shared_ptr<const logdor::FormatParser>>
+LOGDOR_INTERFACE_EXPORT QList<std::shared_ptr<const logdor::FormatParser>>
 loadAllParsers(QStringList* warnings = nullptr);
 
 #endif // FORMATCATALOG_H

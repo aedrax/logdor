@@ -181,14 +181,14 @@ jobs:
           # PluginManager finds Contents/plugins (one level up from MacOS/);
           # FormatCatalog finds Contents/formats via ../formats.
           mkdir -p "$APP/Contents/plugins" "$APP/Contents/formats"
-          cp build/plugins/*.so "$APP/Contents/plugins/"
+          cp build/plugins/*.dylib "$APP/Contents/plugins/"
           cp build/formats/*.json "$APP/Contents/formats/"
           # Pass each plugin to macdeployqt so their liblogdor_interface/Qt
           # references get rewritten to the bundled Frameworks copies. For the
           # webengine variant this also pulls in QtWebEngineCore and its
           # QtWebEngineProcess helper app.
           EXTRA=()
-          for p in "$APP"/Contents/plugins/*.so; do EXTRA+=("-executable=$p"); done
+          for p in "$APP"/Contents/plugins/*.dylib; do EXTRA+=("-executable=$p"); done
           macdeployqt "$APP" "${EXTRA[@]}" -dmg
           mv build/app/logdor.dmg Logdor-macos-universal${{ matrix.variant }}.dmg
 

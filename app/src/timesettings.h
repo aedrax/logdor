@@ -1,6 +1,8 @@
 #ifndef TIMESETTINGS_H
 #define TIMESETTINGS_H
 
+#include "logdorexport.h"
+
 #include <logdor/TimestampParse.h>
 
 #include <QObject>
@@ -13,7 +15,7 @@
  * empty = the system zone, else "UTC" or an IANA id). Viewers rebuild their
  * extracted timestamp columns on assumedZoneChanged().
  */
-class Q_DECL_EXPORT TimeSettings : public QObject {
+class LOGDOR_INTERFACE_EXPORT TimeSettings : public QObject {
     Q_OBJECT
 public:
     static TimeSettings& instance();

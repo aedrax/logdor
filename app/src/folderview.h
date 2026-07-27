@@ -1,6 +1,8 @@
 #ifndef FOLDERVIEW_H
 #define FOLDERVIEW_H
 
+#include "logdorexport.h"
+
 #include <QModelIndex>
 #include <QTimer>
 #include <QWidget>
@@ -20,7 +22,7 @@ class QTreeView;
  * tree is prefetched as directory listings arrive; navigation simply skips
  * branches that haven't landed yet.
  */
-class Q_DECL_EXPORT FolderView : public QWidget {
+class LOGDOR_INTERFACE_EXPORT FolderView : public QWidget {
     Q_OBJECT
 public:
     explicit FolderView(QWidget* parent = nullptr);

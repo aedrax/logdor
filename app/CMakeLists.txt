@@ -13,6 +13,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Widgets Concurrent)
 
 # Create plugin interface library
 add_library(logdor_interface SHARED
+    src/logdorexport.h
     src/plugininterface.h
     src/plugininterface.cpp
     src/logtablemodel.h
@@ -49,6 +50,10 @@ target_link_libraries(logdor_interface PUBLIC
     Qt6::Widgets
     Qt6::Concurrent
 )
+
+# Selects dllexport in logdorexport.h while this library builds; consumers
+# (app, plugins) get dllimport.
+target_compile_definitions(logdor_interface PRIVATE LOGDOR_INTERFACE_LIBRARY)
 if(BUILD_TESTING)
     foreach(t logtablemodel annotationhub logviewerwidget recentitems folderview
               followcontroller)

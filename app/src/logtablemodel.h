@@ -1,6 +1,8 @@
 #ifndef LOGTABLEMODEL_H
 #define LOGTABLEMODEL_H
 
+#include "logdorexport.h"
+
 #include "highlightrules.h"
 
 #include <logdor/FileSource.h>
@@ -24,7 +26,7 @@ class AnnotationHub;
  * LRU keyed by SOURCE line, so filter changes don't invalidate the cache and
  * memory stays viewport-bounded regardless of file size. GUI-thread only.
  */
-class Q_DECL_EXPORT LogTableModel : public QAbstractTableModel {
+class LOGDOR_INTERFACE_EXPORT LogTableModel : public QAbstractTableModel {
     Q_OBJECT
 public:
     explicit LogTableModel(QObject* parent = nullptr);

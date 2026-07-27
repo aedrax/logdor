@@ -1,6 +1,8 @@
 #ifndef ANNOTATIONDIALOG_H
 #define ANNOTATIONDIALOG_H
 
+#include "logdorexport.h"
+
 #include <QDialog>
 
 class QButtonGroup;
@@ -11,7 +13,7 @@ class QPlainTextEdit;
  * Modal editor for one annotation: note text, a small preset color row,
  * and an optional tag. Shared by the log viewers and the Annotations panel.
  */
-class Q_DECL_EXPORT AnnotationDialog : public QDialog {
+class LOGDOR_INTERFACE_EXPORT AnnotationDialog : public QDialog {
     Q_OBJECT
 public:
     explicit AnnotationDialog(QWidget* parent = nullptr);

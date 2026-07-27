@@ -1,6 +1,8 @@
 #ifndef ANNOTATIONHUB_H
 #define ANNOTATIONHUB_H
 
+#include "logdorexport.h"
+
 #include <logdor/Annotation.h>
 #include <logdor/AnnotationScan.h>
 #include <logdor/FileSource.h>
@@ -19,7 +21,7 @@
  * handles persistence timing; the hub stamps ids/timestamps/author and
  * computes anchors on edits, and runs re-anchoring off-thread on file load.
  */
-class Q_DECL_EXPORT AnnotationHub : public QObject {
+class LOGDOR_INTERFACE_EXPORT AnnotationHub : public QObject {
     Q_OBJECT
 public:
     explicit AnnotationHub(QObject* parent = nullptr);

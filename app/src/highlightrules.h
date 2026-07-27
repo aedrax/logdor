@@ -1,16 +1,18 @@
 #ifndef HIGHLIGHTRULES_H
 #define HIGHLIGHTRULES_H
 
+#include "logdorexport.h"
+
 #include "plugininterface.h"
 
 #include <QRegularExpression>
 
 /// QSettings persistence for the app-wide highlight rules ("highlightRules").
-Q_DECL_EXPORT QList<HighlightRule> loadHighlightRules();
-Q_DECL_EXPORT void storeHighlightRules(const QList<HighlightRule>& rules);
+LOGDOR_INTERFACE_EXPORT QList<HighlightRule> loadHighlightRules();
+LOGDOR_INTERFACE_EXPORT void storeHighlightRules(const QList<HighlightRule>& rules);
 
 /// A pleasant default color for the next new rule (cycles a small palette).
-Q_DECL_EXPORT QColor nextHighlightColor(int existingRuleCount);
+LOGDOR_INTERFACE_EXPORT QColor nextHighlightColor(int existingRuleCount);
 
 /**
  * Compiled evaluator shared by LogTableModel and the timeline: first
@@ -18,7 +20,7 @@ Q_DECL_EXPORT QColor nextHighlightColor(int existingRuleCount);
  * evaluation is per rendered row. Rebuild via setRules on changes;
  * matching itself is const and cheap.
  */
-class Q_DECL_EXPORT HighlightMatcher {
+class LOGDOR_INTERFACE_EXPORT HighlightMatcher {
 public:
     void setRules(const QList<HighlightRule>& rules);
     bool isEmpty() const { return m_rules.isEmpty(); }
