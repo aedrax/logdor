@@ -154,22 +154,25 @@ match; re-export on a current system or add a user spec.)
 `builtinParsers()` in `core/src/FormatRegistry.cpp`. Golden-test it like
 `core/tests/tst_formatparsers.cpp`.
 
-**A new view plugin** - copy `plugins/csvviewer/` (the smallest full
-example): subclass `PluginInterface`, wrap a `LogViewerWidget`, forward
+**A new view plugin** - copy `plugins/plaintextviewer/` (the smallest
+`LogViewerWidget` wrapper): subclass `PluginInterface`, forward
 `setCoreSource`/`setFilter`/`setAnnotationHub`, and wire
-`linesSelected`/`selectSourceLines` for cross-view selection sync.
+`linesSelected`/`selectSourceLines` for cross-view selection sync. A
+plugin earns its keep with a distinct *view* (hex dump, timeline, map);
+a format that renders as columns belongs in the registry instead.
 
 **Per-file parsers** (schema or decode state depends on file content:
 `CsvParser`, `NetLogParser`, `W3CExtendedParser`) stay out of
 `builtinParsers()` - they cannot participate in stateless detection -
-and are constructed by their viewer plugin via a
-`fromFile(source, index)` factory with a plaintext fallback.
+and are constructed per file by `fileDerivedParsers(source, index)` in
+`core/src/FormatRegistry.cpp`, which returns only the parsers whose
+`fromFile(source, index)` probe accepts the file. The Plain Text
+Viewer folds them into its format combo and auto-detection, and hides
+their scaffolding lines (CSV header row, W3C `#...` directives, NetLog
+wrapper lines) via `FormatParser::hasMetaLines()`/`isDataLine()`.
 `W3CExtendedParser` derives its columns from the `#Fields:` directive
 of W3C Extended Log Format files (IIS/Exchange) and merges adjacent
-`date time` fields into one sortable timestamp column. Now that a
-third such format exists, a `FormatParserFactory` abstraction in core
-(so the shared format selector can offer them too) is the natural
-next step.
+`date time` fields into one sortable timestamp column.
 
 ## Tests and benchmarks
 

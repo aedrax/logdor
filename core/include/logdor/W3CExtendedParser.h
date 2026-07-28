@@ -45,6 +45,14 @@ public:
     bool matchesStructure(QByteArrayView raw) const override;
     double specificity() const override { return 0.9; }
 
+    /// Directive lines (#...) carry no data, wherever they recur.
+    bool hasMetaLines() const override { return true; }
+    bool isDataLine(qint64 lineNumber, QByteArrayView raw) const override
+    {
+        Q_UNUSED(lineNumber);
+        return !raw.trimmed().startsWith('#');
+    }
+
 private:
     QList<FieldSchema> m_schema;
     int m_messageColumn = 0;

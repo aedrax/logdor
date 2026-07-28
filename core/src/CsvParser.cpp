@@ -136,7 +136,9 @@ std::shared_ptr<const CsvParser> CsvParser::fromFile(const FileSource& source,
         types.append(sawValue[i] && allInteger[i] ? FieldType::Integer
                                                   : FieldType::String);
 
-    return std::make_shared<const CsvParser>(headers, types);
+    auto parser = std::make_shared<CsvParser>(headers, types);
+    parser->m_fileHasHeaderRow = true;
+    return parser;
 }
 
 void CsvParser::parseLine(QByteArrayView raw, ParsedRow& out) const

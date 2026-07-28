@@ -1,13 +1,16 @@
 #include "logdor/FormatRegistry.h"
 
 #include "logdor/ClfParser.h"
+#include "logdor/CsvParser.h"
 #include "logdor/DockerJsonParser.h"
 #include "logdor/FileSource.h"
 #include "logdor/GelfParser.h"
 #include "logdor/JsonLinesParser.h"
 #include "logdor/LineIndex.h"
 #include "logdor/LogcatParser.h"
+#include "logdor/NetLogParser.h"
 #include "logdor/PlainTextParser.h"
+#include "logdor/W3CExtendedParser.h"
 
 #include <algorithm>
 
@@ -25,6 +28,25 @@ QList<std::shared_ptr<const FormatParser>> builtinParsers()
         std::make_shared<const JsonLinesParser>(),
         std::make_shared<const PlainTextParser>(),
     };
+}
+
+QList<std::shared_ptr<const FormatParser>> fileDerivedParsers(
+    const FileSource& source, const LineIndex& index)
+{
+    QList<std::shared_ptr<const FormatParser>> parsers;
+    // Most specific first: the order is the stable-sort tiebreak in
+    // detectFormat, same convention as builtinParsers().
+    if (auto netlog = NetLogParser::fromFile(source, index))
+        parsers.append(std::move(netlog));
+    if (auto w3c = W3CExtendedParser::fromFile(source, index))
+        parsers.append(std::move(w3c));
+    // fromFile builds a schema from any first line; only a multi-column one
+    // is evidence the file is actually CSV (matchesStructure agrees: it
+    // never matches single-column schemas).
+    if (auto csv = CsvParser::fromFile(source, index);
+        csv && csv->schema().size() >= 2)
+        parsers.append(std::move(csv));
+    return parsers;
 }
 
 std::shared_ptr<const FormatParser> parserById(QStringView id)

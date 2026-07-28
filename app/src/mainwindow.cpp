@@ -780,7 +780,12 @@ void MainWindow::onIndexingFinished()
     // Seed the time picker with this file's observed span (cheap head/tail
     // probe with the auto-detected format; monotonic clocks don't seed).
     {
-        static const auto parsers = loadAllParsers();
+        static const auto catalogParsers = loadAllParsers();
+        // Per-file parsers too, so a CSV/W3C timestamp column seeds the
+        // picker just like a static format's would.
+        const auto parsers = logdor::fileDerivedParsers(*m_fileSource,
+                                                        *m_lineIndex)
+            + catalogParsers;
         logdor::TimeRangeProbe probe;
         const auto scores = logdor::detectFormat(*m_fileSource, *m_lineIndex,
                                                  parsers);

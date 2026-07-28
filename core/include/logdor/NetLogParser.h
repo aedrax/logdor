@@ -52,6 +52,18 @@ public:
     bool matchesStructure(QByteArrayView raw) const override;
     double specificity() const override { return 0.97; }
 
+    /**
+     * Only event lines carry data: hide the multi-MB constants line (line 0)
+     * and the '"events": ['/closing-bracket wrapper lines, keeping every
+     * '{'-led row - including the ok=false truncated tail of a
+     * crashed-browser capture.
+     */
+    bool hasMetaLines() const override { return true; }
+    bool isDataLine(qint64 lineNumber, QByteArrayView raw) const override
+    {
+        return lineNumber != 0 && raw.trimmed().startsWith('{');
+    }
+
 private:
     NetLogParser() = default;
 

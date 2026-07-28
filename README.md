@@ -37,8 +37,11 @@ and parses only the rows on screen. So a
   and jump to any match. `*.gz` files open directly.
 - **Highlight rules** color lines matching your patterns in every viewer.
 
-Specialized viewer plugins handle CSV tables, Chrome NetLog captures, hex
-dumps, and even plotting coordinates found in log lines on a map see
+The main viewer renders every format - built-in, user-defined, and
+file-derived ones like CSV tables, W3C/IIS logs, and Chrome NetLog
+captures - while specialized viewer plugins add distinct views: hex
+dumps, Android logcat filtering, merged timelines, and even plotting
+coordinates found in log lines on a map. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full list and how to
 write your own.
 

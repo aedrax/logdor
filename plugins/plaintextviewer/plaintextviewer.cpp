@@ -23,9 +23,7 @@ PlainTextViewer::PlainTextViewer(QObject* parent)
     auto* formatLayout = new QHBoxLayout(formatBar);
     formatLayout->setContentsMargins(4, 2, 4, 2);
     formatLayout->addWidget(new QLabel(tr("Format:")));
-    m_formatCombo->addItem(tr("Auto-detect"));
-    for (const auto& parser : std::as_const(m_parsers))
-        m_formatCombo->addItem(parser->displayName());
+    rebuildFormatCombo();
     formatLayout->addWidget(m_formatCombo);
     formatLayout->addStretch();
     layout->addWidget(formatBar);
@@ -56,25 +54,60 @@ PlainTextViewer::~PlainTextViewer()
     delete m_container;
 }
 
+void PlainTextViewer::rebuildFormatCombo()
+{
+    const QString previous = m_formatCombo->currentIndex() > 0
+        ? m_formatCombo->currentText()
+        : QString();
+    m_comboParsers = m_fileParsers + m_parsers;
+    m_updatingCombo = true;
+    m_formatCombo->clear();
+    m_formatCombo->addItem(tr("Auto-detect"));
+    for (const auto& parser : std::as_const(m_comboParsers))
+        m_formatCombo->addItem(parser->displayName());
+    // Keep the user's pick when the new file still offers it (by name, so
+    // per-file parser instances don't matter); otherwise back to auto.
+    const int keep = previous.isEmpty() ? -1 : m_formatCombo->findText(previous);
+    m_formatCombo->setCurrentIndex(keep > 0 ? keep : 0);
+    m_updatingCombo = false;
+}
+
+void PlainTextViewer::setActiveParser(
+    std::shared_ptr<const logdor::FormatParser> parser)
+{
+    if (parser->hasMetaLines()) {
+        m_viewer->setExtraPredicate(
+            [parser](qint64 line, QByteArrayView raw) {
+                return parser->isDataLine(line, raw);
+            },
+            /*refilter=*/false);
+    } else {
+        m_viewer->setExtraPredicate(nullptr, /*refilter=*/false);
+    }
+    m_viewer->setParser(std::move(parser));
+}
+
 void PlainTextViewer::applyFormatSelection(int comboIndex)
 {
     std::shared_ptr<const logdor::FormatParser> parser;
     if (comboIndex == 0) {
         // Auto-detect against the current file; plaintext floor without one.
         if (m_source && m_index) {
-            const auto scores = logdor::detectFormat(*m_source, *m_index, m_parsers);
+            const auto scores
+                = logdor::detectFormat(*m_source, *m_index, m_comboParsers);
             if (!scores.isEmpty())
-                parser = logdor::parserById(scores.front().parserId, m_parsers);
+                parser = logdor::parserById(scores.front().parserId,
+                                            m_comboParsers);
         }
         if (!parser)
             parser = logdor::parserById(u"plaintext", m_parsers);
-    } else if (comboIndex - 1 < m_parsers.size()) {
-        parser = m_parsers[comboIndex - 1];
+    } else if (comboIndex - 1 < m_comboParsers.size()) {
+        parser = m_comboParsers[comboIndex - 1];
     }
     if (!parser)
         return;
 
-    m_viewer->setParser(parser);
+    setActiveParser(parser);
     if (m_source && m_index)
         m_viewer->applyFilter(m_lastFilter);
 }
@@ -84,9 +117,18 @@ void PlainTextViewer::setCoreSource(std::shared_ptr<logdor::FileSource> source,
 {
     m_source = std::move(source);
     m_index = std::move(index);
+    m_fileParsers = (m_source && m_index)
+        ? logdor::fileDerivedParsers(*m_source, *m_index)
+        : QList<std::shared_ptr<const logdor::FormatParser>>();
+    rebuildFormatCombo();
     m_viewer->setCoreSource(m_source, m_index);
-    if (m_source && m_index && m_formatCombo->currentIndex() == 0)
-        applyFormatSelection(0); // re-run auto-detection for the new file
+    // Re-resolve when auto-detecting or when a file-derived format is
+    // selected (its parser is a fresh instance for this file); a static
+    // pick needs nothing - the viewer already holds that parser.
+    const int comboIndex = m_formatCombo->currentIndex();
+    if (m_source && m_index
+        && (comboIndex == 0 || comboIndex <= m_fileParsers.size()))
+        applyFormatSelection(comboIndex);
 }
 
 void PlainTextViewer::setFilter(const FilterOptions& options)
@@ -109,14 +151,14 @@ void PlainTextViewer::restoreViewState(const QJsonObject& state)
 {
     const QString format = state.value(QLatin1String("format")).toString();
     const int comboIndex = format.isEmpty() ? -1 : m_formatCombo->findText(format);
-    if (comboIndex > 0 && comboIndex - 1 < m_parsers.size()) {
+    if (comboIndex > 0 && comboIndex - 1 < m_comboParsers.size()) {
         m_updatingCombo = true;
         m_formatCombo->setCurrentIndex(comboIndex);
         m_updatingCombo = false;
         // Set the parser directly - the shell's setFilter() follows this
         // call and runs the scan, so applyFormatSelection()'s extra
         // re-filter would only waste a scan.
-        m_viewer->setParser(m_parsers[comboIndex - 1]);
+        setActiveParser(m_comboParsers[comboIndex - 1]);
     }
     m_viewer->restoreViewState(state);
 }

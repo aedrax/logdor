@@ -17,8 +17,9 @@ public:
     ~PlainTextViewer();
 
     QString name() const override { return tr("Plain Text Viewer"); }
-    QString version() const override { return "0.3.0"; }
-    QString description() const override { return tr("A viewer for any text log, with selectable formats."); }
+    QString version() const override { return "0.4.0"; }
+    QString description() const override { return tr("A viewer for any text log, with selectable formats "
+                                                     "including per-file ones (CSV, W3C, NetLog)."); }
     QWidget* widget() override { return m_container; }
 
     void setCoreSource(std::shared_ptr<logdor::FileSource> source,
@@ -44,11 +45,18 @@ public slots:
 
 private:
     void applyFormatSelection(int comboIndex);
+    // Combo = Auto-detect, then this file's derived parsers (CSV/W3C/
+    // NetLog), then the static catalog; keeps the selection by name.
+    void rebuildFormatCombo();
+    // Parser plus its meta-line predicate (header rows, directives).
+    void setActiveParser(std::shared_ptr<const logdor::FormatParser> parser);
 
     QWidget* m_container;
     LogViewerWidget* m_viewer;
     QComboBox* m_formatCombo;
     QList<std::shared_ptr<const logdor::FormatParser>> m_parsers;
+    QList<std::shared_ptr<const logdor::FormatParser>> m_fileParsers;
+    QList<std::shared_ptr<const logdor::FormatParser>> m_comboParsers;
     FilterOptions m_lastFilter;
     std::shared_ptr<logdor::FileSource> m_source;
     std::shared_ptr<const logdor::LineIndex> m_index;

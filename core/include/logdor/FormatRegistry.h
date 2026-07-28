@@ -17,6 +17,16 @@ class LineIndex;
 /// All built-in parsers. Order is the detection tiebreak order.
 QList<std::shared_ptr<const FormatParser>> builtinParsers();
 
+/**
+ * Parsers whose schema derives from the file's own content (CSV header row,
+ * W3C "#Fields:" directive, NetLog constants line), so an instance exists
+ * per file rather than in builtinParsers(). Only applicable parsers are
+ * returned - a plain syslog yields an empty list. Bounded, synchronous
+ * probes (each fromFile inspects at most the leading lines / 8 MiB).
+ */
+QList<std::shared_ptr<const FormatParser>> fileDerivedParsers(
+    const FileSource& source, const LineIndex& index);
+
 /// nullptr when unknown.
 std::shared_ptr<const FormatParser> parserById(QStringView id);
 

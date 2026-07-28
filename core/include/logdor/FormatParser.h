@@ -66,6 +66,25 @@ public:
     virtual void parseLine(QByteArrayView raw, ParsedRow& out) const = 0;
 
     /**
+     * True when some lines are format scaffolding rather than data (a CSV
+     * header row, W3C directives, NetLog wrapper lines). Shells consult
+     * isDataLine to hide them; false (the default) promises every line is
+     * data, letting shells skip the per-line check entirely.
+     */
+    virtual bool hasMetaLines() const { return false; }
+
+    /**
+     * False for scaffolding lines a shell should hide. Only called when
+     * hasMetaLines() is true; must be pure and thread-safe like parseLine.
+     */
+    virtual bool isDataLine(qint64 lineNumber, QByteArrayView raw) const
+    {
+        Q_UNUSED(lineNumber);
+        Q_UNUSED(raw);
+        return true;
+    }
+
+    /**
      * True when the line structurally matches this format. Used by detection
      * scoring; must NOT count unconditional fallbacks (a parser that accepts
      * anything belongs at low specificity instead).

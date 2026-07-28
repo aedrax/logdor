@@ -44,9 +44,18 @@ public:
     bool matchesStructure(QByteArrayView raw) const override;
     double specificity() const override { return 0.6; }
 
+    /// fromFile only: line 0 provided the schema, so it is not data.
+    bool hasMetaLines() const override { return m_fileHasHeaderRow; }
+    bool isDataLine(qint64 lineNumber, QByteArrayView raw) const override
+    {
+        Q_UNUSED(raw);
+        return !m_fileHasHeaderRow || lineNumber != 0;
+    }
+
 private:
     QList<FieldSchema> m_schema;
     int m_messageColumn = 0;
+    bool m_fileHasHeaderRow = false;
 };
 
 } // namespace logdor

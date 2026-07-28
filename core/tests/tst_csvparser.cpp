@@ -96,6 +96,23 @@ private slots:
         QCOMPARE(row.fields[1], QStringLiteral("404"));
     }
 
+    void fromFileHidesHeaderRow()
+    {
+        QTemporaryDir dir;
+        auto o = openContent(dir, "m.csv", QByteArray("a,b\n1,2\n"));
+        const auto parser = CsvParser::fromFile(*o.source, *o.index);
+        QVERIFY(parser);
+        QVERIFY(parser->hasMetaLines());
+        QVERIFY(!parser->isDataLine(0, QByteArrayView("a,b")));
+        QVERIFY(parser->isDataLine(1, QByteArrayView("1,2")));
+
+        // A directly constructed parser was given its schema: the file has
+        // no header row to hide.
+        const CsvParser direct({ "a", "b" });
+        QVERIFY(!direct.hasMetaLines());
+        QVERIFY(direct.isDataLine(0, QByteArrayView("1,2")));
+    }
+
     void headerNameFixups()
     {
         QTemporaryDir dir;

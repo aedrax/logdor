@@ -137,6 +137,28 @@ private slots:
         QVERIFY(!parserById(u"colonsep")); // not a builtin
     }
 
+    void fileDerivedParsersProbe()
+    {
+        QTemporaryDir dir;
+        // A CSV file yields exactly the csv parser (no W3C directive, no
+        // NetLog constants line), and it wins detection over the union.
+        QByteArray csv = "time,status,message\n";
+        csv += QByteArray("10:00,200,ok\n").repeated(50);
+        auto o = openContent(dir, "f.csv", csv);
+        const auto derived = fileDerivedParsers(*o.source, *o.index);
+        QCOMPARE(derived.size(), 1);
+        QCOMPARE(derived.front()->id(), QStringLiteral("csv"));
+
+        const auto all = derived + builtinParsers();
+        const auto scores = detectFormat(*o.source, *o.index, all);
+        QCOMPARE(scores.front().parserId, QStringLiteral("csv"));
+
+        // Prose derives nothing: single-column "CSV" is not a format.
+        auto prose = openContent(dir, "p.log",
+            repeatLines("the quick brown fox jumps over the lazy dog", 50));
+        QVERIFY(fileDerivedParsers(*prose.source, *prose.index).isEmpty());
+    }
+
     void emptyLinesAreSkippedInSample()
     {
         QTemporaryDir dir;

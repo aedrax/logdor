@@ -1,6 +1,6 @@
+# CSV, W3C, NetLog, and CLF have no plugins: their parsers live in the core
+# registry (builtin or file-derived) and render in the Plain Text Viewer.
 add_subdirectory(annotationviewer)
-add_subdirectory(clfviewer)
-add_subdirectory(csvviewer)
 add_subdirectory(hexdumpviewer)
 add_subdirectory(logcatviewer)
 if(TARGET Qt6::WebEngineWidgets)
@@ -8,9 +8,7 @@ if(TARGET Qt6::WebEngineWidgets)
 else()
     message(STATUS "Qt6 WebEngineWidgets not found: skipping the Map Viewer plugin")
 endif()
-add_subdirectory(netlogviewer)
 add_subdirectory(plaintextviewer)
 add_subdirectory(customformatviewer)
 add_subdirectory(selectedlineviewer)
 add_subdirectory(timelineviewer)
-add_subdirectory(w3cviewer)
