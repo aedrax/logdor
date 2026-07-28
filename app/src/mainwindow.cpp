@@ -592,16 +592,19 @@ void MainWindow::loadSettings()
     for (auto it = m_pluginActions.begin(); it != m_pluginActions.end(); ++it) {
         if (hasPluginSettings) {
             // Use saved settings if they exist
-            // "Annotations" replaced "Bookmark Viewer"; honor the old key
-            // once so upgrading users keep their panel visibility.
-            const QVariant fallback = it.key() == QLatin1String("Annotations")
-                ? settings.value("Bookmark Viewer/visible", false)
-                : QVariant(false);
+            // Renamed panels: honor the old key once so upgrading users
+            // keep their visibility. "Annotations" replaced "Bookmark
+            // Viewer"; "Log Viewer" replaced "Plain Text Viewer".
+            QVariant fallback = false;
+            if (it.key() == QLatin1String("Annotations"))
+                fallback = settings.value("Bookmark Viewer/visible", false);
+            else if (it.key() == QLatin1String("Log Viewer"))
+                fallback = settings.value("Plain Text Viewer/visible", false);
             bool visible = settings.value(it.key() + "/visible", fallback).toBool();
             it.value()->setChecked(visible);
         } else {
-            // If no settings exist, only enable plaintextviewer and selectedlineviewer by default
-            bool isDefaultEnabled = (it.key() == "Plain Text Viewer" || it.key() == "Selected Line Viewer");
+            // If no settings exist, only enable the log viewer and selectedlineviewer by default
+            bool isDefaultEnabled = (it.key() == "Log Viewer" || it.key() == "Selected Line Viewer");
             it.value()->setChecked(isDefaultEnabled);
         }
     }

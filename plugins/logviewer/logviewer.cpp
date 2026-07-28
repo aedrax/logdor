@@ -1,4 +1,4 @@
-#include "plaintextviewer.h"
+#include "logviewer.h"
 
 #include "../../app/src/formatcatalog.h"
 
@@ -8,7 +8,7 @@
 #include <QLabel>
 #include <QVBoxLayout>
 
-PlainTextViewer::PlainTextViewer(QObject* parent)
+LogViewer::LogViewer(QObject* parent)
     : PluginInterface(parent)
     , m_container(new QWidget())
     , m_viewer(new LogViewerWidget())
@@ -49,17 +49,25 @@ PlainTextViewer::PlainTextViewer(QObject* parent)
             this, &PluginInterface::highlightRequested);
 }
 
-PlainTextViewer::~PlainTextViewer()
+LogViewer::~LogViewer()
 {
     delete m_container;
 }
 
-void PlainTextViewer::rebuildFormatCombo()
+void LogViewer::rebuildFormatCombo()
 {
     const QString previous = m_formatCombo->currentIndex() > 0
         ? m_formatCombo->currentText()
         : QString();
+    // Alphabetical for the dropdown; detection uses the unsorted union
+    // (applyFormatSelection), whose order is the specificity tiebreak.
     m_comboParsers = m_fileParsers + m_parsers;
+    std::stable_sort(m_comboParsers.begin(), m_comboParsers.end(),
+                     [](const auto& a, const auto& b) {
+                         return QString::compare(a->displayName(),
+                                                 b->displayName(),
+                                                 Qt::CaseInsensitive) < 0;
+                     });
     m_updatingCombo = true;
     m_formatCombo->clear();
     m_formatCombo->addItem(tr("Auto-detect"));
@@ -72,7 +80,7 @@ void PlainTextViewer::rebuildFormatCombo()
     m_updatingCombo = false;
 }
 
-void PlainTextViewer::setActiveParser(
+void LogViewer::setActiveParser(
     std::shared_ptr<const logdor::FormatParser> parser)
 {
     if (parser->hasMetaLines()) {
@@ -87,20 +95,25 @@ void PlainTextViewer::setActiveParser(
     m_viewer->setParser(std::move(parser));
 }
 
-void PlainTextViewer::applyFormatSelection(int comboIndex)
+void LogViewer::applyFormatSelection(int comboIndex)
 {
     std::shared_ptr<const logdor::FormatParser> parser;
     if (comboIndex == 0) {
         // Auto-detect against the current file; plaintext floor without one.
         if (m_source && m_index) {
+            const auto detectParsers = m_fileParsers + m_parsers;
             const auto scores
-                = logdor::detectFormat(*m_source, *m_index, m_comboParsers);
+                = logdor::detectFormat(*m_source, *m_index, detectParsers);
             if (!scores.isEmpty())
                 parser = logdor::parserById(scores.front().parserId,
-                                            m_comboParsers);
+                                            detectParsers);
         }
         if (!parser)
             parser = logdor::parserById(u"plaintext", m_parsers);
+        // Show what detection chose, e.g. "Auto-detect (Android Logcat)".
+        m_formatCombo->setItemText(0, m_source && m_index
+            ? tr("Auto-detect (%1)").arg(parser->displayName())
+            : tr("Auto-detect"));
     } else if (comboIndex - 1 < m_comboParsers.size()) {
         parser = m_comboParsers[comboIndex - 1];
     }
@@ -112,7 +125,7 @@ void PlainTextViewer::applyFormatSelection(int comboIndex)
         m_viewer->applyFilter(m_lastFilter);
 }
 
-void PlainTextViewer::setCoreSource(std::shared_ptr<logdor::FileSource> source,
+void LogViewer::setCoreSource(std::shared_ptr<logdor::FileSource> source,
                                     std::shared_ptr<const logdor::LineIndex> index)
 {
     m_source = std::move(source);
@@ -131,13 +144,13 @@ void PlainTextViewer::setCoreSource(std::shared_ptr<logdor::FileSource> source,
         applyFormatSelection(comboIndex);
 }
 
-void PlainTextViewer::setFilter(const FilterOptions& options)
+void LogViewer::setFilter(const FilterOptions& options)
 {
     m_lastFilter = options;
     m_viewer->applyFilter(options);
 }
 
-QJsonObject PlainTextViewer::saveViewState() const
+QJsonObject LogViewer::saveViewState() const
 {
     QJsonObject state = m_viewer->saveViewState();
     // By display name, so catalog reordering can't select the wrong format;
@@ -147,7 +160,7 @@ QJsonObject PlainTextViewer::saveViewState() const
     return state;
 }
 
-void PlainTextViewer::restoreViewState(const QJsonObject& state)
+void LogViewer::restoreViewState(const QJsonObject& state)
 {
     const QString format = state.value(QLatin1String("format")).toString();
     const int comboIndex = format.isEmpty() ? -1 : m_formatCombo->findText(format);
@@ -163,7 +176,7 @@ void PlainTextViewer::restoreViewState(const QJsonObject& state)
     m_viewer->restoreViewState(state);
 }
 
-void PlainTextViewer::onPluginEvent(PluginEvent event, const QVariant& data)
+void LogViewer::onPluginEvent(PluginEvent event, const QVariant& data)
 {
     if (event == PluginEvent::LinesSelected) {
         m_viewer->selectSourceLines(data.value<QList<int>>());

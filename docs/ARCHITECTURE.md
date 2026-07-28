@@ -102,7 +102,7 @@ is a union by UUID with last-write-wins by modification time.
 `~/.local/share/logdor/formats/` (see `core/formats/*.json` for the
 schema), or build it interactively in the **Custom Format Viewer** and
 click *Save as Format*. Specs participate in auto-detection and appear
-in the Plain Text Viewer's format list. Bundled specs live in
+in the Log Viewer's format list. Bundled specs live in
 `core/formats/`: `syslog-rfc3164`, `syslog-iso` (modern
 rsyslog/Ubuntu 24.04+ high-precision timestamps), `dpkg`, `dmesg`,
 `keyvalue`, `apt-history`, `apt-term`, `cloud-init`,
@@ -154,7 +154,7 @@ match; re-export on a current system or add a user spec.)
 `builtinParsers()` in `core/src/FormatRegistry.cpp`. Golden-test it like
 `core/tests/tst_formatparsers.cpp`.
 
-**A new view plugin** - copy `plugins/plaintextviewer/` (the smallest
+**A new view plugin** - copy `plugins/logviewer/` (the smallest
 `LogViewerWidget` wrapper): subclass `PluginInterface`, forward
 `setCoreSource`/`setFilter`/`setAnnotationHub`, and wire
 `linesSelected`/`selectSourceLines` for cross-view selection sync. A
@@ -166,8 +166,8 @@ a format that renders as columns belongs in the registry instead.
 `builtinParsers()` - they cannot participate in stateless detection -
 and are constructed per file by `fileDerivedParsers(source, index)` in
 `core/src/FormatRegistry.cpp`, which returns only the parsers whose
-`fromFile(source, index)` probe accepts the file. The Plain Text
-Viewer folds them into its format combo and auto-detection, and hides
+`fromFile(source, index)` probe accepts the file. The Log Viewer
+folds them into its format combo and auto-detection, and hides
 their scaffolding lines (CSV header row, W3C `#...` directives, NetLog
 wrapper lines) via `FormatParser::hasMetaLines()`/`isDataLine()`.
 `W3CExtendedParser` derives its columns from the `#Fields:` directive

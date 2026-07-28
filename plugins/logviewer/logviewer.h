@@ -1,5 +1,5 @@
-#ifndef PLAINTEXTVIEWER_H
-#define PLAINTEXTVIEWER_H
+#ifndef LOGVIEWER_H
+#define LOGVIEWER_H
 
 #include "../../app/src/logviewerwidget.h"
 #include "../../app/src/plugininterface.h"
@@ -8,18 +8,18 @@
 #include <QWidget>
 #include <QtPlugin>
 
-class PlainTextViewer : public PluginInterface {
+class LogViewer : public PluginInterface {
     Q_OBJECT
     Q_INTERFACES(PluginInterface)
     Q_PLUGIN_METADATA(IID PluginInterface_iid)
 public:
-    explicit PlainTextViewer(QObject* parent = nullptr);
-    ~PlainTextViewer();
+    explicit LogViewer(QObject* parent = nullptr);
+    ~LogViewer();
 
-    QString name() const override { return tr("Plain Text Viewer"); }
-    QString version() const override { return "0.4.0"; }
-    QString description() const override { return tr("A viewer for any text log, with selectable formats "
-                                                     "including per-file ones (CSV, W3C, NetLog)."); }
+    QString name() const override { return tr("Log Viewer"); }
+    QString version() const override { return "0.5.0"; }
+    QString description() const override { return tr("The general-purpose viewer: renders any format, "
+                                                     "built-in, user-defined, or file-derived (CSV, W3C, NetLog)."); }
     QWidget* widget() override { return m_container; }
 
     void setCoreSource(std::shared_ptr<logdor::FileSource> source,
@@ -63,4 +63,4 @@ private:
     bool m_updatingCombo = false;
 };
 
-#endif // PLAINTEXTVIEWER_H
+#endif // LOGVIEWER_H

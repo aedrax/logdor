@@ -1,29 +1,29 @@
 set(CMAKE_AUTOMOC ON)
 
-qt_add_plugin(plaintextviewer
-    CLASS_NAME PlainTextViewer
+qt_add_plugin(logviewer
+    CLASS_NAME LogViewer
 )
 
-target_sources(plaintextviewer
+target_sources(logviewer
     PRIVATE
-        plaintextviewer.cpp
+        logviewer.cpp
     PUBLIC
-        plaintextviewer.h
+        logviewer.h
 )
 
-set_target_properties(plaintextviewer PROPERTIES
+set_target_properties(logviewer PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins"
     PREFIX ""
     AUTOMOC ON
 )
 
-target_include_directories(plaintextviewer
+target_include_directories(logviewer
     PRIVATE
         ${CMAKE_SOURCE_DIR}/app/src
 )
 
-target_link_libraries(plaintextviewer
+target_link_libraries(logviewer
     PRIVATE
         logdor_interface
         Logdor::Core
@@ -35,7 +35,7 @@ target_link_libraries(plaintextviewer
 
 
 # Install plugin to plugins directory
-install(TARGETS plaintextviewer
+install(TARGETS logviewer
     LIBRARY DESTINATION plugins
     RUNTIME DESTINATION plugins
 )
