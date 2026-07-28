@@ -65,6 +65,8 @@ private slots:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
+    void moveEvent(QMoveEvent* event) override;
 
 private:
     void loadPlugins();
@@ -89,6 +91,9 @@ private:
     void applyTimeRange(const QStringList& terms);
     void saveSettings();
     void loadSettings();
+    // Debounced saveSettings, so layout survives exits that skip closeEvent
+    // (SIGTERM on logout, Ctrl+C in a terminal, crashes).
+    void scheduleSettingsSave();
     // Kick off buildLineIndex over m_fileSource/m_pendingFileName - the
     // second stage of openFile (first stage may be an async decompression).
     void startIndexingCurrentFile();
@@ -126,6 +131,7 @@ private:
     QAction* m_followAction = nullptr;
     bool m_refollowAfterLoad = false; // rotation reload keeps following
     QTimer* m_annotationSaveTimer = nullptr;
+    QTimer* m_settingsSaveTimer = nullptr;
     QLabel* m_noteCountLabel = nullptr;
     FilterOptions m_filterOptions;
 

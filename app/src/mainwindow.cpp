@@ -139,6 +139,14 @@ MainWindow::MainWindow(QWidget* parent)
             m_annotationSaveTimer->start();
         updateNoteCount();
     });
+    // Window layout: same debounce idea, so geometry and dock state survive
+    // exits that never reach closeEvent (logout SIGTERM, Ctrl+C, crashes).
+    m_settingsSaveTimer = new QTimer(this);
+    m_settingsSaveTimer->setSingleShot(true);
+    m_settingsSaveTimer->setInterval(1000);
+    connect(m_settingsSaveTimer, &QTimer::timeout,
+            this, &MainWindow::saveSettings);
+
     connect(m_annotationHub, &AnnotationHub::reanchorFinished, this,
             [this](int, int reanchored, int orphaned) {
                 if (reanchored > 0 || orphaned > 0)
@@ -351,6 +359,14 @@ void MainWindow::loadPlugins()
         // Connect dock visibility to just update action state
         connect(dock, &QDockWidget::visibilityChanged, action, &QAction::setChecked);
 
+        // Dock rearrangements persist without waiting for a clean close.
+        connect(dock, &QDockWidget::dockLocationChanged,
+                this, &MainWindow::scheduleSettingsSave);
+        connect(dock, &QDockWidget::topLevelChanged,
+                this, &MainWindow::scheduleSettingsSave);
+        connect(dock, &QDockWidget::visibilityChanged,
+                this, &MainWindow::scheduleSettingsSave);
+
         // Viewers push "add to filter" terms up to the shared filter bar.
         connect(plugin, &PluginInterface::filterTermRequested,
                 this, &MainWindow::onFilterTermRequested);
@@ -450,6 +466,13 @@ void MainWindow::ensureSearchDock()
         return;
     m_searchDock = new FolderSearchDock(this);
     addDockWidget(Qt::BottomDockWidgetArea, m_searchDock);
+    // Created after loadSettings' restoreState, so apply the saved layout
+    // (area, size, floating) to it explicitly.
+    restoreDockWidget(m_searchDock);
+    connect(m_searchDock, &QDockWidget::dockLocationChanged,
+            this, &MainWindow::scheduleSettingsSave);
+    connect(m_searchDock, &QDockWidget::topLevelChanged,
+            this, &MainWindow::scheduleSettingsSave);
     if (m_folderView)
         m_searchDock->setFolder(m_folderView->folder());
     else if (!m_currentFileName.isEmpty())
@@ -493,6 +516,13 @@ void MainWindow::openFolder(const QString& dir)
         m_folderDock->setObjectName("FolderView"); // saveState participation
         m_folderDock->setWidget(m_folderView);
         addDockWidget(Qt::LeftDockWidgetArea, m_folderDock);
+        // Created after loadSettings' restoreState, so apply the saved
+        // layout (area, size, floating) to it explicitly.
+        restoreDockWidget(m_folderDock);
+        connect(m_folderDock, &QDockWidget::dockLocationChanged,
+                this, &MainWindow::scheduleSettingsSave);
+        connect(m_folderDock, &QDockWidget::topLevelChanged,
+                this, &MainWindow::scheduleSettingsSave);
         connect(m_folderView, &FolderView::fileActivated,
                 this, &MainWindow::openFile);
     }
@@ -520,6 +550,23 @@ void MainWindow::saveSettings()
         settings.setValue(it.key() + "/visible", it.value()->isChecked());
     }
     settings.endGroup();
+}
+
+void MainWindow::scheduleSettingsSave()
+{
+    m_settingsSaveTimer->start();
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+    QMainWindow::resizeEvent(event);
+    scheduleSettingsSave();
+}
+
+void MainWindow::moveEvent(QMoveEvent* event)
+{
+    QMainWindow::moveEvent(event);
+    scheduleSettingsSave();
 }
 
 void MainWindow::loadSettings()
