@@ -30,7 +30,11 @@ jobs:
           - variant: ""
             qt_modules: ""
           - variant: "-webengine"
-            qt_modules: "qtwebengine qtwebchannel qtpositioning"
+            # qtserialport isn't used by logdor, but linuxdeploy-plugin-qt
+            # deploys Qt's position plugins along with qtpositioning, and the
+            # serialnmea one links libQt6SerialPort — without the module
+            # installed the qt plugin aborts on the unresolvable dependency.
+            qt_modules: "qtwebengine qtwebchannel qtpositioning qtserialport"
     steps:
       - uses: actions/checkout@v4
 
