@@ -3,6 +3,7 @@
 
 #include <QFutureWatcher>
 #include <QMainWindow>
+#include <QSet>
 #include <QTimer>
 #include <QPushButton>
 #include <QSettings>
@@ -67,9 +68,21 @@ protected:
     void closeEvent(QCloseEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void moveEvent(QMoveEvent* event) override;
+    // Watches pane docks: closing one removes the pane entirely.
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void loadPlugins();
+    // Dock + Plugins-menu action for one plugin instance; @p pluginName is
+    // the registered (unique) name, also the dock objectName.
+    void createPluginDock(const QString& pluginName, PluginInterface* plugin);
+    // Extra pane of a multi-pane plugin ("Log Viewer 2"). showNow splits it
+    // beside its base dock and feeds it the open file; recreation at
+    // startup passes false and lets loadSettings apply the saved layout.
+    void addPluginPane(const QString& baseName, bool showNow);
+    // Full teardown of an extra pane: dock, menu entry, registration,
+    // saved keys. Base plugin docks only ever hide; panes are removed.
+    void removePluginPane(const QString& instanceName);
     // Recents: MRU list of files and folders in QSettings ("recentItems").
     void addRecentItem(const QString& path);
     void rebuildRecentMenu();
@@ -108,6 +121,14 @@ private:
     QMap<QString, PluginInterface*> m_activePlugins;
     QMap<QString, QDockWidget*> m_pluginDocks;
     QMap<QString, QAction*> m_pluginActions;
+    // Panes per multi-pane plugin (base name -> total incl. the first),
+    // persisted so extra panes are recreated next run.
+    QMap<QString, int> m_paneCounts;
+    // Registered names of extra panes (dock objectName == registered name).
+    QSet<QString> m_paneInstanceNames;
+    // Set once app close begins: dock Close events during teardown must
+    // not trigger pane removal (saveSettings already ran).
+    bool m_closing = false;
     QMenu* m_pluginsMenu;
     QMenu* m_recentMenu = nullptr;
     // Folder navigation, created lazily on the first Open Folder.

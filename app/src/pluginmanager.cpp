@@ -96,16 +96,62 @@ bool PluginManager::loadPlugin(const QString& fileName)
     }
     
     m_pluginLoaders[interface->name()] = loader;
-    
+    m_plugins[interface->name()] = interface;
+
     // Connect the new plugin's signals to the plugin manager
     connect(interface, &PluginInterface::pluginEvent,
             this, &PluginManager::onPluginEvent);
-    
+
     return true;
+}
+
+PluginInterface* PluginManager::createPaneInstance(const QString& baseName,
+                                                   QString* instanceName)
+{
+    PluginInterface* base = m_plugins.value(baseName);
+    if (!base || !base->supportsMultiplePanes())
+        return nullptr;
+    PluginInterface* extra = base->createInstance();
+    if (!extra)
+        return nullptr;
+
+    int n = 2;
+    while (m_plugins.contains(QStringLiteral("%1 %2").arg(baseName).arg(n)))
+        ++n;
+    const QString name = QStringLiteral("%1 %2").arg(baseName).arg(n);
+
+    extra->setParent(this); // deleted in unloadPlugins, before dlclose
+    m_plugins[name] = extra;
+    connect(extra, &PluginInterface::pluginEvent,
+            this, &PluginManager::onPluginEvent);
+    if (m_annotationHub)
+        extra->setAnnotationHub(m_annotationHub);
+    extra->setHighlightRules(m_highlightRules);
+
+    if (instanceName)
+        *instanceName = name;
+    return extra;
+}
+
+void PluginManager::removePaneInstance(const QString& instanceName)
+{
+    if (m_pluginLoaders.contains(instanceName))
+        return; // loader roots live until unloadPlugins
+    if (PluginInterface* plugin = m_plugins.take(instanceName)) {
+        disconnect(plugin, nullptr, this, nullptr);
+        plugin->deleteLater();
+    }
 }
 
 void PluginManager::unloadPlugins()
 {
+    // Pane instances first: their code lives in the plugin libraries, so
+    // they must be gone before any loader unloads.
+    for (auto it = m_plugins.constBegin(); it != m_plugins.constEnd(); ++it) {
+        if (!m_pluginLoaders.contains(it.key()))
+            delete it.value();
+    }
+    m_plugins.clear();
     for (QPluginLoader* loader : m_pluginLoaders) {
         loader->unload();
         delete loader;
@@ -115,48 +161,25 @@ void PluginManager::unloadPlugins()
 
 QStringList PluginManager::pluginNames() const
 {
-    return m_pluginLoaders.keys();
+    return m_plugins.keys();
 }
 
 PluginInterface* PluginManager::plugin(const QString& name) const
 {
-    QPluginLoader* loader = m_pluginLoaders.value(name);
-    if (!loader) {
-        return nullptr;
-    }
-    
-    QObject* instance = loader->instance();
-    if (!instance) {
-        return nullptr;
-    }
-    
-    return qobject_cast<PluginInterface*>(instance);
+    return m_plugins.value(name);
 }
 
 QList<PluginInterface*> PluginManager::plugins() const
 {
-    QList<PluginInterface*> result;
-    for (QPluginLoader* loader : m_pluginLoaders) {
-        if (QObject* instance = loader->instance()) {
-            if (PluginInterface* interface = qobject_cast<PluginInterface*>(instance)) {
-                result.append(interface);
-            }
-        }
-    }
-    return result;
+    return m_plugins.values();
 }
 
 QList<PluginInterface*> PluginManager::enabledPlugins() const
 {
     QList<PluginInterface*> result;
-    for (QPluginLoader* loader : m_pluginLoaders) {
-        if (QObject* instance = loader->instance()) {
-            if (PluginInterface* interface = qobject_cast<PluginInterface*>(instance)) {
-                if (interface->isEnabled()) {
-                    result.append(interface);
-                }
-            }
-        }
+    for (PluginInterface* plugin : m_plugins) {
+        if (plugin->isEnabled())
+            result.append(plugin);
     }
     return result;
 }void PluginManager::setCoreSource(std::shared_ptr<logdor::FileSource> source,
@@ -179,18 +202,16 @@ void PluginManager::extendCoreSource(std::shared_ptr<logdor::FileSource> source,
 void PluginManager::setHighlightRules(const QList<HighlightRule>& rules)
 {
     Q_ASSERT(QThread::currentThread() == qApp->thread());
+    m_highlightRules = rules; // for pane instances created later
     for (PluginInterface* plugin : plugins())
         plugin->setHighlightRules(rules);
 }
 
 void PluginManager::setAnnotationHub(AnnotationHub* hub)
 {
-    for (QPluginLoader* loader : m_pluginLoaders) {
-        if (QObject* instance = loader->instance()) {
-            if (auto* plugin = qobject_cast<PluginInterface*>(instance))
-                plugin->setAnnotationHub(hub);
-        }
-    }
+    m_annotationHub = hub; // for pane instances created later
+    for (PluginInterface* plugin : plugins())
+        plugin->setAnnotationHub(hub);
 }void PluginManager::setFilter(const FilterOptions& options)
 {
     for (PluginInterface* plugin : enabledPlugins()) {
@@ -200,21 +221,26 @@ void PluginManager::setAnnotationHub(AnnotationHub* hub)
 
 QJsonObject PluginManager::saveViewStates() const
 {
+    // Keyed by registered name, not plugin->name(): every pane of a
+    // multi-instance plugin reports the same name() but keeps its own
+    // view state under "Log Viewer 2" etc.
     QJsonObject states;
-    for (PluginInterface* plugin : plugins()) {
-        const QJsonObject state = plugin->saveViewState();
+    for (auto it = m_plugins.constBegin(); it != m_plugins.constEnd(); ++it) {
+        const QJsonObject state = it.value()->saveViewState();
         if (!state.isEmpty())
-            states.insert(plugin->name(), state);
+            states.insert(it.key(), state);
     }
     return states;
 }
 
 void PluginManager::restoreViewStates(const QJsonObject& states)
 {
-    for (PluginInterface* plugin : enabledPlugins()) {
-        const QJsonObject state = states.value(plugin->name()).toObject();
+    for (auto it = m_plugins.constBegin(); it != m_plugins.constEnd(); ++it) {
+        if (!it.value()->isEnabled())
+            continue;
+        const QJsonObject state = states.value(it.key()).toObject();
         if (!state.isEmpty())
-            plugin->restoreViewState(state);
+            it.value()->restoreViewState(state);
     }
 }
 

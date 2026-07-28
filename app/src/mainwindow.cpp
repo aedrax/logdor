@@ -329,9 +329,39 @@ void MainWindow::loadPlugins()
     m_pluginManager->setAnnotationHub(m_annotationHub);
 
     // Create dock widgets and menu actions for each plugin
+    for (PluginInterface* plugin : m_pluginManager->plugins())
+        createPluginDock(plugin->name(), plugin);
+
+    // Multi-pane plugins: a "New <name> Pane" action, plus recreation of
+    // the previous run's extra panes - before loadSettings' restoreState,
+    // so their docks exist to receive the saved geometry.
+    QList<PluginInterface*> paneCapable;
     for (PluginInterface* plugin : m_pluginManager->plugins()) {
-        QString pluginName = plugin->name();
-        
+        if (plugin->supportsMultiplePanes())
+            paneCapable.append(plugin);
+    }
+    if (!paneCapable.isEmpty())
+        m_pluginsMenu->addSeparator();
+    QSettings settings("Logdor", "Logdor");
+    settings.beginGroup("Plugins");
+    for (PluginInterface* plugin : paneCapable) {
+        const QString base = plugin->name();
+        QAction* newPane
+            = m_pluginsMenu->addAction(tr("New %1 Pane").arg(base));
+        connect(newPane, &QAction::triggered, this,
+                [this, base]() { addPluginPane(base, /*showNow=*/true); });
+        m_paneCounts[base] = 1;
+        const int panes = settings.value(base + "/panes", 1).toInt();
+        for (int i = 2; i <= panes; ++i)
+            addPluginPane(base, /*showNow=*/false);
+    }
+    settings.endGroup();
+}
+
+void MainWindow::createPluginDock(const QString& pluginName,
+                                  PluginInterface* plugin)
+{
+    {
         // Create dock widget
         QDockWidget* dock = new QDockWidget(pluginName, this);
         dock->setWidget(plugin->widget());
@@ -339,7 +369,7 @@ void MainWindow::loadPlugins()
         addDockWidget(Qt::LeftDockWidgetArea, dock);
         m_activePlugins[pluginName] = plugin;
         m_pluginDocks[pluginName] = dock;
-        
+
         // Create menu action
         QAction* action = new QAction(pluginName, this);
         action->setCheckable(true);
@@ -405,6 +435,80 @@ void MainWindow::loadPlugins()
         m_pluginsMenu->addAction(action);
         m_pluginActions[pluginName] = action;
     }
+}
+
+void MainWindow::addPluginPane(const QString& baseName, bool showNow)
+{
+    QString instanceName;
+    PluginInterface* extra
+        = m_pluginManager->createPaneInstance(baseName, &instanceName);
+    if (!extra)
+        return;
+    createPluginDock(instanceName, extra);
+    m_paneCounts[baseName] = m_paneCounts.value(baseName, 1) + 1;
+    m_paneInstanceNames.insert(instanceName);
+    // Closing an extra pane removes it (see eventFilter); the base dock
+    // only ever hides.
+    m_pluginDocks.value(instanceName)->installEventFilter(this);
+    if (showNow) {
+        QDockWidget* dock = m_pluginDocks.value(instanceName);
+        // Beside its base pane, so side-by-side is the default arrangement.
+        if (QDockWidget* baseDock = m_pluginDocks.value(baseName);
+            baseDock && baseDock->isVisible() && !baseDock->isFloating())
+            splitDockWidget(baseDock, dock, Qt::Horizontal);
+        dock->show();
+        dock->raise();
+        if (m_fileSource && m_lineIndex) {
+            extra->setCoreSource(m_fileSource, m_lineIndex);
+            extra->setFilter(m_filterOptions);
+        }
+        scheduleSettingsSave();
+    }
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event)
+{
+    if (event->type() == QEvent::Close && !m_closing) {
+        auto* dock = qobject_cast<QDockWidget*>(watched);
+        if (dock && m_paneInstanceNames.contains(dock->objectName())) {
+            // Queued: tearing the dock down inside its own close event is
+            // not safe.
+            QMetaObject::invokeMethod(
+                this,
+                [this, name = dock->objectName()]() { removePluginPane(name); },
+                Qt::QueuedConnection);
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
+void MainWindow::removePluginPane(const QString& instanceName)
+{
+    if (!m_paneInstanceNames.remove(instanceName))
+        return;
+    QDockWidget* dock = m_pluginDocks.take(instanceName);
+    PluginInterface* plugin = m_activePlugins.take(instanceName);
+    if (QAction* action = m_pluginActions.take(instanceName)) {
+        m_pluginsMenu->removeAction(action);
+        action->deleteLater();
+    }
+    const QString base = instanceName.left(instanceName.lastIndexOf(' '));
+    if (m_paneCounts.value(base, 1) > 1)
+        m_paneCounts[base] -= 1;
+    if (plugin && dock) {
+        // The dock owns the widget it was given; hand it back to the
+        // plugin instance so each is deleted exactly once.
+        plugin->widget()->setParent(nullptr);
+    }
+    if (dock) {
+        removeDockWidget(dock);
+        dock->deleteLater();
+    }
+    m_pluginManager->removePaneInstance(instanceName);
+
+    QSettings settings("Logdor", "Logdor");
+    settings.remove("Plugins/" + instanceName);
+    scheduleSettingsSave();
 }
 
 void MainWindow::addRecentItem(const QString& path)
@@ -549,6 +653,9 @@ void MainWindow::saveSettings()
     for (auto it = m_pluginActions.constBegin(); it != m_pluginActions.constEnd(); ++it) {
         settings.setValue(it.key() + "/visible", it.value()->isChecked());
     }
+    // Pane counts so extra panes are recreated next run.
+    for (auto it = m_paneCounts.constBegin(); it != m_paneCounts.constEnd(); ++it)
+        settings.setValue(it.key() + "/panes", it.value());
     settings.endGroup();
 }
 
@@ -613,6 +720,7 @@ void MainWindow::loadSettings()
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
+    m_closing = true; // dock closes during teardown must not remove panes
     m_indexWatcher->cancel();
     // Capture the open file's session BEFORE teardown so quitting keeps its
     // state for the next run (the historical gap: only file SWITCHES did).

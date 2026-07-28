@@ -25,6 +25,22 @@ public:
     // Get all loaded plugins
     QList<PluginInterface*> plugins() const;
 
+    /**
+     * Create an extra instance of a multi-pane plugin (createInstance()),
+     * registered under the lowest free "<name> N" key - names are stable
+     * across runs so saved window layout and per-file view states
+     * re-attach. The instance gets the cached annotation hub and highlight
+     * rules and participates in every fan-out like a loaded plugin.
+     * Returns nullptr when the plugin is unknown or single-instance;
+     * otherwise the instance, with its registered name in *instanceName.
+     */
+    PluginInterface* createPaneInstance(const QString& baseName,
+                                        QString* instanceName = nullptr);
+
+    // Unregister and destroy an extra pane instance. No-op for loader
+    // roots - only createPaneInstance() products are removable.
+    void removePaneInstance(const QString& instanceName);
+
     // Get only enabled plugins
     QList<PluginInterface*> enabledPlugins() const;
 
@@ -64,6 +80,17 @@ private slots:
 private:
     // Map of plugin name to loader
     QMap<QString, QPluginLoader*> m_pluginLoaders;
+
+    // Every live instance by unique name: loader roots under their
+    // plugin name, extra panes under "<name> N". This map - not
+    // plugin->name(), which repeats across panes - is the identity used
+    // for view-state keying and lookups.
+    QMap<QString, PluginInterface*> m_plugins;
+
+    // Caches so pane instances created later receive what loaded
+    // plugins got at startup.
+    AnnotationHub* m_annotationHub = nullptr;
+    QList<HighlightRule> m_highlightRules;
 
     // Get the plugins directory path
     QString pluginsPath() const;

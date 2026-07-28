@@ -148,6 +148,18 @@ public:
     virtual QJsonObject saveViewState() const { return {}; }
     virtual void restoreViewState(const QJsonObject& state) { Q_UNUSED(state) }
 
+    /**
+     * Multi-pane support: plugins that can usefully exist as several
+     * simultaneous docks (the Log Viewer: one file shown in two formats
+     * side by side) return true and hand out fresh instances from
+     * createInstance(). The shell owns each returned instance and
+     * registers it like a loaded plugin under a numbered name
+     * ("Log Viewer 2"), so events, sessions, and window layout treat it
+     * as a first-class viewer.
+     */
+    virtual bool supportsMultiplePanes() const { return false; }
+    virtual PluginInterface* createInstance() { return nullptr; }
+
     void setEnabled(bool enabled)
     {
         if (m_enabled != enabled)
@@ -202,7 +214,8 @@ protected:
 // /3.3: coreSourceExtended follow-mode incremental growth.
 // /3.4: timeRangeRequested histogram-brush filter routing.
 // /3.5: setHighlightRules fan-out + highlightRequested routing.
-#define PluginInterface_iid "com.logdor.PluginInterface/3.5"
+// /3.6: supportsMultiplePanes/createInstance multi-pane support.
+#define PluginInterface_iid "com.logdor.PluginInterface/3.6"
 Q_DECLARE_INTERFACE(PluginInterface, PluginInterface_iid)
 
 #endif // PLUGININTERFACE_H

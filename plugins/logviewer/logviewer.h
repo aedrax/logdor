@@ -40,6 +40,10 @@ public:
     QJsonObject saveViewState() const override;
     void restoreViewState(const QJsonObject& state) override;
 
+    // Extra panes let one file be viewed in two formats side by side.
+    bool supportsMultiplePanes() const override { return true; }
+    PluginInterface* createInstance() override { return new LogViewer(); }
+
 public slots:
     void onPluginEvent(PluginEvent event, const QVariant& data) override;
 
