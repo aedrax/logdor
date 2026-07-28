@@ -6,6 +6,10 @@
 int main(int argc, char* argv[])
 {
     QApplication a(argc, argv);
+    // Without an explicit name Qt derives it from argv[0], which for an
+    // AppImage is the AppImage's own filename, AppDataLocation would then
+    // move whenever the file is renamed.
+    QCoreApplication::setApplicationName(QStringLiteral("logdor"));
     a.setStyle("fusion");
     a.setWindowIcon(QIcon(":/icons/logdor.png"));
 
