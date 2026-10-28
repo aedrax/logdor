@@ -54,6 +54,9 @@ Two layers, kept strictly apart:
   the query engine, and off-thread filtering/sorting.
 - **`app/` + `plugins/`** the Qt Widgets shell and viewer plugins, thin
   wrappers over one shared lazy table view that parses only visible rows.
+- **`tui/`** `logdor-tui`, a terminal viewer on the same core, built with
+  [QtTUI](https://github.com/aedrax/QtTUI). It uses only QtCore, so it runs
+  over SSH on a host without Qt GUI libraries.
 
 ## Building
 
@@ -63,7 +66,30 @@ Requires CMake >= 3.22, Qt >= 6.8, and a C++20 compiler.
 cmake -B build        # or /path/to/Qt/6.x/gcc_64/bin/qt-cmake -B build
 cmake --build build
 build/app/logdor /path/to/file.log
+build/tui/logdor-tui /path/to/file.log   # terminal viewer
 ```
+
+CMake downloads QtTUI at configure time. To build without the terminal
+viewer, configure with `-DLOGDOR_WITH_TUI=OFF`.
+
+`logdor-tui` has the same filter options as the GUI filter bar: the Text,
+Regex and Query modes, Case, Invert, and the context lines before and after
+each match. Lines show in the color of their severity, as in the GUI. Each
+file keeps its last filter in the same sessions file as the GUI, so a file
+shows the same filter in the GUI and in `logdor-tui`.
+
+| Key | Action |
+|---|---|
+| Ctrl+L or / | Go to the filter |
+| Enter | Apply the filter |
+| Esc | Go back to the table |
+| F4 | Select the format |
+| Shift+F10, Menu, right click | Open the cell actions: Copy, Filter, Exclude, and a time range on time cells |
+| Shift+arrows, Shift+click | Select a range of cells |
+| Ctrl+C | Copy the selected cells (tab between cells, newline between rows) |
+| Tab | Move the focus |
+| Arrows, Page Up, Page Down, Home, End, mouse wheel | Scroll |
+| Ctrl+Q | Quit |
 
 Unit tests run with `ctest --test-dir build -L unit --output-on-failure`.
 Performance benchmarks are opt-in: configure with `-DLOGDOR_ENABLE_BENCH=ON`
