@@ -142,6 +142,9 @@ int main(int argc, char* argv[])
     QFutureWatcher<logdor::IndexingResult> indexWatcher;
     QFutureWatcher<logdor::ColumnScanResult> extractWatcher;
     QFutureWatcher<logdor::FilterScanResult> filterWatcher;
+    const QList<QFutureWatcherBase*> watchers{&indexWatcher, &extractWatcher, &filterWatcher};
+    for (QFutureWatcherBase* w : watchers)
+        QObject::connect(w, &QFutureWatcherBase::progressValueChanged, progress, &QTuiProgressBar::setValue);
 
     auto showStatus = [&](const QString& state) {
         QString text = name;
@@ -237,8 +240,6 @@ int main(int argc, char* argv[])
         applyFilter();
     };
 
-    QObject::connect(&indexWatcher, &QFutureWatcherBase::progressValueChanged,
-                     progress, &QTuiProgressBar::setValue);
     QObject::connect(&indexWatcher, &QFutureWatcherBase::finished, [&] {
         if (indexWatcher.isCanceled())
             return;
@@ -315,8 +316,6 @@ int main(int argc, char* argv[])
     before->setText(QString::number(saved.value(QStringLiteral("before")).toInt()));
     after->setText(QString::number(saved.value(QStringLiteral("after")).toInt()));
 
-    QObject::connect(&extractWatcher, &QFutureWatcherBase::progressValueChanged,
-                     progress, &QTuiProgressBar::setValue);
     QObject::connect(&extractWatcher, &QFutureWatcherBase::finished, [&] {
         if (extractWatcher.isCanceled())
             return;
@@ -324,8 +323,6 @@ int main(int argc, char* argv[])
         startScan();
     });
 
-    QObject::connect(&filterWatcher, &QFutureWatcherBase::progressValueChanged,
-                     progress, &QTuiProgressBar::setValue);
     QObject::connect(&filterWatcher, &QFutureWatcherBase::finished, [&] {
         if (filterWatcher.isCanceled())
             return;
@@ -436,15 +433,15 @@ int main(int argc, char* argv[])
             menu->addSeparator();
             addAction(QStringLiteral("Filter: ") + label(include), include);
             addAction(QStringLiteral("Exclude: ") + label(exclude), exclude);
-        }
-        // Time cells: a range from the time of this row.
-        if (!include.isEmpty() && field.type == logdor::FieldType::DateTime) {
-            const QString after = logdor::buildQueryTerm(field, value, logdor::QueryCmp::Ge);
-            if (!after.isEmpty())
-                addAction(QStringLiteral("Filter: at or after this time"), after);
-            const QString before = logdor::buildQueryTerm(field, value, logdor::QueryCmp::Le);
-            if (!before.isEmpty())
-                addAction(QStringLiteral("Filter: at or before this time"), before);
+            // Time cells: a range from the time of this row.
+            if (field.type == logdor::FieldType::DateTime) {
+                const QString after = logdor::buildQueryTerm(field, value, logdor::QueryCmp::Ge);
+                if (!after.isEmpty())
+                    addAction(QStringLiteral("Filter: at or after this time"), after);
+                const QString before = logdor::buildQueryTerm(field, value, logdor::QueryCmp::Le);
+                if (!before.isEmpty())
+                    addAction(QStringLiteral("Filter: at or before this time"), before);
+            }
         }
         const QRect cellRect = table->visualRect(cell);
         menu->popup(cellRect.isValid() ? cellRect.bottomLeft() + QPoint(0, 1) : at);
@@ -455,10 +452,10 @@ int main(int argc, char* argv[])
         applyFilter();
         table->setFocus();
     });
-    QObject::connect(caseSensitive, &QTuiAbstractButton::toggled, [&] { applyFilter(); });
-    QObject::connect(invert, &QTuiAbstractButton::toggled, [&] { applyFilter(); });
-    QObject::connect(before, &QTuiLineEdit::textChanged, [&] { applyFilter(); });
-    QObject::connect(after, &QTuiLineEdit::textChanged, [&] { applyFilter(); });
+    QObject::connect(caseSensitive, &QTuiAbstractButton::toggled, applyFilter);
+    QObject::connect(invert, &QTuiAbstractButton::toggled, applyFilter);
+    QObject::connect(before, &QTuiLineEdit::textChanged, applyFilter);
+    QObject::connect(after, &QTuiLineEdit::textChanged, applyFilter);
 
     // Save the filter, then stop the worker threads before main() returns.
     QObject::connect(&app, &QCoreApplication::aboutToQuit, [&] {
@@ -470,12 +467,10 @@ int main(int argc, char* argv[])
                              {QStringLiteral("invert"), invert->isChecked()},
                              {QStringLiteral("before"), before->text().toInt()},
                              {QStringLiteral("after"), after->text().toInt()}});
-        indexWatcher.cancel();
-        extractWatcher.cancel();
-        filterWatcher.cancel();
-        indexWatcher.waitForFinished();
-        extractWatcher.waitForFinished();
-        filterWatcher.waitForFinished();
+        for (QFutureWatcherBase* w : watchers)
+            w->cancel();
+        for (QFutureWatcherBase* w : watchers)
+            w->waitForFinished();
     });
 
     auto* keys = new KeyFilter;
