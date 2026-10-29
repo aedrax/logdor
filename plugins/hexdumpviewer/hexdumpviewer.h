@@ -14,7 +14,7 @@ public:
     ~HexDumpViewer();
 
     QString name() const override { return tr("Hex Dump Viewer"); }
-    QString version() const override { return "0.2.0"; }
+    QString version() const override { return QStringLiteral(LOGDOR_VERSION); }
     QString description() const override { return tr("Hex dump of the selected log lines."); }
     QWidget* widget() override { return m_textEdit; }
 

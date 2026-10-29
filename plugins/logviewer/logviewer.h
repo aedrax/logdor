@@ -17,7 +17,7 @@ public:
     ~LogViewer();
 
     QString name() const override { return tr("Log Viewer"); }
-    QString version() const override { return "0.5.0"; }
+    QString version() const override { return QStringLiteral(LOGDOR_VERSION); }
     QString description() const override { return tr("The general-purpose viewer: renders any format, "
                                                      "built-in, user-defined, or file-derived (CSV, W3C, NetLog)."); }
     QWidget* widget() override { return m_container; }

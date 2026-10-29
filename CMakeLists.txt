@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
-project(Logdor LANGUAGES CXX)
+project(Logdor VERSION 1.1.0 LANGUAGES CXX)
+
+# The only place for the version. The code reads it as LOGDOR_VERSION.
+add_compile_definitions(LOGDOR_VERSION="${PROJECT_VERSION}")
 
 # Catch typo'd/non-target link entries early (3.27+; older CMake still gets the
 # ldd-based GUI-linkage test in core/tests).

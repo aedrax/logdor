@@ -31,7 +31,7 @@ public:
     ~MapViewer();
 
     QString name() const override { return tr("Map Viewer"); }
-    QString version() const override { return "0.2.0"; }
+    QString version() const override { return QStringLiteral(LOGDOR_VERSION); }
     QString description() const override
     {
         return tr("Extracts coordinates from logs and plots them on a map.");
