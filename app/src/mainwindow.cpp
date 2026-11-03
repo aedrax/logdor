@@ -45,6 +45,7 @@
 
 #include <logdor/FormatRegistry.h>
 #include <logdor/TimeProbe.h>
+#include <logdor/Version.h>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -58,6 +59,9 @@ MainWindow::MainWindow(QWidget* parent)
     // this allows the dock widget to use the full window
     this->setCentralWidget(nullptr);
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::onActionOpenTriggered);
+    connect(ui->menuHelp->addAction(tr("About Logdor")), &QAction::triggered, this, [this] {
+        QMessageBox::about(this, tr("About Logdor"), logdor::aboutText(/*html=*/true));
+    });
 
     // Recents live between Open Folder and the Save actions. Rebuilt eagerly
     // (not on aboutToShow) so the Ctrl+1..9 shortcuts always work.

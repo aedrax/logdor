@@ -89,6 +89,7 @@ shows the same filter in the GUI and in `logdor-tui`.
 | Ctrl+C | Copy the selected cells (tab between cells, newline between rows) |
 | Tab | Move the focus |
 | Arrows, Page Up, Page Down, Home, End, mouse wheel | Scroll |
+| F10 or Alt+H | Open the Help menu (About shows the version) |
 | Ctrl+Q | Quit |
 
 Unit tests run with `ctest --test-dir build -L unit --output-on-failure`.

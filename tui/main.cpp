@@ -13,6 +13,7 @@
 #include <logdor/FormatRegistry.h>
 #include <logdor/LineIndexer.h>
 #include <logdor/Query.h>
+#include <logdor/Version.h>
 
 #include <QtTUI/QtTUI>
 
@@ -89,12 +90,17 @@ int main(int argc, char* argv[])
 
     QTuiMainWindow window;
     app.setMainWindow(&window);
+    // A window with a menu bar puts its other widgets in the central widget.
+    auto* central = new QTuiWidget;
+    window.setCentralWidget(central);
+    auto* menuBar = new QTuiMenuBar;
+    window.setMenuBar(menuBar);
 
     // Row 1: the filter text. Row 2: the filter options, as in the GUI
     // filter bar, and the format. All the controls use 1 row.
-    auto* filter = new QTuiLineEdit(&window);
+    auto* filter = new QTuiLineEdit(central);
     filter->setPlaceholderText(QStringLiteral("Filter (Ctrl+L or /, Enter to apply)"));
-    auto* optionRow = new QTuiWidget(&window);
+    auto* optionRow = new QTuiWidget(central);
     auto* optionLayout = createHBoxLayout(optionRow);
     optionLayout->setSpacing(1);
     auto* modeButton = new QTuiToolButton(QString(), optionRow);
@@ -116,18 +122,18 @@ int main(int argc, char* argv[])
     optionLayout->addWidget(formatButton, 0);
     optionRow->setLayout(optionLayout);
 
-    auto* table = new QTuiTableView(&window);
-    auto* progress = new QTuiProgressBar(&window);
+    auto* table = new QTuiTableView(central);
+    auto* progress = new QTuiProgressBar(central);
     progress->setRange(0, 1000); // the core reports progress in permille
-    auto* status = new QTuiLabel(QString(), &window);
+    auto* status = new QTuiLabel(QString(), central);
 
-    auto* layout = createVBoxLayout(&window);
+    auto* layout = createVBoxLayout(central);
     layout->addWidget(filter, 0);
     layout->addWidget(optionRow, 0);
     layout->addWidget(table, 1);
     layout->addWidget(progress, 0);
     layout->addWidget(status, 0);
-    window.setLayout(layout);
+    central->setLayout(layout);
 
     const QString name = QFileInfo(source->filePath()).fileName();
     std::shared_ptr<const logdor::LineIndex> index;
@@ -138,7 +144,7 @@ int main(int argc, char* argv[])
     logdor::ColumnCache columns; // the parsed columns that queries use
     std::shared_ptr<const logdor::CompiledQuery> query;
     int filterMode = TextMode;
-    bool pickerOpen = false;
+    bool dialogOpen = false; // a dialog gets all the keys
     QFutureWatcher<logdor::IndexingResult> indexWatcher;
     QFutureWatcher<logdor::ColumnScanResult> extractWatcher;
     QFutureWatcher<logdor::FilterScanResult> filterWatcher;
@@ -258,7 +264,7 @@ int main(int argc, char* argv[])
     // The format picker: "Auto-detect" and then all the formats. Enter or a
     // double click selects, Esc cancels.
     auto pickFormat = [&] {
-        if (!index || pickerOpen)
+        if (!index || dialogOpen)
             return;
         QStringList names{QStringLiteral("Auto-detect (%1)").arg(detected->displayName())};
         for (const auto& p : formats)
@@ -276,15 +282,26 @@ int main(int argc, char* argv[])
         dialogLayout->addWidget(view, 1);
         dialog.setLayout(dialogLayout);
         view->setFocus();
-        pickerOpen = true;
+        dialogOpen = true;
         const bool accepted = dialog.exec() == QTuiDialog::Accepted;
-        pickerOpen = false;
+        dialogOpen = false;
         const int row = view->currentIndex().row();
         if (accepted && row >= 0)
             applyFormat(row == 0 ? detected : formats.value(row - 1, detected));
         table->setFocus();
     };
     QObject::connect(formatButton, &QTuiAbstractButton::clicked, pickFormat);
+
+    // Help > About. F10 or Alt+H opens the menu.
+    QObject::connect(menuBar->addMenu(QStringLiteral("&Help"))->addAction(QStringLiteral("About")),
+                     &QTuiAction::triggered, [&] {
+                         dialogOpen = true;
+                         // No icon: information() puts "ℹ" before the text.
+                         QTuiMessageBox box(QTuiMessageBox::NoIcon, QStringLiteral("About Logdor"),
+                                            logdor::aboutText(), QTuiMessageBox::Ok, &window);
+                         box.exec();
+                         dialogOpen = false;
+                     });
 
     // The mode menu.
     auto setMode = [&](int m) {
@@ -476,8 +493,8 @@ int main(int argc, char* argv[])
     auto* keys = new KeyFilter;
     keys->setParent(&app);
     keys->handle = [&](TuiKeyEvent* ke) {
-        // The picker dialog gets all its keys.
-        if (pickerOpen)
+        // A dialog gets all its keys.
+        if (dialogOpen)
             return false;
         const bool ctrl = ke->modifiers() & Qt::ControlModifier;
         // Let the context menu handler know that a key, not a click, asks
