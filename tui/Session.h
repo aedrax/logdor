@@ -16,9 +16,7 @@
 // reads and writes the same "filter" object as MainWindow, so a file shows
 // the same filter in the GUI and the TUI. The TUI keeps all the other data
 // of the file (plugin states, time range terms) and of the other files.
-//
-// ponytail: a GUI that runs at the same time keeps its own copy and writes
-// it on the next file switch, which removes the change of the TUI.
+// The GUI reads the file again before it writes, so it keeps these changes.
 namespace session {
 
 inline QString defaultPath()

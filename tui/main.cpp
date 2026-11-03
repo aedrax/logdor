@@ -377,11 +377,20 @@ int main(int argc, char* argv[])
     // Copy the selected cells, or the current cell if no cell is selected.
     // Cells of a row are separated by a tab and rows by a newline, as in a
     // spreadsheet. QtTUI sends the text to the terminal clipboard (OSC 52).
-    // ponytail: Ctrl+A on millions of rows makes one large string; add a
-    // limit if that is too slow.
+    // A large selection does not copy: a list of its cells is slow, and
+    // most terminals have an OSC 52 limit below 1 MB.
+    constexpr qint64 kMaxCopyCells = 100000;
     auto copyCells = [&] {
         if (!model)
             return;
+        qint64 selected = 0;
+        for (const QItemSelectionRange& range : table->selectionModel()->selection())
+            selected += qint64(range.width()) * range.height();
+        if (selected > kMaxCopyCells) {
+            showStatus(QStringLiteral("Too many cells to copy (%1, limit %2)")
+                           .arg(selected).arg(kMaxCopyCells));
+            return;
+        }
         QModelIndexList cells = table->selectionModel()->selectedIndexes();
         if (cells.isEmpty() && table->currentIndex().isValid())
             cells = {table->currentIndex()};

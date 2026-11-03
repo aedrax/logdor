@@ -1219,6 +1219,9 @@ void MainWindow::captureSession()
     if (m_fileSource)
         session.identity = logdor::computeFileIdentity(*m_fileSource);
     session.lastUsed = QDateTime::currentMSecsSinceEpoch();
+    // Read the file again first, so the sessions that logdor-tui wrote
+    // for other files stay.
+    loadSessionsFile();
     m_sessions.insert(sessionKey(m_currentFileName), session);
     saveSessionsFile(); // small file; write-behind on every switch
 }
