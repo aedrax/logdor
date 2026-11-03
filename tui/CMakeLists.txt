@@ -4,7 +4,7 @@
 include(FetchContent)
 FetchContent_Declare(QtTUI
     GIT_REPOSITORY https://github.com/aedrax/QtTUI.git
-    GIT_TAG 5e244738aec8e1cbe15629b9926b05b42675bcc8) # v0.2.0
+    GIT_TAG 30e3d00dd0aa8186a7883d9be5231a38025eb48a) # v0.2.1
 FetchContent_MakeAvailable(QtTUI)
 
 # formatcatalog.cpp uses only QtCore. Compile it here to get the same
