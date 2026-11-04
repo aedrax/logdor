@@ -58,18 +58,6 @@ Two layers, kept strictly apart:
   [QtTUI](https://github.com/aedrax/QtTUI). It uses only QtCore, so it runs
   over SSH on a host without Qt GUI libraries.
 
-## Installing on macOS
-
-Open the dmg and drag Logdor to Applications. The app isn't notarized by
-Apple, so the first launch says "Apple could not verify "logdor" is free of
-malware". Click Done, open System Settings > Privacy & Security, and click
-Open Anyway next to the message about Logdor. After you confirm once, it
-opens normally. Or, in Terminal:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/logdor.app
-```
-
 ## Building
 
 Requires CMake >= 3.22, Qt >= 6.8, and a C++20 compiler.
