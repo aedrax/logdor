@@ -54,6 +54,17 @@ MainWindow::MainWindow(QWidget* parent)
     , m_filterToolbar(new FilterToolbar(this))
     , m_pluginsMenu(nullptr)
 {
+    // Window layout: debounced like the annotations, so geometry and dock
+    // state survive exits that never reach closeEvent (logout SIGTERM,
+    // Ctrl+C, crashes). Created before setupUi: on macOS the QMenuBar it
+    // builds creates the native window, whose move/resize events already
+    // reach scheduleSettingsSave().
+    m_settingsSaveTimer = new QTimer(this);
+    m_settingsSaveTimer->setSingleShot(true);
+    m_settingsSaveTimer->setInterval(1000);
+    connect(m_settingsSaveTimer, &QTimer::timeout,
+            this, &MainWindow::saveSettings);
+
     ui->setupUi(this);
     m_pluginsMenu = ui->menuPlugins;
     // this allows the dock widget to use the full window
@@ -143,14 +154,6 @@ MainWindow::MainWindow(QWidget* parent)
             m_annotationSaveTimer->start();
         updateNoteCount();
     });
-    // Window layout: same debounce idea, so geometry and dock state survive
-    // exits that never reach closeEvent (logout SIGTERM, Ctrl+C, crashes).
-    m_settingsSaveTimer = new QTimer(this);
-    m_settingsSaveTimer->setSingleShot(true);
-    m_settingsSaveTimer->setInterval(1000);
-    connect(m_settingsSaveTimer, &QTimer::timeout,
-            this, &MainWindow::saveSettings);
-
     connect(m_annotationHub, &AnnotationHub::reanchorFinished, this,
             [this](int, int reanchored, int orphaned) {
                 if (reanchored > 0 || orphaned > 0)
