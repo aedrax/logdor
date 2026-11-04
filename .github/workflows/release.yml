@@ -47,12 +47,23 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-          sudo apt-get update
+          # Launchpad serves the PPA and is sometimes down for minutes at a
+          # time (503s), so each network step gets a few tries.
+          retry() {
+            for i in 1 2 3 4; do
+              "$@" && return
+              echo "Attempt $i failed; retrying in 30 s"
+              sleep 30
+            done
+            "$@"
+          }
+          retry sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          retry sudo apt-get update
           # The last row are WebEngineCore's runtime deps, needed so
           # linuxdeploy can resolve and bundle them; harmless for the lean
           # variant.
-          sudo apt-get install -y gcc-13 g++-13 zlib1g-dev libgl1-mesa-dev libxkbcommon-x11-0 libxcb-cursor0 \
+          retry sudo apt-get install -y -o Acquire::Retries=3 \
+            gcc-13 g++-13 zlib1g-dev libgl1-mesa-dev libxkbcommon-x11-0 libxcb-cursor0 \
             libnss3 libasound2 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxkbfile1
 
       - name: Configure and build
@@ -187,8 +198,18 @@ jobs:
           cmake --build build --parallel 4
 
       - name: Package DMG
+        env:
+          # Optional. With these secrets set the app is signed with a
+          # Developer ID and notarized, so it opens without a Gatekeeper
+          # prompt; without them it is ad-hoc signed.
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
         run: |
           APP=build/app/logdor.app
+          DMG=Logdor-macos-universal${{ matrix.variant }}.dmg
           # PluginManager finds Contents/plugins (one level up from MacOS/);
           # FormatCatalog finds Contents/formats via ../formats.
           mkdir -p "$APP/Contents/plugins" "$APP/Contents/formats"
@@ -197,11 +218,50 @@ jobs:
           # Pass each plugin to macdeployqt so their liblogdor_interface/Qt
           # references get rewritten to the bundled Frameworks copies. For the
           # webengine variant this also pulls in QtWebEngineCore and its
-          # QtWebEngineProcess helper app.
+          # QtWebEngineProcess helper app. Its own signing leaves the bundle
+          # invalid (macOS kills the app at launch), so sign.sh does it.
           EXTRA=()
           for p in "$APP"/Contents/plugins/*.dylib; do EXTRA+=("-executable=$p"); done
-          macdeployqt "$APP" "${EXTRA[@]}" -dmg
-          mv build/app/logdor.dmg Logdor-macos-universal${{ matrix.variant }}.dmg
+          macdeployqt "$APP" "${EXTRA[@]}" -no-codesign
+
+          IDENTITY=-
+          if [[ -n $MACOS_CERTIFICATE ]]; then
+            : "${MACOS_NOTARY_KEY:?the notary secrets must be set with the certificate}"
+            KEYCHAIN=$RUNNER_TEMP/signing.keychain-db
+            KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
+            security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security set-keychain-settings -lut 21600 "$KEYCHAIN"
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+            security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+              -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple: \
+              -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+            security list-keychains -d user -s "$KEYCHAIN" login.keychain
+            IDENTITY="Developer ID Application"
+          fi
+          assets/macos/sign.sh "$APP" "$IDENTITY"
+
+          mkdir dmg
+          mv "$APP" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname Logdor -srcfolder dmg -fs HFS+ -format UDZO "$DMG"
+
+          if [[ $IDENTITY != - ]]; then
+            codesign --sign "$IDENTITY" --timestamp "$DMG"
+            echo "$MACOS_NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
+            NOTARY=(--key "$RUNNER_TEMP/notary.p8" --key-id "$MACOS_NOTARY_KEY_ID"
+                    --issuer "$MACOS_NOTARY_ISSUER_ID")
+            xcrun notarytool submit "$DMG" "${NOTARY[@]}" --wait --timeout 1h \
+              --output-format json > notary.json
+            cat notary.json
+            if [[ $(plutil -extract status raw notary.json) != Accepted ]]; then
+              xcrun notarytool log "$(plutil -extract id raw notary.json)" "${NOTARY[@]}"
+              exit 1
+            fi
+            xcrun stapler staple "$DMG"
+            spctl --assess --type open --context context:primary-signature -vv "$DMG"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
