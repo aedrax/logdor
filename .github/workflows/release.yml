@@ -218,11 +218,11 @@ jobs:
           # Pass each plugin to macdeployqt so their liblogdor_interface/Qt
           # references get rewritten to the bundled Frameworks copies. For the
           # webengine variant this also pulls in QtWebEngineCore and its
-          # QtWebEngineProcess helper app. Its own signing leaves the bundle
-          # invalid (macOS kills the app at launch), so sign.sh does it.
+          # QtWebEngineProcess helper app. It leaves the bundle's signatures
+          # invalid (macOS kills the app at launch), so sign.sh re-signs it.
           EXTRA=()
           for p in "$APP"/Contents/plugins/*.dylib; do EXTRA+=("-executable=$p"); done
-          macdeployqt "$APP" "${EXTRA[@]}" -no-codesign
+          macdeployqt "$APP" "${EXTRA[@]}"
 
           IDENTITY=-
           if [[ -n $MACOS_CERTIFICATE ]]; then
