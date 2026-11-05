@@ -17,7 +17,7 @@ and parses only the rows on screen. So a
 - **30+ formats built in** logcat, syslog, Apache/nginx, JSON Lines,
   journalctl, Docker, Kubernetes CRI/klog, dmesg, auditd, CEF/LEEF, Snort,
   W3C/IIS, and more. Add your own by dropping a [declarative JSON
-  spec](core/formats/) into `~/.local/share/logdor/formats` no compiling,
+  spec](docs/FORMATS.md) into `~/.local/share/logdor/formats` no compiling,
   or author one interactively with the live-regex Custom Format Viewer.
 - **Field query language** `level:error tag:Wifi* pid>=100 "free text"`
   with AND/OR/NOT (toggle the `Q` button), plus plain-text, regex, and

@@ -98,11 +98,12 @@ is a union by UUID with last-write-wins by modification time.
 
 ## Extending Logdor
 
-**A new format without compiling** - drop a JSON spec into
-`~/.local/share/logdor/formats/` (see `core/formats/*.json` for the
-schema), or build it interactively in the **Custom Format Viewer** and
-click *Save as Format*. Specs participate in auto-detection and appear
-in the Log Viewer's format list. Bundled specs live in
+**A new format without compiling** - drop a JSON spec into your user
+formats directory (see [FORMATS.md](FORMATS.md) for the schema and
+per-platform paths), or build it interactively in the **Custom Format
+Viewer** and click *Save as Format*. Specs participate in
+auto-detection and appear in the Log Viewer's format list. Bundled specs
+live in
 `core/formats/`: `syslog-rfc3164`, `syslog-iso` (modern
 rsyslog/Ubuntu 24.04+ high-precision timestamps), `dpkg`, `dmesg`,
 `keyvalue`, `apt-history`, `apt-term`, `cloud-init`,
@@ -129,13 +130,10 @@ filtering) — all golden-tested against real captured lines in
 `timeMillis` and JsonTemplateLayout nested `instant`) parses via the
 `jsonlines` builtin.
 
-A `datetime` field may declare `"timeFormat"` — `"iso8601"`,
-`"epoch-s"`/`"epoch-ms"`/`"epoch-us"`, `"uptime"` (monotonic seconds
-since boot, e.g. dmesg/Xorg), or a Qt date/time pattern — so its values
-parse into comparable instants for temporal filtering and sorting (see
-`core/include/logdor/TimestampParse.h`). Omitted formats are
-auto-detected from sample values; year-less formats (RFC 3164, logcat)
-infer the year from the file's modification date.
+A `datetime` field's `"timeFormat"` makes its values comparable
+instants for temporal filtering and sorting; see
+[FORMATS.md](FORMATS.md#timestamps) and
+`core/include/logdor/TimestampParse.h`.
 
 **Binary logs** (systemd journal, wtmp/btmp/lastlog) have no newline
 record boundaries, so they don't fit the `LineIndex` pipeline; a

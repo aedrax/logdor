@@ -12,7 +12,7 @@ namespace logdor {
 
 /**
  * A user-writable log format definition - parse any format without
- * compiling. JSON schema:
+ * compiling. User-facing reference: docs/FORMATS.md. JSON schema:
  *
  * {
  *   "id": "myformat",                    // required, unique
